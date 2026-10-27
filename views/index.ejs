@@ -2,38 +2,481 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Sistem Informasi Program Kerja</title>
+    <title><%= pengaturan.nama_aplikasi %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background-color: #007bff; color: white; }
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .sidebar { height: 100vh; background: #1e1e2f; color: #fff; padding-top: 25px; position: fixed; width: 260px; box-shadow: 2px 0 15px rgba(0,0,0,0.1); z-index: 1000; overflow-y: auto; }
+        .sidebar h4 { text-align: center; margin-bottom: 30px; font-weight: 800; letter-spacing: 2px; color: #4361ee; }
+        .sidebar .nav-link { color: #a9a9bc; margin: 0 15px 8px 15px; padding: 12px 20px; border-radius: 8px; transition: all 0.3s ease; display: flex; align-items: center; gap: 12px; font-weight: 500; }
+        .sidebar .nav-link i { font-size: 1.1rem; width: 20px; text-align: center; }
+        .sidebar .nav-link:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.05); transform: translateX(5px); }
+        .sidebar .nav-link.active { background: #4361ee; color: #fff; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.4); }
+        .main-content { margin-left: 260px; padding: 40px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .card-header { background-color: #fff; font-weight: 700; border-bottom: 1px solid #f0f0f0; border-radius: 12px 12px 0 0 !important; padding: 15px 20px; }
     </style>
 </head>
 <body>
-    <h1>Dasbor Program Kerja</h1>
-    <h2>Daftar Bidang Terdaftar</h2>
-<h3>Tambah Bidang Baru</h3>
-    <form action="/bidang" method="POST">
-        <input type="text" name="nama_bidang" placeholder="Nama Bidang" required>
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <button type="submit">Simpan</button>
-    </form>
-    <br>    
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Nama Bidang</th>
-            <th>Username</th>
-        </tr>
-        <% dataBidang.forEach(function(bidang) { %>
-        <tr>
-            <td><%= bidang.id %></td>
-            <td><%= bidang.nama_bidang %></td>
-            <td><%= bidang.username %></td>
-        </tr>
-        <% }); %>
-    </table>
+
+    <!-- Tombol Logout di Pojok Kanan Atas -->
+    <div style="position: fixed; top: 15px; right: 20px; z-index: 1050;">
+    <% if (typeof userSession !== 'undefined' && userSession) { %>
+        <a href="/logout" class="btn btn-danger btn-sm fw-bold shadow">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    <% } %>
+    </div>
+
+    <!-- SIDEBAR KIRI -->
+    <div class="sidebar">
+        <h4><i class="fas fa-shield-alt me-2"></i><%= pengaturan.nama_aplikasi %></h4>
+        <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist">
+            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#modul-dashboard" type="button"><i class="fas fa-chart-pie"></i> Dashboard</button>
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#modul-lembaga" type="button"><i class="fas fa-building"></i> Kelola Lembaga</button>
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#modul-user" type="button"><i class="fas fa-users-cog"></i> Manajemen User</button>
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#modul-siklus" type="button"><i class="fas fa-history"></i> Siklus TA / History</button>
+            <hr class="text-secondary mx-3">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#modul-pengaturan" type="button"><i class="fas fa-cogs"></i> Pengaturan Global</button>
+        </div>
+        
+        <div class="p-3" style="position: absolute; bottom: 20px; width: 100%; left: 0; padding: 0 20px;">
+            <% if (typeof userSession !== 'undefined' && userSession) { %>
+                <div class="text-white-50 small mb-2 px-2">Login: <strong><%= userSession.username %></strong></div>
+            <% } %>
+            <a href="/logout" class="btn btn-danger fw-bold d-flex align-items-center justify-content-center gap-2" style="width: 85%; margin: 0 auto;">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- KONTEN UTAMA KANAN -->
+    <div class="main-content">
+
+        <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+            <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+                <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+        <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+            <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i> <%= error_msg %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+
+        <div class="tab-content">
+            
+            <!-- MODUL 1: DASHBOARD -->
+            <div class="tab-pane fade show active" id="modul-dashboard" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold text-dark">Dashboard Superadmin</h2>
+                    <span class="badge bg-primary px-3 py-2 rounded-pill">Tahun Anggaran <%= pengaturan.tahun_aktif %></span>
+                </div>
+
+                <!-- KARTU INFORMASI USER LOGIN -->
+                <% if (typeof userSession !== 'undefined' && userSession) { %>
+                    <div class="card bg-white border-0 shadow-sm mb-4">
+                        <div class="card-body d-flex align-items-center justify-content-between p-3 px-4">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-sm" style="width: 45px; height: 45px; font-size: 1.2rem;">
+                                    <i class="fas fa-user-shield"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark"><%= userSession.nama_lengkap || userSession.username %></h6>
+                                    <small class="text-muted">Username: <code><%= userSession.username %></code></small>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="badge bg-dark px-3 py-2 text-uppercase fw-bold shadow-sm">
+                                    <i class="fas fa-id-badge me-1"></i> Role: <%= userSession.role %>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                <% } %>
+                
+                <div class="card mb-4">
+                    <div class="card-body p-4 text-center py-4">
+                        <i class="fas fa-layer-group fa-3x text-primary mb-3"></i>
+                        <h4 class="fw-bold">Selamat Datang di Panel Superadmin</h4>
+                        <p class="text-muted mb-0">Berikut adalah daftar organisasi/lembaga yang terdaftar di dalam sistem hirarki tertinggi.</p>
+                    </div>
+                </div>
+
+                <h4 class="fw-bold mb-3 text-secondary"><i class="fas fa-building me-2"></i>Daftar Lembaga Terdaftar</h4>
+                <div class="row g-3">
+                    <% if (typeof listLembaga !== 'undefined' && listLembaga.length > 0) { %>
+                        <% listLembaga.forEach(lembaga => { %>
+                            <div class="col-md-4">
+                                <div class="card h-100 shadow-sm border-0">
+                                    <div class="card-body text-center p-4">
+                                        <% if (lembaga.logo) { %>
+                                            <img src="/uploads/logo/<%= lembaga.logo %>" alt="Logo" width="70" height="70" class="rounded-circle object-fit-cover shadow-sm mb-3">
+                                        <% } else { %>
+                                            <div class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center shadow-sm mb-3" style="width: 70px; height: 70px; font-size: 24px;">
+                                                <i class="fas fa-landmark"></i>
+                                            </div>
+                                        <% } %>
+                                        <h5 class="fw-bold text-dark mb-1"><%= lembaga.nama_organisasi %></h5>
+                                        <p class="text-muted small mb-2">Ketua: <strong><%= lembaga.nama_ketua || '-' %></strong></p>
+                                        <p class="text-muted small mb-3"><i class="fas fa-phone me-1"></i> <%= lembaga.nomor_hp || '-' %></p>
+                                        <hr class="text-muted my-2">
+                                        <p class="text-secondary small mb-0"><%= lembaga.alamat || 'Alamat belum diatur' %></p>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }) %>
+                    <% } else { %>
+                        <div class="col-12">
+                            <div class="card text-center py-5">
+                                <p class="text-muted mb-0">Belum ada lembaga yang terdaftar.</p>
+                            </div>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+
+            <!-- MODUL 2: KELOLA LEMBAGA -->
+            <div class="tab-pane fade" id="modul-lembaga" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold text-dark">Manajemen Organisasi / Lembaga</h2>
+                    <button type="button" class="btn btn-primary fw-bold px-3 py-2" data-bs-toggle="modal" data-bs-target="#modalTambahLembaga">
+                        <i class="fas fa-plus-circle me-2"></i> Tambah Lembaga
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body p-4">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Logo</th>
+                                        <th>Nama Organisasi</th>
+                                        <th>Ketua</th>
+                                        <th>No HP</th>
+                                        <th>Alamat</th>
+                                        <th class="text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% if (typeof listLembaga !== 'undefined' && listLembaga.length > 0) { %>
+                                        <% listLembaga.forEach(lembaga => { %>
+                                            <tr>
+                                                <td>
+                                                    <% if (lembaga.logo) { %>
+                                                        <img src="/uploads/logo/<%= lembaga.logo %>" alt="Logo" width="40" height="40" class="rounded-circle object-fit-cover shadow-sm">
+                                                    <% } else { %>
+                                                        <span class="badge bg-secondary">No Logo</span>
+                                                    <% } %>
+                                                </td>
+                                                <td class="fw-bold"><%= lembaga.nama_organisasi %></td>
+                                                <td><%= lembaga.nama_ketua || '-' %></td>
+                                                <td><%= lembaga.nomor_hp || '-' %></td>
+                                                <td><%= lembaga.alamat || '-' %></td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditLembaga<%= lembaga.id %>">
+                                                        <i class="fas fa-edit"></i> Edit
+                                                    </button>
+                                                </td>
+                                            </tr>
+
+                                            <div class="modal fade" id="modalEditLembaga<%= lembaga.id %>" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <form action="/lembaga/edit/<%= lembaga.id %>" method="POST" enctype="multipart/form-data">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title fw-bold">Edit Lembaga: <%= lembaga.nama_organisasi %></h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <div class="modal-body text-start">
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Nama Organisasi</label>
+                                                                    <input type="text" name="nama_organisasi" class="form-control" value="<%= lembaga.nama_organisasi %>" required>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Nama Ketua</label>
+                                                                    <input type="text" name="nama_ketua" class="form-control" value="<%= lembaga.nama_ketua || '' %>">
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Nomor HP / WhatsApp</label>
+                                                                    <input type="text" name="nomor_hp" class="form-control" value="<%= lembaga.nomor_hp || '' %>">
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Alamat</label>
+                                                                    <textarea name="alamat" class="form-control" rows="2"><%= lembaga.alamat || '' %></textarea>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Ganti Logo (Opsional)</label>
+                                                                    <input type="file" name="logo" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                                                                <button type="submit" class="btn btn-primary btn-sm px-4">Simpan Perubahan</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <% }) %>
+                                    <% } else { %>
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-4">Belum ada lembaga yang ditambahkan.</td>
+                                        </tr>
+                                    <% } %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODUL 3: MANAJEMEN USER -->
+            <div class="tab-pane fade" id="modul-user" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold text-dark">Manajemen User & Hak Akses</h2>
+                    <button type="button" class="btn btn-primary fw-bold px-3 py-2" data-bs-toggle="modal" data-bs-target="#modalTambahUser">
+                        <i class="fas fa-user-plus me-2"></i> Tambah User Baru
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body p-4">
+                        <div class="table-responsive">
+                            <table class="table table-hover mt-3 align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nama Lengkap</th>
+                                        <th>Username</th>
+                                        <th>Role / Hak Akses</th>
+                                        <th class="text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% if (typeof dataUser !== 'undefined' && dataUser.length > 0) { %>
+                                        <% dataUser.forEach(function(usr) { %>
+                                            <tr>
+                                                <td>#<%= usr.id %></td>
+                                                <td class="fw-bold"><%= usr.nama_lengkap %></td>
+                                                <td><code><%= usr.username %></code></td>
+                                                <td>
+                                                    <% if(usr.role === 'superadmin') { %>
+                                                        <span class="badge bg-danger">Superadmin</span>
+                                                    <% } else { %>
+                                                        <span class="badge bg-primary">Admin Lembaga</span>
+                                                    <% } %>
+                                                </td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditUser<%= usr.id %>">
+                                                        <i class="fas fa-edit"></i> Edit
+                                                    </button>
+                                                    <% if(usr.username !== 'superadmin') { %>
+                                                        <a href="/user/hapus/<%= usr.id %>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Yakin ingin menghapus user ini?')"><i class="fas fa-trash"></i></a>
+                                                    <% } %>
+                                                </td>
+                                            </tr>
+
+                                            <div class="modal fade" id="modalEditUser<%= usr.id %>" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <form action="/user/edit/<%= usr.id %>" method="POST">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title fw-bold">Edit User: <%= usr.username %></h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <div class="modal-body text-start">
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Nama Lengkap</label>
+                                                                    <input type="text" name="nama_lengkap" class="form-control" value="<%= usr.nama_lengkap %>" required>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Username</label>
+                                                                    <input type="text" name="username" class="form-control" value="<%= usr.username %>" required>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Password Baru</label>
+                                                                    <input type="password" name="password" class="form-control" placeholder="Biarkan kosong jika tetap">
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label small fw-bold">Hak Akses (Role)</label>
+                                                                    <select name="role" class="form-select" required>
+                                                                        <option value="superadmin" <%= usr.role === 'superadmin' ? 'selected' : '' %>>Superadmin</option>
+                                                                        <option value="admin_lembaga" <%= usr.role === 'admin_lembaga' ? 'selected' : '' %>>Admin Lembaga</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                                                                <button type="submit" class="btn btn-primary btn-sm px-4">Simpan Perubahan</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <% }); %>
+                                    <% } else { %>
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">Belum ada data user.</td>
+                                        </tr>
+                                    <% } %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODUL 4: SIKLUS TA / HISTORY -->
+            <div class="tab-pane fade" id="modul-siklus" role="tabpanel">
+                <h2 class="fw-bold mb-4">Siklus Tahun Anggaran (TA) & History</h2>
+                <div class="card">
+                    <div class="card-header bg-dark text-white"><i class="fas fa-calendar-alt me-2"></i>Daftar Arsip Siklus Tahun Buku</div>
+                    <div class="card-body p-4">
+                        <p class="text-muted">Pilih atau kelola tahun anggaran untuk beralih ke tahun tersebut sebagai hirarki tertinggi sistem:</p>
+                        <div class="row g-3">
+                            <% if (typeof listTahun !== 'undefined' && listTahun.length > 0) { %>
+                                <% listTahun.forEach(function(thn) { %>
+                                    <div class="col-md-4">
+                                        <div class="card border <%= thn == pengaturan.tahun_aktif ? 'border-primary shadow-sm' : '' %>">
+                                            <div class="card-body text-center p-4">
+                                                <h3 class="fw-bold text-dark mb-2"><%= thn %></h3>
+                                                <% if(thn == pengaturan.tahun_aktif) { %>
+                                                    <span class="badge bg-success mb-3 px-3 py-2">Sedang Aktif</span>
+                                                <% } else { %>
+                                                    <span class="badge bg-secondary mb-3 px-3 py-2">Arsip / History</span>
+                                                <% } %>
+                                                <div>
+                                                    <a href="/siklus-ta/pilih/<%= thn %>" class="btn btn-sm <%= thn == pengaturan.tahun_aktif ? 'btn-primary' : 'btn-outline-primary' %> w-100">
+                                                        <i class="fas fa-sign-in-alt me-1"></i> Buka Tahun <%= thn %>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <% }); %>
+                            <% } %>
+                        </div>
+                        <div class="alert alert-warning mt-4 mb-0">
+                            <i class="fas fa-lightbulb me-2"></i> <strong>Tips:</strong> Untuk membuat tahun baru (misal 2027 atau 2028), cukup masuk ke menu <strong>Pengaturan Global</strong>, ubah <em>Tahun Anggaran Aktif</em> ke tahun yang diinginkan lalu klik Simpan. Lembar kerja baru untuk tahun tersebut akan otomatis tercipta!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODUL 5: PENGATURAN GLOBAL -->
+            <div class="tab-pane fade" id="modul-pengaturan" role="tabpanel">
+                <h2 class="fw-bold mb-4">Pengaturan Global Aplikasi</h2>
+                <div class="card">
+                    <div class="card-header"><i class="fas fa-cogs me-2"></i>Konfigurasi Sistem & Hirarki Tertinggi</div>
+                    <div class="card-body p-4">
+                        <form action="/pengaturan" method="POST">
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold text-muted">Nama Aplikasi</label>
+                                    <input type="text" name="nama_aplikasi" class="form-control" value="<%= pengaturan.nama_aplikasi %>" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold text-muted">Tahun Anggaran Aktif (Hirarki Sistem)</label>
+                                    <input type="number" name="tahun_aktif" class="form-control" value="<%= pengaturan.tahun_aktif %>" required>
+                                    <small class="text-muted">Mengubah atau mengetik tahun baru di sini akan otomatis menciptakan siklus tahun baru.</small>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-end">
+                                <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-2"></i>Simpan Pengaturan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODAL TAMBAH LEMBAGA -->
+    <div class="modal fade" id="modalTambahLembaga" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/lembaga/tambah" method="POST" enctype="multipart/form-data">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Tambah Organisasi / Lembaga</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Nama Organisasi</label>
+                            <input type="text" name="nama_organisasi" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Nama Ketua</label>
+                            <input type="text" name="nama_ketua" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Nomor HP / WhatsApp</label>
+                            <input type="text" name="nomor_hp" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Alamat</label>
+                            <textarea name="alamat" class="form-control" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Logo Organisasi</label>
+                            <input type="file" name="logo" class="form-control">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary btn-sm px-4">Simpan Lembaga</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL TAMBAH USER -->
+    <div class="modal fade" id="modalTambahUser" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/user/tambah" method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Tambah User Baru</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Nama Lengkap</label>
+                            <input type="text" name="nama_lengkap" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Username</label>
+                            <input type="text" name="username" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Password</label>
+                            <input type="password" name="password" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Hak Akses (Role)</label>
+                            <select name="role" class="form-select" required>
+                                <option value="admin_lembaga">Admin Lembaga</option>
+                                <option value="superadmin">Superadmin</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary btn-sm px-4">Simpan User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memuat Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

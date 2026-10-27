@@ -20,7 +20,8 @@ module.exports = (sequelize, DataTypes) => {
     jadwal_bulan: DataTypes.STRING,
     volume: DataTypes.INTEGER,
     biaya_satuan: DataTypes.INTEGER,
-    total_biaya: DataTypes.INTEGER
+    total_biaya: DataTypes.INTEGER,
+    tahun: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'ProgramKerja',
