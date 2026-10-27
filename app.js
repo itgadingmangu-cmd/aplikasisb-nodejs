@@ -6,23 +6,31 @@ const { User, Bidang, ProgramKerja, Pengajuan, Laporan } = db;
 const app = express();
 const port = 3000;
 
+// Konfigurasi template engine EJS & pembacaan form HTML
+app.set('view engine', 'ejs');
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.get('/', (req, res) => {
-  res.send('API Sistem Informasi Program Kerja berjalan!');
+// Rute Tampilan Antarmuka (UI)
+app.get('/', async (req, res) => {
+  try {
+    const dataBidang = await Bidang.findAll();
+    res.render('index', { dataBidang });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
 });
 
 // --- API BIDANG ---
 app.post('/bidang', async (req, res) => {
   try {
     const { nama_bidang, username, password } = req.body;
-    const newBidang = await Bidang.create({ nama_bidang, username, password });
-    res.status(201).json(newBidang);
+    await Bidang.create({ nama_bidang, username, password });
+    res.redirect('/'); // Mengembalikan ke halaman dasbor setelah simpan
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).send(err.message);
   }
 });
-
 app.get('/bidang', async (req, res) => {
   try {
     const data = await Bidang.findAll();
@@ -42,7 +50,6 @@ app.post('/programkerja', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.get('/programkerja', async (req, res) => {
   try {
     const data = await ProgramKerja.findAll({ include: Bidang });
@@ -62,7 +69,6 @@ app.post('/pengajuan', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.get('/pengajuan', async (req, res) => {
   try {
     const data = await Pengajuan.findAll({ include: [ProgramKerja, Bidang] });
@@ -82,7 +88,6 @@ app.post('/laporan', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.get('/laporan', async (req, res) => {
   try {
     const data = await Laporan.findAll({ include: Pengajuan });

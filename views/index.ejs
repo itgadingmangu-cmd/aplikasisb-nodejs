@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistem Informasi Program Kerja</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Dasbor Program Kerja</h1>
+    <h2>Daftar Bidang Terdaftar</h2>
+<h3>Tambah Bidang Baru</h3>
+    <form action="/bidang" method="POST">
+        <input type="text" name="nama_bidang" placeholder="Nama Bidang" required>
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="password" name="password" placeholder="Password" required>
+        <button type="submit">Simpan</button>
+    </form>
+    <br>    
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Nama Bidang</th>
+            <th>Username</th>
+        </tr>
+        <% dataBidang.forEach(function(bidang) { %>
+        <tr>
+            <td><%= bidang.id %></td>
+            <td><%= bidang.nama_bidang %></td>
+            <td><%= bidang.username %></td>
+        </tr>
+        <% }); %>
+    </table>
+</body>
+</html>
