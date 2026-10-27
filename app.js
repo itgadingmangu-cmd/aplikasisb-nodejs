@@ -1,24 +1,33 @@
 require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
+const db = require('./models');
+const User = db.User || db.user;
 
 const app = express();
 const port = 3000;
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.send('Aplikasi Node.js & Sequelize berjalan!');
 });
 
-app.get('/', async (req, res) => {
+app.post('/users', async (req, res) => {
   try {
-    const result = await pool.query('SELECT NOW()');
-    res.send(`Aplikasi terhubung ke database! Waktu DB: ${result.rows[0].now}`);
+    const { nama, email } = req.body;
+    const newUser = await User.create({ nama, email });
+    res.status(201).json(newUser);
   } catch (err) {
-    res.status(500).send('Error koneksi database: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/users', async (req, res) => {
+  try {
+    const users = await User.findAll();
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
