@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const db = require('./models');
-const User = db.User || db.user;
+const { User, Bidang, ProgramKerja, Pengajuan, Laporan } = db;
 
 const app = express();
 const port = 3000;
@@ -9,23 +9,23 @@ const port = 3000;
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.send('Aplikasi Node.js & Sequelize berjalan!');
+  res.send('API Sistem Informasi Program Kerja berjalan!');
 });
 
-app.post('/users', async (req, res) => {
+app.post('/bidang', async (req, res) => {
   try {
-    const { nama, email } = req.body;
-    const newUser = await User.create({ nama, email });
-    res.status(201).json(newUser);
+    const { nama_bidang, username, password } = req.body;
+    const newBidang = await Bidang.create({ nama_bidang, username, password });
+    res.status(201).json(newBidang);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/users', async (req, res) => {
+app.get('/bidang', async (req, res) => {
   try {
-    const users = await User.findAll();
-    res.json(users);
+    const data = await Bidang.findAll();
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
