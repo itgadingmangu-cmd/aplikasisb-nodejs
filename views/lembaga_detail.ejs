@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Detail Lembaga - <%= lembaga.nama_organisasi %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .main-container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); margin-bottom: 25px; }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- Tombol Kembali -->
+        <div class="mb-3">
+            <a href="/" class="btn btn-secondary btn-sm fw-bold">
+                <i class="fas fa-arrow-left me-1"></i> Kembali ke Dashboard Utama
+            </a>
+        </div>
+
+        <!-- Profil Singkat Lembaga -->
+        <div class="card bg-white p-4">
+            <div class="row align-items-center">
+                <div class="col-md-2 text-center">
+                    <% if (lembaga.logo) { %>
+                        <img src="/uploads/logo/<%= lembaga.logo %>" alt="Logo" width="80" height="80" class="rounded-circle object-fit-cover shadow-sm">
+                    <% } else { %>
+                        <div class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center shadow-sm" style="width: 80px; height: 80px; font-size: 30px;">
+                            <i class="fas fa-landmark"></i>
+                        </div>
+                    <% } %>
+                </div>
+                <div class="col-md-10">
+                    <h3 class="fw-bold text-dark mb-1"><%= lembaga.nama_organisasi %></h3>
+                    <p class="text-muted mb-1">Ketua: <strong><%= lembaga.nama_ketua || '-' %></strong> | No HP: <strong><%= lembaga.nomor_hp || '-' %></strong></p>
+                    <p class="text-secondary small mb-0"><i class="fas fa-map-marker-alt me-1"></i> <%= lembaga.alamat || 'Alamat belum diatur' %></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daftar Bidang & Program Kerja di Lembaga Ini -->
+        <div class="card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold text-dark mb-0"><i class="fas fa-sitemap me-2 text-primary"></i>Struktur Bidang & Program Kerja</h4>
+            </div>
+            <hr>
+
+            <% if (lembaga.Bidangs && lembaga.Bidangs.length > 0) { %>
+                <div class="accordion" id="accordionBidang">
+                    <% lembaga.Bidangs.forEach((bidang, index) => { %>
+                        <div class="accordion-item border mb-3 rounded shadow-sm overflow-hidden">
+                            <h2 class="accordion-header" id="heading<%= bidang.id %>">
+                                <button class="accordion-button <%= index !== 0 ? 'collapsed' : '' %> fw-bold bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<%= bidang.id %>">
+                                    <i class="fas fa-folder-open text-primary me-2"></i> <%= bidang.nama_bidang %>
+                                </button>
+                            </h2>
+                            <div id="collapse<%= bidang.id %>" class="accordion-collapse collapse <%= index === 0 ? 'show' : '' %>" data-bs-parent="#accordionBidang">
+                                <div class="accordion-body bg-white">
+                                    <p class="text-muted small fst-italic">Belum ada program kerja yang di-input untuk bidang ini.</p>
+                                    <button class="btn btn-sm btn-outline-primary fw-bold" disabled>
+                                        <i class="fas fa-plus me-1"></i> Tambah Program Kerja (Segera Hadir)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    <% }) %>
+                </div>
+            <% } else { %>
+                <div class="text-center py-4">
+                    <p class="text-muted">Belum ada bidang yang terdaftar di lembaga ini.</p>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

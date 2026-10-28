@@ -10,13 +10,18 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       nama_bidang: {
-        type: Sequelize.STRING
+        type: Sequelize.STRING,
+        allowNull: false
       },
-      username: {
-        type: Sequelize.STRING
-      },
-      password: {
-        type: Sequelize.STRING
+      lembagaId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'Lembagas',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       createdAt: {
         allowNull: false,
