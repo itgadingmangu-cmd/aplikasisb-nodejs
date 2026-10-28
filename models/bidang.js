@@ -1,10 +1,17 @@
 'use strict';
 const { Model } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
   class Bidang extends Model {
     static associate(models) {
-      // Definisikan relasi: Satu Bidang milik satu Lembaga
+      // Relasi Bidang ke Lembaga
       Bidang.belongsTo(models.Lembaga, { foreignKey: 'lembagaId', as: 'Lembaga' });
+      
+      // Relasi Bidang ke Proker
+      Bidang.hasMany(models.Proker, { foreignKey: 'bidangId', as: 'Prokers', onDelete: 'CASCADE' });
+
+      // TAMBAHAN INI: Relasi Bidang ke User (Pengurus Bidang)
+      Bidang.hasMany(models.User, { foreignKey: 'id_bidang', as: 'Users' });
     }
   }
   Bidang.init({

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <%- include('../partials/sidebar') %>
+
+        <!-- Main Content -->
+        <div class="flex-grow-1" style="height: 100vh; overflow-y: auto;">
+            <div class="container mt-5 px-4 px-md-5 mb-5">
+                
+                <div class="mb-4">
+                    <h2 class="fw-bold text-dark mb-0"><%= title %></h2>
+                    <p class="text-muted small">Kelola bidang operasional, pengurus, dan program kerja di bawah lembaga Anda.</p>
+                </div>
+
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success shadow-sm"><i class="fas fa-check-circle me-2"></i><%= success_msg %></div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger shadow-sm"><i class="fas fa-exclamation-circle me-2"></i><%= error_msg %></div>
+                <% } %>
+
+                <div class="row g-4 mb-4">
+                    <!-- KOLOM KIRI: MANAJEMEN BIDANG -->
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm border-0 rounded-4 h-100">
+                            <div class="card-body p-4">
+                                <h5 class="fw-bold mb-3"><i class="fas fa-sitemap text-primary me-2"></i> Daftar Bidang Lembaga</h5>
+                                
+                                <form action="/lembaga-admin/bidang/tambah" method="POST" class="mb-4">
+                                    <div class="input-group">
+                                        <input type="text" name="nama_bidang" class="form-control" placeholder="Nama Bidang Baru (Cth: Sekretariat)" required>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus me-1"></i> Tambah</button>
+                                    </div>
+                                </form>
+
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>No</th>
+                                                <th>Nama Bidang</th>
+                                                <th class="text-center">Jumlah Proker</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <% if (bidangs && bidangs.length > 0) { %>
+                                                <% bidangs.forEach((b, index) => { %>
+                                                    <tr>
+                                                        <td><%= index + 1 %></td>
+                                                        <td class="fw-bold"><%= b.nama_bidang %></td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-info text-dark rounded-pill px-3">
+                                                                <%= b.Prokers ? b.Prokers.length : 0 %> Proker
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                <% }) %>
+                                            <% } else { %>
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted py-4">Belum ada bidang terdaftar.</td>
+                                                </tr>
+                                            <% } %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KOLOM KANAN: MANAJEMEN USER BIDANG -->
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm border-0 rounded-4 h-100">
+                            <div class="card-body p-4">
+                                <h5 class="fw-bold mb-3"><i class="fas fa-users-cog text-primary me-2"></i> Pengurus / User Bidang</h5>
+                                
+                                <form action="/lembaga-admin/user-bidang/tambah" method="POST" class="mb-4">
+                                    <div class="mb-2">
+                                        <input type="text" name="nama_lengkap" class="form-control form-control-sm" placeholder="Nama Lengkap Pengurus" required>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-md-6">
+                                            <input type="text" name="username" class="form-control form-control-sm" placeholder="Username Login" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="password" name="password" class="form-control form-control-sm" placeholder="Password" required>
+                                        </div>
+                                    </div>
+                                    <div class="input-group input-group-sm">
+                                        <select name="id_bidang" class="form-select" required>
+                                            <option value="" disabled selected>-- Pilih Bidang Penugasan --</option>
+                                            <% if (bidangs && bidangs.length > 0) { %>
+                                                <% bidangs.forEach(b => { %>
+                                                    <option value="<%= b.id %>"><%= b.nama_bidang %></option>
+                                                <% }) %>
+                                            <% } %>
+                                        </select>
+                                        <button type="submit" class="btn btn-success"><i class="fas fa-user-plus me-1"></i> Buat Akun</button>
+                                    </div>
+                                </form>
+
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Nama / User</th>
+                                                <th>Bidang</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <% if (users && users.length > 0) { %>
+                                                <% users.forEach(u => { %>
+                                                    <tr>
+                                                        <td>
+                                                            <strong class="d-block"><%= u.nama_lengkap %></strong>
+                                                            <small class="text-muted">@<%= u.username %></small>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-secondary">
+                                                                <%= u.Bidang ? u.Bidang.nama_bidang : 'Belum Ditugaskan' %>
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                <% }) %>
+                                            <% } else { %>
+                                                <tr>
+                                                    <td colspan="2" class="text-center text-muted py-4">Belum ada akun pengurus bidang.</td>
+                                                </tr>
+                                            <% } %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BAGIAN BAWAH: MODUL PROGRAM KERJA & ANGGARAN LEMBAGA -->
+                <div class="card shadow-sm border-0 rounded-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="fw-bold mb-0"><i class="fas fa-tasks text-primary me-2"></i> Program Kerja & Anggaran Lembaga</h5>
+                            <!-- Tombol Trigger Modal Tambah Proker -->
+                            <button type="button" class="btn btn-primary btn-sm rounded-3" data-bs-toggle="modal" data-bs-target="#modalTambahProker">
+                                <i class="fas fa-plus me-1"></i> Tambah Proker
+                            </button>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Nama Program Kerja</th>
+                                        <th>Bidang</th>
+                                        <th>Waktu Pelaksanaan</th>
+                                        <th>Status</th>
+                                        <th class="text-center">Aksi (Kelola Anggaran)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% if (prokers && prokers.length > 0) { %>
+                                        <% prokers.forEach((p, index) => { %>
+                                            <tr>
+                                                <td><%= index + 1 %></td>
+                                                <td class="fw-bold"><%= p.nama_program %></td>
+                                                <td>
+                                                    <span class="badge bg-light text-primary border border-primary">
+                                                        <%= p.Bidang ? p.Bidang.nama_bidang : '-' %>
+                                                    </span>
+                                                </td>
+                                                <td><%= p.waktu_pelaksanaan %></td>
+                                                <td>
+                                                    <span class="badge bg-secondary rounded-pill px-3"><%= p.status %></span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <!-- Tombol Rincian Biaya / Anggaran -->
+                                                    <a href="/proker/<%= p.id %>/biaya" class="btn btn-sm btn-outline-success rounded-3" title="Kelola Anggaran Biaya">
+                                                        <i class="fas fa-wallet me-1"></i> Rincian Biaya
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                    <% } else { %>
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-4">Belum ada Program Kerja terdaftar di lembaga ini.</td>
+                                        </tr>
+                                    <% } %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL TAMBAH PROKER -->
+    <div class="modal fade" id="modalTambahProker" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content rounded-4 border-0">
+                <form action="/lembaga-admin/proker/tambah" method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Tambah Program Kerja Baru</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Pilih Bidang</label>
+                            <select name="bidangId" class="form-select" required>
+                                <option value="" disabled selected>-- Pilih Bidang --</option>
+                                <% if (bidangs && bidangs.length > 0) { %>
+                                    <% bidangs.forEach(b => { %>
+                                        <option value="<%= b.id %>"><%= b.nama_bidang %></option>
+                                    <% }) %>
+                                <% } %>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Nama Program Kerja</label>
+                            <input type="text" name="nama_program" class="form-control" placeholder="Cth: Pelatihan IT" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Deskripsi Kegiatan</label>
+                            <textarea name="deskripsi" class="form-control" rows="2" placeholder="Rencana kegiatan..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Waktu Pelaksanaan</label>
+                            <input type="text" name="waktu_pelaksanaan" class="form-control" placeholder="Cth: Januari - Februari 2026" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Simpan Proker</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -3,7 +3,12 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const multer = require('multer');
+const { Op } = require('sequelize');
 const { User, Lembaga, Pengaturan, SiklusTahun, Bidang, sequelize } = require('./models');
+
+// IMPORT ROUTER PROKER & ADMIN LEMBAGA
+const prokerRoutes = require('./routes/proker');
+const lembagaAdminRoutes = require('./routes/lembagaAdmin');
 
 const app = express();
 
@@ -37,6 +42,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// --- MIDDLEWARE AUTENTIKASI & HAK AKSES ---
 function isAuthenticated(req, res, next) {
     if (req.session && req.session.user) return next();
     res.redirect('/login');
@@ -62,12 +68,12 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             await SiklusTahun.create({ tahun: tahunAktifStr, status: 'Aktif' });
         }
         
-        // Hitung total keseluruhan bidang secara global
-        const totalBidangGlobal = await Bidang.count();
-
-        // Hitung data untuk indikator kesehatan / tes sistem secara real-time
         const countLembaga = await Lembaga.count();
-        const countUser = await User.count();
+        const countUser = await User.count({
+            where: {
+                role: { [Op.in]: ['superadmin', 'admin_lembaga'] }
+            }
+        });
         const countSiklus = await SiklusTahun.count();
         
         let dbStatus = 'Terhubung & Normal';
@@ -85,12 +91,10 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             statusServer: 'Online'
         };
 
-        // Mengambil data lembaga beserta relasi Bidangnya secara berjenjang
         const rawListLembaga = await Lembaga.findAll({
             include: [{ model: Bidang, as: 'Bidangs' }]
         });
 
-        // Evaluasi status kelengkapan otomatis per lembaga
         const listLembaga = rawListLembaga.map(lembaga => {
             const plainLembaga = lembaga.toJSON();
             const jumlahBidang = plainLembaga.Bidangs ? plainLembaga.Bidangs.length : 0;
@@ -107,7 +111,13 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             return plainLembaga;
         });
 
-        const dataUser = await User.findAll({ include: ['Lembaga', 'Bidang'] });
+        const dataUser = await User.findAll({ 
+            where: {
+                role: { [Op.in]: ['superadmin', 'admin_lembaga'] }
+            },
+            include: [{ model: Lembaga, as: 'Lembaga' }],
+            order: [['createdAt', 'DESC']]
+        });
         
         const siklusList = await SiklusTahun.findAll({ order: [['tahun', 'DESC']] });
         const listTahun = siklusList.map(s => String(s.tahun));
@@ -126,7 +136,7 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
     }
 });
 
-// --- RUTE DETAIL / DEEP DIVE LEMBAGA (SUPERADMIN) ---
+// --- RUTE DETAIL / MONITORING LEMBAGA (SUPERADMIN) ---
 app.get('/lembaga/detail/:id', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -136,7 +146,6 @@ app.get('/lembaga/detail/:id', isAuthenticated, isSuperAdmin, async (req, res) =
             pengaturan = await Pengaturan.create({ nama_aplikasi: 'Aplikasi Program Kerja', tahun_aktif: 2026 });
         }
 
-        // Ambil data lembaga spesifik beserta Bidangnya
         const lembaga = await Lembaga.findByPk(id, {
             include: [{ model: Bidang, as: 'Bidangs' }]
         });
@@ -162,11 +171,11 @@ app.get('/diagnostik/cek', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         await sequelize.authenticate();
         const jmlLembaga = await Lembaga.count();
-        const jmlUser = await User.count();
+        const jmlUser = await User.count({ where: { role: { [Op.in]: ['superadmin', 'admin_lembaga'] } } });
         const jmlPengaturan = await Pengaturan.count();
         const jmlSiklus = await SiklusTahun.count();
 
-        req.session.success_msg = `DIAGNOSTIK SYSTEM OK: Database Terhubung, Modul Lembaga (${jmlLembaga}), User RBAC (${jmlUser}), Pengaturan Global (${jmlPengaturan}), dan Siklus TA (${jmlSiklus} Arsip) Berjalan Normal!`;
+        req.session.success_msg = `DIAGNOSTIK SYSTEM OK: Database Terhubung, Modul Lembaga (${jmlLembaga}), Admin RBAC (${jmlUser}), Pengaturan Global (${jmlPengaturan}), dan Siklus TA (${jmlSiklus} Arsip) Berjalan Normal!`;
         res.redirect('/');
     } catch (err) {
         req.session.error_msg = "DIAGNOSTIK GAGAL: Terkendala pada koneksi database atau tabel modul. Detail: " + err.message;
@@ -177,7 +186,7 @@ app.get('/diagnostik/cek', isAuthenticated, isSuperAdmin, async (req, res) => {
 // --- RUTE AUTH ---
 app.get('/login', (req, res) => {
     if (req.session.user) {
-        return res.redirect(req.session.user.role === 'superadmin' ? '/' : '/lembaga/dashboard');
+        return res.redirect(req.session.user.role === 'superadmin' ? '/' : '/lembaga-admin');
     }
     res.render('login');
 });
@@ -190,11 +199,13 @@ app.post('/login', async (req, res) => {
         if (user && bcrypt.compareSync(password, user.password)) {
             req.session.user = {
                 id: user.id,
+                nama_lengkap: user.nama_lengkap,
                 username: user.username,
                 role: user.role,          
-                lembagaId: user.lembagaId 
+                lembagaId: user.lembagaId,
+                id_bidang: user.id_bidang || null
             };
-            return res.redirect(user.role === 'superadmin' ? '/' : '/lembaga/dashboard');
+            return res.redirect(user.role === 'superadmin' ? '/' : '/lembaga-admin');
         } else {
             req.session.error_msg = "Username atau password salah!";
             res.redirect('/login');
@@ -208,7 +219,7 @@ app.get('/logout', (req, res) => {
     req.session.destroy(() => res.redirect('/login'));
 });
 
-// --- MANAJEMEN LEMBAGA ---
+// --- MANAJEMEN LEMBAGA (SUPERADMIN) ---
 app.post('/lembaga/tambah', isAuthenticated, isSuperAdmin, upload.single('logo'), async (req, res) => {
     try {
         const { nama_organisasi, nama_ketua, nomor_hp, alamat } = req.body;
@@ -244,32 +255,37 @@ app.post('/lembaga/edit/:id', isAuthenticated, isSuperAdmin, upload.single('logo
     }
 });
 
-// --- MANAJEMEN BIDANG ---
+// --- MANAJEMEN BIDANG OLEH SUPERADMIN (FUNGSI MONITORING / BANTUAN INPUT) ---
 app.post('/bidang/tambah', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { nama_bidang, lembagaId } = req.body;
         await Bidang.create({ nama_bidang, lembagaId });
         req.session.success_msg = "Bidang baru berhasil ditambahkan!";
-        res.redirect('/');
+        const referer = req.get('Referer') || '/';
+        res.redirect(referer);
     } catch (err) {
         req.session.error_msg = "Gagal menambah bidang: " + err.message;
         res.redirect('/');
     }
 });
 
-// --- MANAJEMEN USER ---
+// --- MANAJEMEN USER (KHUSUS SUPERADMIN & ADMIN LEMBAGA) ---
 app.post('/user/tambah', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { nama_lengkap, username, password, role, lembagaId } = req.body;
         const hashedPassword = bcrypt.hashSync(password, 10);
+        
+        const validRole = (role === 'superadmin') ? 'superadmin' : 'admin_lembaga';
+
         await User.create({ 
             nama_lengkap, 
             username, 
             password: hashedPassword, 
-            role: role || 'admin_lembaga',
-            lembagaId: role === 'admin_lembaga' ? (lembagaId || null) : null 
+            role: validRole,
+            lembagaId: validRole === 'admin_lembaga' ? (lembagaId || null) : null,
+            id_bidang: null 
         });
-        req.session.success_msg = "User baru berhasil ditambahkan!";
+        req.session.success_msg = "Akun Admin berhasil ditambahkan!";
         res.redirect('/');
     } catch (err) {
         req.session.error_msg = "Gagal menambah user: " + err.message;
@@ -284,16 +300,19 @@ app.post('/user/edit/:id', isAuthenticated, isSuperAdmin, async (req, res) => {
         let user = await User.findByPk(id);
         if (!user) return res.status(404).send("User tidak ditemukan");
 
+        const validRole = (role === 'superadmin') ? 'superadmin' : 'admin_lembaga';
+
         user.nama_lengkap = nama_lengkap;
         user.username = username;
-        user.role = role;
-        user.lembagaId = role === 'admin_lembaga' ? (lembagaId || null) : null;
+        user.role = validRole;
+        user.lembagaId = validRole === 'admin_lembaga' ? (lembagaId || null) : null;
+        user.id_bidang = null;
         
         if (password && password.trim() !== "") {
             user.password = bcrypt.hashSync(password, 10);
         }
         await user.save();
-        req.session.success_msg = "Data user berhasil diperbarui!";
+        req.session.success_msg = "Data Admin berhasil diperbarui!";
         res.redirect('/');
     } catch (err) {
         req.session.error_msg = "Gagal mengupdate user: " + err.message;
@@ -359,8 +378,12 @@ app.get('/siklus-ta/pilih/:tahun', isAuthenticated, isSuperAdmin, async (req, re
 });
 
 app.get('/lembaga/dashboard', isAuthenticated, (req, res) => {
-    res.send("Selamat datang di Dashboard Operasional Admin Lembaga!");
+    res.redirect('/lembaga-admin');
 });
+
+// --- DAFTARKAN RUTE MODUL APLIKASI ---
+app.use('/proker', isAuthenticated, prokerRoutes);
+app.use('/lembaga-admin', isAuthenticated, lembagaAdminRoutes);
 
 async function createSuperUser() {
     try {

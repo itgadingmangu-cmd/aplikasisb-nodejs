@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <%- include('../partials/sidebar') %>
+
+        <!-- Main Content -->
+        <div class="flex-grow-1" style="height: 100vh; overflow-y: auto;">
+            <div class="container mt-5 px-4 px-md-5 mb-5">
+                
+                <!-- Header & Navigasi Kembali -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <a href="/proker" class="text-decoration-none text-muted small mb-1 d-inline-block">
+                            <i class="fas fa-arrow-left me-1"></i> Kembali ke Daftar Proker
+                        </a>
+                        <h2 class="fw-bold text-dark mb-0">Rincian Anggaran Biaya</h2>
+                        <p class="text-muted small mb-0">Program Kerja: <strong class="text-primary"><%= proker.nama_program %></strong></p>
+                    </div>
+                </div>
+
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success shadow-sm"><i class="fas fa-check-circle me-2"></i><%= success_msg %></div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger shadow-sm"><i class="fas fa-exclamation-circle me-2"></i><%= error_msg %></div>
+                <% } %>
+
+                <div class="row g-4">
+                    <!-- Form Tambah Item Biaya -->
+                    <div class="col-lg-4">
+                        <div class="card shadow-sm border-0 rounded-4">
+                            <div class="card-body p-4">
+                                <h5 class="fw-bold mb-3"><i class="fas fa-plus-circle text-success me-2"></i> Tambah Item Biaya</h5>
+                                <form action="/proker/<%= proker.id %>/biaya/tambah" method="POST">
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Nama Item Pengeluaran</label>
+                                        <input type="text" name="nama_item" class="form-control" placeholder="Cth: Konsumsi Rapat" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Satuan</label>
+                                        <input type="text" name="satuan" class="form-control" placeholder="Cth: Kotak / Orang / Paket" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Jumlah (Volume)</label>
+                                        <input type="number" name="jumlah" class="form-control" placeholder="Cth: 50" required min="1">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Harga Satuan (Rp)</label>
+                                        <input type="number" name="harga_satuan" class="form-control" placeholder="Cth: 15000" required min="0">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Berapa Bulan (Frekuensi)</label>
+                                        <input type="number" name="bulan" class="form-control" value="1" placeholder="Cth: 1" required min="1">
+                                    </div>
+                                    <button type="submit" class="btn btn-success w-100 py-2 rounded-3 fw-bold">
+                                        <i class="fas fa-save me-1"></i> Simpan Item Biaya
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Daftar Rincian Biaya -->
+                    <div class="col-lg-8">
+                        <div class="card shadow-sm border-0 rounded-4">
+                            <div class="card-body p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold mb-0"><i class="fas fa-list-ul text-primary me-2"></i> Daftar Anggaran Biaya</h5>
+                                    <span class="badge bg-primary fs-6 px-3 py-2">
+                                        Total: Rp <%= grandTotal.toLocaleString('id-ID') %>
+                                    </span>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>No</th>
+                                                <th>Item</th>
+                                                <th>Vol x Harga x Bln</th>
+                                                <th class="text-end">Total (Rp)</th>
+                                                <th class="text-center">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <% if (proker.RincianBiayas && proker.RincianBiayas.length > 0) { %>
+                                                <% proker.RincianBiayas.forEach((item, index) => { %>
+                                                    <tr>
+                                                        <td><%= index + 1 %></td>
+                                                        <td>
+                                                            <strong class="d-block"><%= item.nama_item %></strong>
+                                                            <small class="text-muted"><%= item.jumlah %> <%= item.satuan %></small>
+                                                        </td>
+                                                        <td>
+                                                            <small class="text-muted">
+                                                                <%= item.jumlah %> x <%= item.harga_satuan.toLocaleString('id-ID') %> x <%= item.bulan %> bln
+                                                            </small>
+                                                        </td>
+                                                        <td class="fw-bold text-end">
+                                                            Rp <%= item.total.toLocaleString('id-ID') %>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <a href="/proker/<%= proker.id %>/biaya/hapus/<%= item.id %>" class="btn btn-sm btn-outline-danger rounded-3" onclick="return confirm('Yakin ingin menghapus item ini?')" title="Hapus">
+                                                                <i class="fas fa-trash"></i>
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                <% }) %>
+                                            <% } else { %>
+                                                <tr>
+                                                    <td colspan="5" class="text-center text-muted py-5">
+                                                        <i class="fas fa-wallet fs-2 mb-3 d-block opacity-50">></i>
+                                                        Belum ada rincian anggaran biaya untuk program kerja ini.
+                                                    </td>
+                                                </tr>
+                                            <% } %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>
