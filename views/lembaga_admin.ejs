@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Admin Lembaga</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f4f7f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .icon-box {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <!-- Konten Utama Dashboard Lembaga -->
+        <div class="flex-grow-1 p-4 min-vh-100">
+            <div class="container-fluid">
+                
+                <!-- Header Title -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Panel Kontrol Admin Lembaga</h2>
+                        <p class="text-muted mb-0">Kelola bidang operasional, pengurus, dan program kerja di bawah lembaga Anda.</p>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary px-3 py-2 rounded-pill fs-6 shadow-sm">
+                            <i class="fas fa-calendar-alt me-1"></i> Tahun Aktif: 2026
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Kartu Statistik Modern -->
+                <div class="row g-4 mb-4">
+                    <!-- Card Lembaga Aktif -->
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-primary border-4">
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box bg-primary bg-opacity-10 text-primary fs-4 me-3">
+                                    <i class="fas fa-landmark"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small d-block">Lembaga Aktif</span>
+                                    <h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 150px;" title="<%= (typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData.nama_organisasi : 'Lembaga' %>">
+                                        <%= (typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData.nama_organisasi : 'Lembaga' %>
+                                    </h6>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card Jumlah Bidang -->
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-success border-4">
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box bg-success bg-opacity-10 text-success fs-4 me-3">
+                                    <i class="fas fa-sitemap"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small d-block">Total Bidang</span>
+                                    <h5 class="fw-bold text-dark mb-0">
+                                        <%= (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Bidangs) ? lembagaData.Bidangs.length : 0 %> Bidang
+                                    </h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card Jumlah Pengurus -->
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-info border-4">
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box bg-info bg-opacity-10 text-info fs-4 me-3">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small d-block">Total Pengurus</span>
+                                    <h5 class="fw-bold text-dark mb-0">
+                                        <%= (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Users) ? lembagaData.Users.length : 0 %> Akun
+                                    </h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card Jumlah Proker -->
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-warning border-4">
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box bg-warning bg-opacity-10 text-warning fs-4 me-3">
+                                    <i class="fas fa-tasks"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small d-block">Program Kerja</span>
+                                    <h5 class="fw-bold text-dark mb-0">
+                                        <%= (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Prokers) ? lembagaData.Prokers.length : 0 %> Proker
+                                    </h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bagian Tabel Atas: Bidang & Pengurus -->
+                <div class="row g-4 mb-4">
+                    <!-- TABEL DAFTAR BIDANG -->
+                    <div class="col-lg-6">
+                        <div class="card p-4 bg-white h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold text-dark mb-0">
+                                    <i class="fas fa-sitemap text-primary me-2"></i> Daftar Bidang
+                                </h5>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr class="small text-uppercase">
+                                            <th scope="col" style="width: 15%;">No</th>
+                                            <th scope="col" style="width: 85%;">Nama Bidang</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Bidangs && lembagaData.Bidangs.length > 0) { %>
+                                            <% lembagaData.Bidangs.forEach((bidang, index) => { %>
+                                                <tr>
+                                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                                    <td><span class="fw-bold text-dark"><%= bidang.nama_bidang %></span></td>
+                                                </tr>
+                                            <% }) %>
+                                        <% } else { %>
+                                            <tr>
+                                                <td colspan="2" class="text-center py-3 text-muted small">Belum ada bidang terdaftar.</td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TABEL PENGURUS / USER BIDANG -->
+                    <div class="col-lg-6">
+                        <div class="card p-4 bg-white h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold text-dark mb-0">
+                                    <i class="fas fa-user-shield text-success me-2"></i> Pengurus / User Bidang
+                                </h5>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr class="small text-uppercase">
+                                            <th scope="col" style="width: 15%;">No</th>
+                                            <th scope="col" style="width: 50%;">Nama / Username</th>
+                                            <th scope="col" style="width: 35%;">Role</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Users && lembagaData.Users.length > 0) { %>
+                                            <% lembagaData.Users.forEach((usr, index) => { %>
+                                                <tr>
+                                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                                    <td>
+                                                        <span class="fw-bold text-dark d-block"><%= usr.nama_lengkap %></span>
+                                                        <small class="text-muted">@<%= usr.username %></small>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge bg-secondary bg-opacity-10 text-dark px-2 py-1">
+                                                            <%= usr.role %>
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            <% }) %>
+                                        <% } else { %>
+                                            <tr>
+                                                <td colspan="3" class="text-center py-3 text-muted small">Belum ada akun pengurus.</td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TABEL BAWAH: PROGRAM KERJA & ANGGARAN LEMBAGA -->
+                <div class="card p-4 bg-white mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold text-dark mb-0">
+                            <i class="fas fa-tasks text-warning me-2"></i> Program Kerja & Anggaran Lembaga
+                        </h5>
+                        <a href="/lembaga-admin/proker" class="btn btn-primary btn-sm px-3 fw-bold">
+                            <i class="fas fa-plus me-1"></i> Tambah Proker
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small text-uppercase">
+                                    <th scope="col" class="py-3" style="width: 5%;">No</th>
+                                    <th scope="col" class="py-3" style="width: 35%;">Nama Program Kerja</th>
+                                    <th scope="col" class="py-3" style="width: 25%;">Bidang</th>
+                                    <th scope="col" class="py-3" style="width: 20%;">Status</th>
+                                    <th scope="col" class="py-3 text-center" style="width: 15%;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Prokers && lembagaData.Prokers.length > 0) { %>
+                                    <% lembagaData.Prokers.forEach((proker, index) => { %>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                            <td>
+                                                <span class="fw-bold text-dark"><%= proker.nama_proker || proker.nama_program || 'Program Kerja' %></span>
+                                            </td>
+                                            <td>
+                                                <span class="text-muted"><%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %></span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
+                                                    <%= proker.status || 'Aktif' %>
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <a href="/proker/detail/<%= proker.id %>" class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-eye"></i> Kelola
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-muted">
+                                            <i class="fas fa-folder-open fs-3 d-block mb-2 text-secondary opacity-50"></i>
+                                            Belum ada Program Kerja terdaftar di lembaga ini.
+                                        </td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

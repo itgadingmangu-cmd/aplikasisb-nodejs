@@ -24,14 +24,7 @@ app.use(session({
     saveUninitialized: false
 }));
 
-app.use((req, res, next) => {
-    res.locals.success_msg = req.session.success_msg || null;
-    res.locals.error_msg = req.session.error_msg || null;
-    delete req.session.success_msg;
-    delete req.session.error_msg;
-    next();
-});
-
+// --- KONFIGURASI MULTER UNTUK UPLOAD ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'public/uploads/logo/');
@@ -41,6 +34,30 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage });
+
+// --- MIDDLEWARE FLASH MESSAGE & GLOBAL SETTING (AGAR BISA DIAKSES DI SEMUA VIEW / SIDEBAR) ---
+app.use(async (req, res, next) => {
+    res.locals.success_msg = req.session.success_msg || null;
+    res.locals.error_msg = req.session.error_msg || null;
+    delete req.session.success_msg;
+    delete req.session.error_msg;
+
+    // Ambil pengaturan global untuk keperluan sidebar/header global secara otomatis
+    try {
+        let globalSetting = await Pengaturan.findOne();
+        if (!globalSetting) {
+            globalSetting = await Pengaturan.create({ 
+                nama_aplikasi: 'Aplikasi Program Kerja', 
+                tahun_aktif: 2026 
+            });
+        }
+        res.locals.globalSetting = globalSetting;
+    } catch (e) {
+        res.locals.globalSetting = { nama_aplikasi: 'Aplikasi Program Kerja', logo_aplikasi: null };
+    }
+
+    next();
+});
 
 // --- MIDDLEWARE AUTENTIKASI & HAK AKSES ---
 function isAuthenticated(req, res, next) {
@@ -255,7 +272,7 @@ app.post('/lembaga/edit/:id', isAuthenticated, isSuperAdmin, upload.single('logo
     }
 });
 
-// --- MANAJEMEN BIDANG OLEH SUPERADMIN (FUNGSI MONITORING / BANTUAN INPUT) ---
+// --- MANAJEMEN BIDANG OLEH SUPERADMIN ---
 app.post('/bidang/tambah', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { nama_bidang, lembagaId } = req.body;
@@ -269,7 +286,7 @@ app.post('/bidang/tambah', isAuthenticated, isSuperAdmin, async (req, res) => {
     }
 });
 
-// --- MANAJEMEN USER (KHUSUS SUPERADMIN & ADMIN LEMBAGA) ---
+// --- MANAJEMEN USER ---
 app.post('/user/tambah', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { nama_lengkap, username, password, role, lembagaId } = req.body;
@@ -320,8 +337,8 @@ app.post('/user/edit/:id', isAuthenticated, isSuperAdmin, async (req, res) => {
     }
 });
 
-// --- PENGATURAN GLOBAL & SIKLUS TAHUN ---
-app.post('/pengaturan', isAuthenticated, isSuperAdmin, async (req, res) => {
+// --- PENGATURAN GLOBAL & SIKLUS TAHUN (DENGAN DUKUNGAN UPLOAD LOGO APLIKASI INDUK) ---
+app.post('/pengaturan', isAuthenticated, isSuperAdmin, upload.single('logo_aplikasi'), async (req, res) => {
     try {
         const { nama_aplikasi, tahun_aktif } = req.body;
         const tahunInt = parseInt(tahun_aktif, 10);
@@ -330,9 +347,17 @@ app.post('/pengaturan', isAuthenticated, isSuperAdmin, async (req, res) => {
         if (pengaturan) {
             pengaturan.nama_aplikasi = nama_aplikasi;
             pengaturan.tahun_aktif = tahunInt;
+            if (req.file) {
+                pengaturan.logo_aplikasi = req.file.filename;
+            }
             await pengaturan.save();
         } else {
-            await Pengaturan.create({ nama_aplikasi, tahun_aktif: tahunInt });
+            const logoFilename = req.file ? req.file.filename : null;
+            await Pengaturan.create({ 
+                nama_aplikasi, 
+                tahun_aktif: tahunInt, 
+                logo_aplikasi: logoFilename 
+            });
         }
 
         await SiklusTahun.update({ status: 'Arsip' }, { where: {} });
@@ -345,7 +370,7 @@ app.post('/pengaturan', isAuthenticated, isSuperAdmin, async (req, res) => {
             await siklus.save();
         }
 
-        req.session.success_msg = `Tahun Anggaran aktif berhasil diatur ke ${tahunInt}!`;
+        req.session.success_msg = `Pengaturan Global & Tahun Anggaran aktif berhasil diperbarui ke ${tahunInt}!`;
         res.redirect('/');
     } catch (err) {
         console.error(err);

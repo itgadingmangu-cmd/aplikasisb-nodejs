@@ -8,7 +8,7 @@
     <style>
         body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .sidebar { height: 100vh; background: #1e1e2f; color: #fff; padding-top: 25px; position: fixed; width: 260px; box-shadow: 2px 0 15px rgba(0,0,0,0.1); z-index: 1000; overflow-y: auto; }
-        .sidebar h4 { text-align: center; margin-bottom: 30px; font-weight: 800; letter-spacing: 2px; color: #4361ee; }
+        .sidebar h4 { text-align: center; margin-bottom: 30px; font-weight: 800; letter-spacing: 1px; color: #4361ee; padding: 0 10px; }
         .sidebar .nav-link { color: #a9a9bc; margin: 0 15px 8px 15px; padding: 12px 20px; border-radius: 8px; transition: all 0.3s ease; display: flex; align-items: center; gap: 12px; font-weight: 500; }
         .sidebar .nav-link i { font-size: 1.1rem; width: 20px; text-align: center; }
         .sidebar .nav-link:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.05); transform: translateX(5px); }
@@ -29,9 +29,16 @@
     <% } %>
     </div>
 
-    <!-- SIDEBAR KIRI -->
+    <!-- SIDEBAR KIRI (LOGO DIATAS SIDEBAR) -->
     <div class="sidebar">
-        <h4><i class="fas fa-shield-alt me-2"></i><%= pengaturan.nama_aplikasi %></h4>
+        <h4 class="d-flex align-items-center justify-content-center gap-2 px-2">
+            <% if (pengaturan && pengaturan.logo_aplikasi) { %>
+                <img src="/uploads/logo/<%= pengaturan.logo_aplikasi %>" alt="Logo" class="rounded-circle border bg-white shadow-sm" width="35" height="35" style="object-fit: cover;">
+            <% } else { %>
+                <i class="fas fa-shield-alt"></i>
+            <% } %>
+            <span class="text-truncate" style="font-size: 1.05rem;"><%= pengaturan.nama_aplikasi %></span>
+        </h4>
         <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist">
             <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#modul-dashboard" type="button"><i class="fas fa-chart-pie"></i> Dashboard</button>
             <button class="nav-link" data-bs-toggle="pill" data-bs-target="#modul-lembaga" type="button"><i class="fas fa-building"></i> Kelola Lembaga</button>
@@ -98,9 +105,14 @@
                     </div>
                 <% } %>
                 
+                <!-- KARTU SAMBUTAN UTAMA (LOGO DIATAS SELAMAT DATANG) -->
                 <div class="card mb-4">
                     <div class="card-body p-4 text-center py-4">
-                        <i class="fas fa-layer-group fa-3x text-primary mb-3"></i>
+                        <% if (pengaturan && pengaturan.logo_aplikasi) { %>
+                            <img src="/uploads/logo/<%= pengaturan.logo_aplikasi %>" alt="Logo Induk" class="rounded-circle border bg-white shadow-sm mb-3" width="75" height="75" style="object-fit: cover;">
+                        <% } else { %>
+                            <i class="fas fa-layer-group fa-3x text-primary mb-3"></i>
+                        <% } %>
                         <h4 class="fw-bold">Selamat Datang di Panel Superadmin</h4>
                         <p class="text-muted mb-0">Berikut adalah daftar organisasi/lembaga yang terdaftar di dalam sistem hirarki tertinggi.</p>
                     </div>
@@ -551,7 +563,7 @@
                 <div class="card">
                     <div class="card-header"><i class="fas fa-cogs me-2"></i>Konfigurasi Sistem & Hirarki Tertinggi</div>
                     <div class="card-body p-4">
-                        <form action="/pengaturan" method="POST">
+                        <form action="/pengaturan" method="POST" enctype="multipart/form-data">
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold text-muted">Nama Aplikasi</label>
@@ -561,6 +573,18 @@
                                     <label class="form-label small fw-bold text-muted">Tahun Anggaran Aktif (Hirarki Sistem)</label>
                                     <input type="number" name="tahun_aktif" class="form-control" value="<%= pengaturan.tahun_aktif %>" required>
                                     <small class="text-muted">Mengubah atau mengetik tahun baru di sini akan otomatis menciptakan siklus tahun baru.</small>
+                                </div>
+
+                                <!-- UPLOAD LOGO APLIKASI INDUK -->
+                                <div class="col-md-12 mt-3">
+                                    <label class="form-label small fw-bold text-muted">Logo Aplikasi Induk</label>
+                                    <% if (pengaturan && pengaturan.logo_aplikasi) { %>
+                                        <div class="mb-2">
+                                            <img src="/uploads/logo/<%= pengaturan.logo_aplikasi %>" alt="Logo Induk" class="rounded-circle border bg-white shadow-sm" width="50" height="50" style="object-fit: cover;">
+                                        </div>
+                                    <% } %>
+                                    <input type="file" name="logo_aplikasi" class="form-control" accept="image/*">
+                                    <small class="text-muted">Pilih file gambar (JPG/PNG) untuk mengganti logo aplikasi di sidebar dan dashboard.</small>
                                 </div>
                             </div>
                             <div class="mt-4 text-end">
