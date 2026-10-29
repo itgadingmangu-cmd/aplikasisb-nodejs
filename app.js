@@ -4,7 +4,8 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const multer = require('multer');
 const { Op } = require('sequelize');
-const { User, Lembaga, Pengaturan, SiklusTahun, Bidang, sequelize } = require('./models');
+// DITAMBAHKAN: Mengimpor RealisasiBiaya agar ikut tersinkronisasi otomatis oleh Sequelize
+const { User, Lembaga, Pengaturan, SiklusTahun, Bidang, Proker, RincianBiaya, RealisasiBiaya, sequelize } = require('./models');
 
 // IMPORT ROUTER PROKER & ADMIN LEMBAGA
 const prokerRoutes = require('./routes/proker');
@@ -430,10 +431,10 @@ async function createSuperUser() {
     }
 }
 
-// --- MENJALANKAN SERVER & SINKRONISASI DATABASE ---
+// --- MENJALANKAN SERVER & SINKRONISASI DATABASE OTOMATIS ---
 const PORT = 3000;
 sequelize.sync({ alter: true }).then(async () => {
-    console.log('Database & tabel berhasil disinkronkan.');
+    console.log('Database & tabel (termasuk Proker, RincianBiaya, & RealisasiBiaya) berhasil disinkronkan.');
     await createSuperUser();
     app.listen(PORT, () => {
         console.log(`Server berjalan di http://localhost:${PORT}`);

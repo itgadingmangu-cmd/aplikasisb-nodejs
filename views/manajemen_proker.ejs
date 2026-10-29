@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Program Kerja & Anggaran</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-4 min-vh-100">
+            <div class="container-fluid">
+                
+                <!-- Header Title -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Manajemen Program Kerja & Anggaran</h2>
+                        <p class="text-muted mb-0">Rencanakan program kerja tiap bidang beserta estimasi kebutuhan biayanya.</p>
+                    </div>
+                    <a href="/lembaga-admin" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i> Kembali ke Dashboard
+                    </a>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Form Tambah Proker (Kolom Kiri) -->
+                    <div class="col-lg-4">
+                        <div class="card p-4 bg-white">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-plus-circle text-primary me-2"></i> Tambah Program Kerja
+                            </h5>
+                            <form action="/lembaga-admin/proker/tambah" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Nama Program Kerja</label>
+                                    <input type="text" class="form-control" name="nama_program" placeholder="Contoh: Pelatihan Jaringan LAN" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Bidang Penanggung Jawab</label>
+                                    <select class="form-select" name="bidangId" required>
+                                        <option value="">-- Pilih Bidang --</option>
+                                        <% if (lembagaData && lembagaData.Bidangs) { %>
+                                            <% lembagaData.Bidangs.forEach(b => { %>
+                                                <option value="<%= b.id %>"><%= b.nama_bidang %></option>
+                                            <% }) %>
+                                        <% } %>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Bulan Pelaksanaan</label>
+                                    <select class="form-select" name="waktu_pelaksanaan" required>
+                                        <option value="">-- Pilih Bulan Pelaksanaan --</option>
+                                        <option value="Januari">Januari</option>
+                                        <option value="Februari">Februari</option>
+                                        <option value="Maret">Maret</option>
+                                        <option value="April">April</option>
+                                        <option value="Mei">Mei</option>
+                                        <option value="Juni">Juni</option>
+                                        <option value="Juli">Juli</option>
+                                        <option value="Agustus">Agustus</option>
+                                        <option value="September">September</option>
+                                        <option value="Oktober">Oktober</option>
+                                        <option value="November">November</option>
+                                        <option value="Desember">Desember</option>
+                                        <option value="Triwulan I (Jan - Mar)">Triwulan I (Jan - Mar)</option>
+                                        <option value="Triwulan II (Apr - Jun)">Triwulan II (Apr - Jun)</option>
+                                        <option value="Triwulan III (Jul - Sep)">Triwulan III (Jul - Sep)</option>
+                                        <option value="Triwulan IV (Okt - Des)">Triwulan IV (Okt - Des)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Status Program</label>
+                                    <select class="form-select" name="status">
+                                        <option value="Direncanakan">Direncanakan</option>
+                                        <option value="Sedang Berjalan">Sedang Berjalan</option>
+                                        <option value="Selesai">Selesai</option>
+                                    </select>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold small">Deskripsi / Sasaran</label>
+                                    <textarea class="form-control" name="deskripsi" rows="3" placeholder="Uraian singkat tujuan proker..."></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                                    <i class="fas fa-save me-1"></i> Simpan Program Kerja
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Daftar Proker (Kolom Kanan) -->
+                    <div class="col-lg-8">
+                        <div class="card p-4 bg-white h-100">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-tasks text-success me-2"></i> Daftar Program Kerja Terdaftar
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr class="small text-uppercase">
+                                            <th>No</th>
+                                            <th>Nama Program & Bidang</th>
+                                            <th>Bulan</th>
+                                            <th>Status</th>
+                                            <th class="text-end">Total RAB</th>
+                                            <th class="text-center">Aksi RAB</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% if (lembagaData && lembagaData.Prokers && lembagaData.Prokers.length > 0) { %>
+                                            <% lembagaData.Prokers.forEach((p, index) => { %>
+                                                <% 
+                                                    let totalRAB = 0;
+                                                    if (p.RincianBiayas && p.RincianBiayas.length > 0) {
+                                                        totalRAB = p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+                                                    }
+                                                %>
+                                                <tr>
+                                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                                    <td>
+                                                        <span class="fw-bold text-dark d-block"><%= p.nama_program %></span>
+                                                        <small class="text-muted"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
+                                                    </td>
+                                                    <td><span class="small text-muted"><%= p.waktu_pelaksanaan || '-' %></span></td>
+                                                    <td>
+                                                        <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
+                                                            <%= p.status %>
+                                                        </span>
+                                                    </td>
+                                                    <td class="text-end fw-bold text-success">
+                                                        Rp <%= totalRAB.toLocaleString('id-ID') %>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <a href="/lembaga-admin/proker/rab/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Kelola RAB / Rincian Biaya">
+                                                            <i class="fas fa-calculator me-1"></i> RAB
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <% }) %>
+                                        <% } else { %>
+                                            <tr>
+                                                <td colspan="6" class="text-center py-4 text-muted small">Belum ada program kerja terdaftar.</td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

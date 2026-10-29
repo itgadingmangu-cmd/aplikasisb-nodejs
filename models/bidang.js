@@ -10,16 +10,28 @@ module.exports = (sequelize, DataTypes) => {
       // Relasi Bidang ke Proker
       Bidang.hasMany(models.Proker, { foreignKey: 'bidangId', as: 'Prokers', onDelete: 'CASCADE' });
 
-      // TAMBAHAN INI: Relasi Bidang ke User (Pengurus Bidang)
-      Bidang.hasMany(models.User, { foreignKey: 'id_bidang', as: 'Users' });
+      // Relasi Bidang ke User (Pengurus Bidang)
+      Bidang.hasMany(models.User, { foreignKey: 'id_bidang', as: 'Users', onDelete: 'SET NULL' });
     }
   }
+
   Bidang.init({
-    nama_bidang: DataTypes.STRING,
-    lembagaId: DataTypes.INTEGER
+    nama_bidang: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
+    deskripsi_tugas: {
+      type: DataTypes.TEXT, // <-- Kolom baru untuk menyimpan uraian tugas/jobdesk bidang
+      allowNull: true
+    },
+    lembagaId: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    }
   }, {
     sequelize,
     modelName: 'Bidang',
   });
+
   return Bidang;
 };

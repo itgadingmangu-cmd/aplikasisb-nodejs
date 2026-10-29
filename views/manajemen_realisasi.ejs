@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Realisasi Biaya Program Kerja</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-4 min-vh-100">
+            <div class="container-fluid">
+                
+                <!-- Header Title -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Pencatatan Realisasi Anggaran</h2>
+                        <p class="text-muted mb-0">Program Kerja: <strong class="text-primary"><%= proker.nama_program %></strong></p>
+                    </div>
+                    <a href="/lembaga-admin/realisasi" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i> Kembali ke Laporan Realisasi
+                    </a>
+                </div>
+
+                <% 
+                    let totalRAB = proker.RincianBiayas ? proker.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
+                    let totalRealisasi = proker.Realisasis ? proker.Realisasis.reduce((s, i) => s + (parseFloat(i.nominal_realisasi) || 0), 0) : 0;
+                    let sisaAnggaran = totalRAB - totalRealisasi;
+                %>
+
+                <!-- Info Ringkas Anggaran vs Realisasi -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card p-3 bg-white border-start border-4 border-primary">
+                            <span class="text-muted small fw-bold">TOTAL Pagu RAB (Rencana)</span>
+                            <h4 class="fw-bold text-primary mb-0 mt-1">Rp <%= totalRAB.toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-3 bg-white border-start border-4 border-success">
+                            <span class="text-muted small fw-bold">TOTAL Realisasi (Riil)</span>
+                            <h4 class="fw-bold text-success mb-0 mt-1">Rp <%= totalRealisasi.toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-3 bg-white border-start border-4 <%= sisaAnggaran < 0 ? 'border-danger' : 'border-secondary' %>">
+                            <span class="text-muted small fw-bold">Sisa / Selisih Anggaran</span>
+                            <h4 class="fw-bold <%= sisaAnggaran < 0 ? 'text-danger' : 'text-secondary' %> mb-0 mt-1">Rp <%= sisaAnggaran.toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Form Input Realisasi (Kiri) -->
+                    <div class="col-lg-4">
+                        <div class="card p-4 bg-white">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-plus-circle text-primary me-2"></i> Input Pengeluaran Riil
+                            </h5>
+                            <form action="/lembaga-admin/proker/realisasi/tambah/<%= proker.id %>" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Uraian / Keterangan Pengeluaran</label>
+                                    <input type="text" class="form-control" name="uraian_pengeluaran" placeholder="Contoh: Pembayaran Sewa Tempat" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Nominal Pengeluaran (Rp)</label>
+                                    <input type="number" class="form-control" name="nominal_realisasi" placeholder="Contoh: 500000" min="0" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Tanggal Transaksi</label>
+                                    <input type="date" class="form-control" name="tanggal_transaksi" required>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold small">Catatan / Keterangan Tambahan</label>
+                                    <textarea class="form-control" name="keterangan" rows="3" placeholder="Opsional..."></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                                    <i class="fas fa-save me-1"></i> Simpan Realisasi Biaya
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Riwayat Realisasi (Kanan) -->
+                    <div class="col-lg-8">
+                        <div class="card p-4 bg-white h-100">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-list text-success me-2"></i> Riwayat Pengeluaran Riil
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr class="small text-uppercase">
+                                            <th>No</th>
+                                            <th>Uraian & Catatan</th>
+                                            <th>Tanggal</th>
+                                            <th class="text-end">Nominal</th>
+                                            <th class="text-center">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% if (proker.Realisasis && proker.Realisasis.length > 0) { %>
+                                            <% proker.Realisasis.forEach((item, index) => { %>
+                                                <tr>
+                                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                                    <td>
+                                                        <span class="fw-bold text-dark d-block"><%= item.uraian_pengeluaran %></span>
+                                                        <small class="text-muted"><%= item.keterangan || '-' %></small>
+                                                    </td>
+                                                    <td><%= item.tanggal_transaksi %></td>
+                                                    <td class="text-end fw-bold text-success">
+                                                        Rp <%= parseFloat(item.nominal_realisasi).toLocaleString('id-ID') %>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <a href="/lembaga-admin/proker/realisasi/hapus/<%= item.id %>" class="btn btn-outline-danger btn-sm" title="Hapus" onclick="return confirm('Yakin ingin menghapus catatan realisasi ini?');">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <% }) %>
+                                        <% } else { %>
+                                            <tr>
+                                                <td colspan="5" class="text-center py-4 text-muted small">Belum ada data pengeluaran realisasi yang dicatat.</td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

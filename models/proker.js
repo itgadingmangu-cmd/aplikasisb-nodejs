@@ -7,8 +7,14 @@ module.exports = (sequelize, DataTypes) => {
       // Relasi Proker ke Bidang
       Proker.belongsTo(models.Bidang, { foreignKey: 'bidangId', as: 'Bidang' });
       
-      // Relasi Proker ke RincianBiaya
+      // Relasi Proker ke Lembaga (PENTING: agar query include Lembaga/Prokers tidak error)
+      Proker.belongsTo(models.Lembaga, { foreignKey: 'lembagaId', as: 'Lembaga' });
+      
+      // Relasi Proker ke RincianBiaya (RAB)
       Proker.hasMany(models.RincianBiaya, { foreignKey: 'prokerId', as: 'RincianBiayas', onDelete: 'CASCADE' });
+
+      // TAMBAHAN UTAMA: Relasi Proker ke RealisasiBiaya (Pengeluaran Riil)
+      Proker.hasMany(models.RealisasiBiaya, { foreignKey: 'prokerId', as: 'Realisasis', onDelete: 'CASCADE' });
     }
   }
   Proker.init({
@@ -16,7 +22,9 @@ module.exports = (sequelize, DataTypes) => {
     deskripsi: DataTypes.TEXT,
     waktu_pelaksanaan: DataTypes.STRING,
     status: DataTypes.STRING,
-    bidangId: DataTypes.INTEGER
+    bidangId: DataTypes.INTEGER,
+    lembagaId: DataTypes.INTEGER, // <-- KUNCI UTAMA: Ditambahkan agar tersambung ke Lembaga
+    anggaran: DataTypes.DECIMAL(12, 2) // <-- Ditambahkan untuk menyimpan nominal total RAB
   }, {
     sequelize,
     modelName: 'Proker',

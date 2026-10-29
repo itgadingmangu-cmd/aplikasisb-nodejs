@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Rincian Anggaran (RAB) Program Kerja</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-4 min-vh-100">
+            <div class="container-fluid">
+                
+                <!-- Header Title & Info Proker -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Rincian Anggaran Biaya (RAB)</h2>
+                        <p class="text-muted mb-0">Program Kerja: <strong class="text-primary"><%= proker.nama_program %></strong></p>
+                    </div>
+                    <a href="/lembaga-admin/proker" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i> Kembali ke Daftar Proker
+                    </a>
+                </div>
+
+                <!-- Info Ringkas Proker -->
+                <div class="alert alert-primary bg-primary bg-opacity-10 border-0 text-dark mb-4 p-3 rounded-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="d-block small text-muted">Pelaksanaan: <strong><%= proker.waktu_pelaksanaan || '-' %></strong> | Status: <strong><%= proker.status %></strong></span>
+                        <span>Deskripsi: <%= proker.deskripsi || 'Tidak ada deskripsi' %></span>
+                    </div>
+                    <div class="text-end">
+                        <span class="d-block small text-muted">Akumulasi Total RAB:</span>
+                        <h4 class="fw-bold text-success mb-0">
+                            Rp <%= (proker.RincianBiayas ? proker.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0).toLocaleString('id-ID') %>
+                        </h4>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Form Tambah Item RAB (Kolom Kiri) -->
+                    <div class="col-lg-4">
+                        <div class="card p-4 bg-white">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-plus-circle text-primary me-2"></i> Tambah Item Komponen Biaya
+                            </h5>
+                            <form action="/lembaga-admin/proker/rab/tambah/<%= proker.id %>" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Uraian / Nama Item Kebutuhan</label>
+                                    <input type="text" class="form-control" name="nama_item" placeholder="Contoh: Konsumsi Rapat Koordinasi" required>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold small">Volume / Jumlah</label>
+                                        <input type="number" class="form-control" name="jumlah" placeholder="Contoh: 3" min="1" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold small">Satuan</label>
+                                        <input type="text" class="form-control" name="satuan" placeholder="Kotak / Orang / Paket">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Harga Satuan (Rp)</label>
+                                    <input type="number" class="form-control" name="harga_satuan" placeholder="Contoh: 25000" min="0" required>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold small">Bulan Alokasi</label>
+                                    <select class="form-select" name="bulan">
+                                        <option value="<%= proker.waktu_pelaksanaan %>"><%= proker.waktu_pelaksanaan || 'Pilih Bulan' %> (Sesuai Proker)</option>
+                                        <option value="Januari">Januari</option>
+                                        <option value="Februari">Februari</option>
+                                        <option value="Maret">Maret</option>
+                                        <option value="April">April</option>
+                                        <option value="Mei">Mei</option>
+                                        <option value="Juni">Juni</option>
+                                        <option value="Juli">Juli</option>
+                                        <option value="Agustus">Agustus</option>
+                                        <option value="September">September</option>
+                                        <option value="Oktober">Oktober</option>
+                                        <option value="November">November</option>
+                                        <option value="Desember">Desember</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                                    <i class="fas fa-save me-1"></i> Simpan Item Biaya
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Daftar Item RAB (Kolom Kanan) -->
+                    <div class="col-lg-8">
+                        <div class="card p-4 bg-white h-100">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-calculator text-success me-2"></i> Rincian Komponen Biaya (RAB)
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr class="small text-uppercase">
+                                            <th>No</th>
+                                            <th>Uraian Item</th>
+                                            <th>Vol / Satuan</th>
+                                            <th>Harga Satuan</th>
+                                            <th>Bulan</th>
+                                            <th class="text-end">Total</th>
+                                            <th class="text-center">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% if (proker.RincianBiayas && proker.RincianBiayas.length > 0) { %>
+                                            <% proker.RincianBiayas.forEach((item, index) => { %>
+                                                <tr>
+                                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                                    <td><span class="fw-bold text-dark"><%= item.nama_item %></span></td>
+                                                    <td><%= item.jumlah %> <%= item.satuan %></td>
+                                                    <td>Rp <%= item.harga_satuan.toLocaleString('id-ID') %></td>
+                                                    <td><span class="badge bg-light text-dark border"><%= item.bulan %></span></td>
+                                                    <td class="text-end fw-bold text-success">
+                                                        Rp <%= item.total.toLocaleString('id-ID') %>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <a href="/lembaga-admin/proker/rab/hapus/<%= item.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Item" onclick="return confirm('Yakin ingin menghapus item biaya ini?');">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <% }) %>
+                                        <% } else { %>
+                                            <tr>
+                                                <td colspan="7" class="text-center py-4 text-muted small">Belum ada rincian komponen biaya yang dientri.</td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

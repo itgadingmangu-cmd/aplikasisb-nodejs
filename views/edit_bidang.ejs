@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Bidang & Tugas</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card p-4 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="fw-bold text-dark mb-0">
+                            <i class="fas fa-edit text-warning me-2"></i> Edit Bidang & Uraian Tugas
+                        </h4>
+                        <a href="/lembaga-admin" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-arrow-left me-1"></i> Kembali
+                        </a>
+                    </div>
+
+                    <form action="/lembaga-admin/bidang/edit/<%= bidang.id %>" method="POST">
+                        <div class="mb-3">
+                            <label for="nama_bidang" class="form-label fw-bold">Nama Bidang / Bagian</label>
+                            <input type="text" class="form-control" id="nama_bidang" name="nama_bidang" value="<%= bidang.nama_bidang %>" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="deskripsi_tugas" class="form-label fw-bold">Uraian Tugas / Jobdesk</label>
+                            <textarea class="form-control" id="deskripsi_tugas" name="deskripsi_tugas" rows="8"><%= bidang.deskripsi_tugas ? bidang.deskripsi_tugas : '' %></textarea>
+                            <div class="form-text">Sesuaikan kembali poin-poin tugas pokok dan fungsi (tupoksi) untuk bidang ini.</div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="/lembaga-admin" class="btn btn-secondary">Batal</a>
+                            <button type="submit" class="btn btn-warning fw-bold px-4 text-dark">
+                                <i class="fas fa-save me-1"></i> Simpan Perubahan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
