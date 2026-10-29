@@ -21,12 +21,17 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     deskripsi_tugas: {
-      type: DataTypes.TEXT, // <-- Kolom baru untuk menyimpan uraian tugas/jobdesk bidang
+      type: DataTypes.TEXT, // <-- Kolom untuk menyimpan uraian tugas/jobdesk bidang
       allowNull: true
     },
     lembagaId: {
       type: DataTypes.INTEGER,
       allowNull: true
+    },
+    tahun: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 2026 // <-- Kolom baru untuk isolasi data per Tahun Anggaran
     }
   }, {
     sequelize,

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Realisasi Anggaran</title>
+    <title>Laporan Realisasi Anggaran - Tahun <%= pengaturan.tahun_aktif %></title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome Icons -->
@@ -21,16 +21,23 @@
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
                 
-                <!-- Header Title (Clean Header) -->
-                <div class="mb-4">
-                    <h2 class="fw-bold text-dark mb-1">Laporan Realisasi Anggaran</h2>
-                    <p class="text-muted mb-0">Monitoring perbandingan antara Pagu Anggaran (RAB) dan Pengeluaran Riil (Realisasi).</p>
+                <!-- Header Title dengan Indikator Tahun Anggaran -->
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Laporan Realisasi Anggaran</h2>
+                        <p class="text-muted mb-0">Monitoring perbandingan antara Pagu Anggaran (RAB) dan Pengeluaran Riil (Realisasi).</p>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm">
+                            <i class="fas fa-calendar-alt me-1"></i> Tahun Anggaran: <%= pengaturan.tahun_aktif %>
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Tabel Laporan Monitoring -->
-                <div class="card p-4 bg-white">
-                    <h5 class="fw-bold text-dark mb-3">
-                        <i class="fas fa-chart-line text-success me-2"></i> Rekapitulasi Realisasi per Program Kerja
+                <div class="card p-4 bg-white shadow-sm">
+                    <h5 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                        <i class="fas fa-chart-line text-success me-2"></i> Rekapitulasi Realisasi per Program Kerja (<%= pengaturan.tahun_aktif %>)
                     </h5>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -78,7 +85,7 @@
                                                 </span>
                                             </td>
                                             <td class="text-center">
-                                                <a href="/lembaga-admin/proker/realisasi/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Kelola Realisasi">
+                                                <a href="/lembaga-admin/proker/realisasi/<%= p.id %>" class="btn btn-outline-primary btn-sm shadow-sm" title="Kelola Realisasi">
                                                     <i class="fas fa-edit me-1"></i> Kelola Realisasi
                                                 </a>
                                             </td>
@@ -86,7 +93,10 @@
                                     <% }) %>
                                 <% } else { %>
                                     <tr>
-                                        <td colspan="7" class="text-center py-4 text-muted small">Belum ada data program kerja atau realisasi terdaftar.</td>
+                                        <td colspan="7" class="text-center py-5 text-muted small">
+                                            <i class="fas fa-folder-open fa-2x mb-2 d-block text-secondary opacity-50"></i>
+                                            Belum ada data program kerja atau realisasi terdaftar untuk Tahun Anggaran <%= pengaturan.tahun_aktif %>.
+                                        </td>
                                     </tr>
                                 <% } %>
                             </tbody>

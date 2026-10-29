@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manajemen Program Kerja & Anggaran</title>
+    <title>Manajemen Program Kerja & Anggaran - Tahun <%= pengaturan.tahun_aktif %></title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome Icons -->
@@ -21,21 +21,28 @@
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
                 
-                <!-- Header Title (Clean Header) -->
-                <div class="mb-4">
-                    <h2 class="fw-bold text-dark mb-1">Manajemen Program Kerja & Anggaran</h2>
-                    <p class="text-muted mb-0">Rencanakan program kerja tiap bidang beserta estimasi kebutuhan biayanya.</p>
+                <!-- Header Title dengan Badge Tahun Aktif -->
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Manajemen Program Kerja & Anggaran</h2>
+                        <p class="text-muted mb-0">Rencanakan program kerja tiap bidang beserta estimasi kebutuhan biayanya.</p>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm">
+                            <i class="fas fa-calendar-alt me-1"></i> Tahun Anggaran: <%= pengaturan.tahun_aktif %>
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Notifikasi Flash Message -->
                 <% if (locals.success_msg && success_msg) { %>
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
                         <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 <% } %>
                 <% if (locals.error_msg && error_msg) { %>
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
                         <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
@@ -44,8 +51,8 @@
                 <div class="row g-4">
                     <!-- Form Tambah Proker (Kolom Kiri) -->
                     <div class="col-lg-4">
-                        <div class="card p-4 bg-white">
-                            <h5 class="fw-bold text-dark mb-3">
+                        <div class="card p-4 bg-white shadow-sm">
+                            <h5 class="fw-bold text-dark mb-3 border-bottom pb-2">
                                 <i class="fas fa-plus-circle text-primary me-2"></i> Tambah Program Kerja
                             </h5>
                             <form action="/lembaga-admin/proker/tambah" method="POST">
@@ -56,7 +63,7 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Bidang Penanggung Jawab</label>
                                     <select class="form-select" name="bidangId" required>
-                                        <option value="">-- Pilih Bidang --</option>
+                                        <option value="">-- Pilih Bidang (<%= pengaturan.tahun_aktif %>) --</option>
                                         <% if (lembagaData && lembagaData.Bidangs) { %>
                                             <% lembagaData.Bidangs.forEach(b => { %>
                                                 <option value="<%= b.id %>"><%= b.nama_bidang %></option>
@@ -65,26 +72,18 @@
                                     </select>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold small">Bulan Pelaksanaan</label>
-                                    <select class="form-select" name="waktu_pelaksanaan" required>
-                                        <option value="">-- Pilih Bulan Pelaksanaan --</option>
-                                        <option value="Januari">Januari</option>
-                                        <option value="Februari">Februari</option>
-                                        <option value="Maret">Maret</option>
-                                        <option value="April">April</option>
-                                        <option value="Mei">Mei</option>
-                                        <option value="Juni">Juni</option>
-                                        <option value="Juli">Juli</option>
-                                        <option value="Agustus">Agustus</option>
-                                        <option value="September">September</option>
-                                        <option value="Oktober">Oktober</option>
-                                        <option value="November">November</option>
-                                        <option value="Desember">Desember</option>
-                                        <option value="Triwulan I (Jan - Mar)">Triwulan I (Jan - Mar)</option>
-                                        <option value="Triwulan II (Apr - Jun)">Triwulan II (Apr - Jun)</option>
-                                        <option value="Triwulan III (Jul - Sep)">Triwulan III (Jul - Sep)</option>
-                                        <option value="Triwulan IV (Okt - Des)">Triwulan IV (Okt - Des)</option>
-                                    </select>
+                                    <label class="form-label fw-bold small">Bulan Pelaksanaan (Centang Bulan)</label>
+                                    <div class="row g-2 bg-light p-3 rounded border">
+                                        <% for(let i = 1; i <= 12; i++) { %>
+                                            <div class="col-3 text-center">
+                                                <div class="form-check d-inline-block">
+                                                    <input class="form-check-input" type="checkbox" name="bulan" value="<%= i %>" id="bulan<%= i %>">
+                                                    <label class="form-check-label small fw-bold d-block" for="bulan<%= i %>">Bln <%= i %></label>
+                                                </div>
+                                            </div>
+                                        <% } %>
+                                    </div>
+                                    <div class="form-text small">Centang bulan-bulan pelaksanaan kegiatan.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Status Program</label>
@@ -98,7 +97,7 @@
                                     <label class="form-label fw-bold small">Deskripsi / Sasaran</label>
                                     <textarea class="form-control" name="deskripsi" rows="3" placeholder="Uraian singkat tujuan proker..."></textarea>
                                 </div>
-                                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                                <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm">
                                     <i class="fas fa-save me-1"></i> Simpan Program Kerja
                                 </button>
                             </form>
@@ -107,9 +106,9 @@
 
                     <!-- Tabel Daftar Proker (Kolom Kanan) -->
                     <div class="col-lg-8">
-                        <div class="card p-4 bg-white h-100">
-                            <h5 class="fw-bold text-dark mb-3">
-                                <i class="fas fa-tasks text-success me-2"></i> Daftar Program Kerja Terdaftar
+                        <div class="card p-4 bg-white h-100 shadow-sm">
+                            <h5 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                                <i class="fas fa-tasks text-success me-2"></i> Daftar Program Kerja (<%= pengaturan.tahun_aktif %>)
                             </h5>
                             <div class="table-responsive">
                                 <table class="table table-hover align-middle mb-0">
@@ -120,7 +119,7 @@
                                             <th>Bulan</th>
                                             <th>Status</th>
                                             <th class="text-end">Total RAB</th>
-                                            <th class="text-center">Aksi RAB</th>
+                                            <th class="text-center">Aksi & RAB</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -148,15 +147,27 @@
                                                         Rp <%= totalRAB.toLocaleString('id-ID') %>
                                                     </td>
                                                     <td class="text-center">
-                                                        <a href="/lembaga-admin/proker/rab/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Kelola RAB / Rincian Biaya">
-                                                            <i class="fas fa-calculator me-1"></i> RAB
-                                                        </a>
+                                                        <div class="d-flex justify-content-center gap-1">
+                                                            <!-- Tombol Kelola RAB -->
+                                                            <a href="/lembaga-admin/proker/rab/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Kelola RAB / Rincian Biaya">
+                                                                <i class="fas fa-calculator me-1"></i> RAB
+                                                            </a>
+                                                            <!-- Tombol Edit Program Kerja -->
+                                                            <% if (userSession.role === 'admin_lembaga' || p.bidangId === userSession.id_bidang) { %>
+                                                                <a href="/lembaga-admin/proker/edit/<%= p.id %>" class="btn btn-outline-warning btn-sm" title="Edit Program Kerja">
+                                                                    <i class="fas fa-edit"></i>
+                                                                </a>
+                                                            <% } %>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             <% }) %>
                                         <% } else { %>
                                             <tr>
-                                                <td colspan="6" class="text-center py-4 text-muted small">Belum ada program kerja terdaftar.</td>
+                                                <td colspan="6" class="text-center py-5 text-muted small">
+                                                    <i class="fas fa-folder-open fa-2x mb-2 d-block text-secondary opacity-50"></i>
+                                                    Belum ada program kerja terdaftar untuk Tahun Anggaran <%= pengaturan.tahun_aktif %>.
+                                                </td>
                                             </tr>
                                         <% } %>
                                     </tbody>

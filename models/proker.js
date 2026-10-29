@@ -24,7 +24,12 @@ module.exports = (sequelize, DataTypes) => {
     status: DataTypes.STRING,
     bidangId: DataTypes.INTEGER,
     lembagaId: DataTypes.INTEGER, // <-- KUNCI UTAMA: Ditambahkan agar tersambung ke Lembaga
-    anggaran: DataTypes.DECIMAL(12, 2) // <-- Ditambahkan untuk menyimpan nominal total RAB
+    anggaran: DataTypes.DECIMAL(12, 2), // <-- Ditambahkan untuk menyimpan nominal total RAB
+    tahun: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 2026 // <-- Kolom baru untuk isolasi data per Tahun Anggaran
+    }
   }, {
     sequelize,
     modelName: 'Proker',

@@ -30,7 +30,7 @@
                 <!-- Info Ringkas Proker -->
                 <div class="alert alert-primary bg-primary bg-opacity-10 border-0 text-dark mb-4 p-3 rounded-3 d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
                     <div>
-                        <span class="d-block small text-muted">Pelaksanaan: <strong><%= proker.waktu_pelaksanaan || '-' %></strong> | Status: <strong><%= proker.status %></strong></span>
+                        <span class="d-block small text-muted">Bulan Pelaksanaan (Checkbox): <strong><%= proker.waktu_pelaksanaan ? 'Bulan ke: ' + proker.waktu_pelaksanaan : '-' %></strong> | Status: <strong><%= proker.status %></strong></span>
                         <span>Deskripsi: <%= proker.deskripsi || 'Tidak ada deskripsi' %></span>
                     </div>
                     <div class="text-start text-md-end w-100 w-md-auto border-top border-primary border-opacity-25 pt-2 pt-md-0">
@@ -42,7 +42,7 @@
                 </div>
 
                 <div class="row g-4">
-                    <!-- Form Tambah Item RAB (Kolom Kiri) -->
+                    <!-- Form Tambah Item RAB (Kolom Kiri) - Tanpa Pilih Bulan Manual -->
                     <div class="col-lg-4">
                         <div class="card p-4 bg-white">
                             <h5 class="fw-bold text-dark mb-3">
@@ -67,24 +67,22 @@
                                     <label class="form-label fw-bold small">Harga Satuan (Rp)</label>
                                     <input type="number" class="form-control" name="harga_satuan" placeholder="Contoh: 25000" min="0" required>
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label fw-bold small">Bulan Alokasi</label>
-                                    <select class="form-select" name="bulan">
-                                        <option value="<%= proker.waktu_pelaksanaan %>"><%= proker.waktu_pelaksanaan || 'Pilih Bulan' %> (Sesuai Proker)</option>
-                                        <option value="Januari">Januari</option>
-                                        <option value="Februari">Februari</option>
-                                        <option value="Maret">Maret</option>
-                                        <option value="April">April</option>
-                                        <option value="Mei">Mei</option>
-                                        <option value="Juni">Juni</option>
-                                        <option value="Juli">Juli</option>
-                                        <option value="Agustus">Agustus</option>
-                                        <option value="September">September</option>
-                                        <option value="Oktober">Oktober</option>
-                                        <option value="November">November</option>
-                                        <option value="Desember">Desember</option>
-                                    </select>
+                                
+                                <!-- Info Otomatis Bulan dari Checkbox Proker -->
+                                <div class="alert alert-info py-2 px-3 small mb-4">
+                                    <i class="fas fa-info-circle me-1"></i> Alokasi bulan dihitung otomatis berdasarkan centang bulan pada Program Kerja (Total bulan aktif: 
+                                    <strong>
+                                        <% 
+                                            let countBulan = 1;
+                                            if (proker.waktu_pelaksanaan) {
+                                                let arrB = proker.waktu_pelaksanaan.split(',').filter(Boolean);
+                                                if (arrB.length > 0) countBulan = arrB.length;
+                                            }
+                                        %>
+                                        <%= countBulan %> Bulan
+                                    </strong>).
                                 </div>
+
                                 <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
                                     <i class="fas fa-save me-1"></i> Simpan Item Biaya
                                 </button>
@@ -106,7 +104,7 @@
                                             <th>Uraian Item</th>
                                             <th>Vol / Satuan</th>
                                             <th>Harga Satuan</th>
-                                            <th>Bulan</th>
+                                            <th>Durasi (Bulan)</th>
                                             <th class="text-end">Total</th>
                                             <th class="text-center">Aksi</th>
                                         </tr>
@@ -119,15 +117,22 @@
                                                     <td><span class="fw-bold text-dark"><%= item.nama_item %></span></td>
                                                     <td><%= item.jumlah %> <%= item.satuan %></td>
                                                     <td>Rp <%= item.harga_satuan.toLocaleString('id-ID') %></td>
-                                                    <td><span class="badge bg-light text-dark border"><%= item.bulan %></span></td>
+                                                    <td><span class="badge bg-light text-dark border"><%= item.bulan %> Bulan</span></td>
                                                     <td class="text-end fw-bold text-success">
                                                         Rp <%= item.total.toLocaleString('id-ID') %>
                                                     </td>
                                                     <td class="text-center">
-                                                        <a href="/lembaga-admin/proker/rab/hapus/<%= item.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Item" onclick="return confirm('Yakin ingin menghapus item biaya ini?');">
-                                                            <i class="fas fa-trash-alt"></i>
-                                                        </a>
-                                                    </td>
+    <div class="d-flex justify-content-center gap-1">
+        <!-- Tombol Edit Item RAB -->
+        <a href="/lembaga-admin/proker/rab/edit/<%= item.id %>" class="btn btn-outline-warning btn-sm" title="Edit Item">
+            <i class="fas fa-edit"></i>
+        </a>
+        <!-- Tombol Hapus Item RAB -->
+        <a href="/lembaga-admin/proker/rab/hapus/<%= item.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Item" onclick="return confirm('Yakin ingin menghapus item biaya ini?');">
+            <i class="fas fa-trash-alt"></i>
+        </a>
+    </div>
+</td>
                                                 </tr>
                                             <% }) %>
                                         <% } else { %>

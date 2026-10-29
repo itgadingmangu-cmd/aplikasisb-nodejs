@@ -38,23 +38,25 @@
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
                 
-                <!-- Header Title & Tombol Aksi Kanan Atas (Responsive & Rapi) -->
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-                    <div>
+                <!-- Header Title & Tombol Aksi Kanan Atas -->
+                <div class="row align-items-center mb-4 g-3">
+                    <div class="col-lg-8">
                         <h2 class="fw-bold text-dark mb-1">Panel Kontrol Admin Lembaga</h2>
                         <p class="text-muted mb-0">Kelola bidang operasional, pengurus, dan program kerja di bawah lembaga Anda.</p>
                     </div>
-                    <div class="d-flex flex-wrap align-items-center gap-2 w-100 w-md-auto justify-content-md-end">
-                        <span class="badge bg-primary px-3 py-2 rounded-pill fs-6 shadow-sm">
-                            <i class="fas fa-calendar-alt me-1"></i> Tahun Aktif: 2026
-                        </span>
-                        <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">
-                            <i class="fas fa-sign-out-alt me-1"></i> Keluar
-                        </a>
+                    <div class="col-lg-4 text-lg-end">
+                        <div class="d-inline-flex align-items-center gap-2">
+                            <span class="badge bg-primary px-3 py-2 rounded-pill fs-6 shadow-sm">
+                                <i class="fas fa-calendar-alt me-1"></i> Tahun Aktif: <%= (typeof pengaturan !== 'undefined' && pengaturan.tahun_aktif) ? pengaturan.tahun_aktif : '2026' %>
+                            </span>
+                            <a href="/logout" class="item-link btn btn-outline-danger btn-sm fw-bold">
+                                <i class="fas fa-sign-out-alt me-1"></i> Keluar
+                            </a>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Kartu Statistik Modern (4 Kolom Seimbang) -->
+                <!-- 1. Kartu Statistik Modern (4 Kolom Seimbang) -->
                 <div class="row g-4 mb-4">
                     <!-- Card Lembaga Aktif -->
                     <div class="col-md-3">
@@ -125,7 +127,85 @@
                     </div>
                 </div>
 
-                <!-- Bagian Tabel Atas: Bidang & Pengurus -->
+                <!-- 2. Matriks Program Kerja & Anggaran (Bulan 1 - 12) - Pindah ke bawah statistik -->
+                <div class="card p-4 bg-white mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold text-dark mb-0">
+                            <i class="fas fa-tasks text-warning me-2"></i> Matriks Program Kerja & Anggaran Lembaga (Bulan 1 - 12)
+                        </h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle mb-0 text-center">
+                            <thead class="table-light">
+                                <tr class="small text-uppercase">
+                                    <th rowspan="2" class="align-middle py-3" style="width: 4%;">No</th>
+                                    <th rowspan="2" class="align-middle py-3 text-start" style="width: 26%;">Nama Program Kerja</th>
+                                    <th rowspan="2" class="align-middle py-3" style="width: 15%;">Bidang</th>
+                                    <th colspan="12" class="py-2">Bulan Pelaksanaan</th>
+                                    <th rowspan="2" class="align-middle py-3" style="width: 10%;">Status</th>
+                                    <th rowspan="2" class="align-middle py-3" style="width: 10%;">Aksi</th>
+                                </tr>
+                                <tr class="small">
+                                    <% for(let m = 1; m <= 12; m++) { %>
+                                        <th class="py-2" style="width: 3%;"><%= m %></th>
+                                    <% } %>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Prokers && lembagaData.Prokers.length > 0) { %>
+                                    <% lembagaData.Prokers.forEach((proker, index) => { %>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                            <td class="text-start">
+                                                <span class="fw-bold text-dark"><%= proker.nama_proker || proker.nama_program || 'Program Kerja' %></span>
+                                            </td>
+                                            <td>
+                                                <span class="text-muted small"><%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %></span>
+                                            </td>
+                                            
+                                            <!-- Looping Check Matriks Bulan 1 s.d 12 -->
+                                            <% 
+                                                let activeMonths = [];
+                                                if (proker.waktu_pelaksanaan) {
+                                                    activeMonths = String(proker.waktu_pelaksanaan).split(',').map(item => item.trim());
+                                                }
+                                            %>
+                                            <% for(let m = 1; m <= 12; m++) { %>
+                                                <td>
+                                                    <% if (activeMonths.includes(String(m))) { %>
+                                                        <span class="text-success fw-bold">✔</span>
+                                                    <% } else { %>
+                                                        <span class="text-muted opacity-25">-</span>
+                                                    <% } %>
+                                                </td>
+                                            <% } %>
+
+                                            <td>
+                                                <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
+                                                    <%= proker.status || 'Aktif' %>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <a href="/lembaga-admin/proker/rab/<%= proker.id %>" class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-eye"></i> Kelola
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="17" class="text-center py-4 text-muted">
+                                            <i class="fas fa-folder-open fs-3 d-block mb-2 text-secondary opacity-50"></i>
+                                            Belum ada Program Kerja terdaftar di lembaga ini.
+                                        </td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. Bagian Tabel Bawah: Bidang & Pengurus -->
                 <div class="row g-4 mb-4">
                     <!-- TABEL DAFTAR BIDANG -->
                     <div class="col-lg-6">
@@ -158,11 +238,9 @@
                                                     </td>
                                                     <td class="text-center">
                                                         <div class="d-flex justify-content-center gap-1">
-                                                            <!-- Tombol Edit Bidang -->
                                                             <a href="/lembaga-admin/bidang/edit/<%= bidang.id %>" class="btn btn-outline-warning btn-sm" title="Edit Bidang">
                                                                 <i class="fas fa-edit"></i>
                                                             </a>
-                                                            <!-- Tombol Hapus Bidang -->
                                                             <a href="/lembaga-admin/bidang/hapus/<%= bidang.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Bidang" onclick="return confirm('Yakin ingin menghapus bidang ini?');">
                                                                 <i class="fas fa-trash-alt"></i>
                                                             </a>
@@ -223,60 +301,6 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- TABEL BAWAH: PROGRAM KERJA & ANGGARAN LEMBAGA -->
-                <div class="card p-4 bg-white mb-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="fw-bold text-dark mb-0">
-                            <i class="fas fa-tasks text-warning me-2"></i> Program Kerja & Anggaran Lembaga
-                        </h5>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr class="small text-uppercase">
-                                    <th scope="col" class="py-3" style="width: 5%;">No</th>
-                                    <th scope="col" class="py-3" style="width: 35%;">Nama Program Kerja</th>
-                                    <th scope="col" class="py-3" style="width: 25%;">Bidang</th>
-                                    <th scope="col" class="py-3" style="width: 20%;">Status</th>
-                                    <th scope="col" class="py-3 text-center" style="width: 15%;">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Prokers && lembagaData.Prokers.length > 0) { %>
-                                    <% lembagaData.Prokers.forEach((proker, index) => { %>
-                                        <tr>
-                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
-                                            <td>
-                                                <span class="fw-bold text-dark"><%= proker.nama_proker || proker.nama_program || 'Program Kerja' %></span>
-                                            </td>
-                                            <td>
-                                                <span class="text-muted"><%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %></span>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
-                                                    <%= proker.status || 'Aktif' %>
-                                                </span>
-                                            </td>
-                                            <td class="text-center">
-                                                <a href="/proker/detail/<%= proker.id %>" class="btn btn-outline-primary btn-sm">
-                                                    <i class="fas fa-eye"></i> Kelola
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    <% }) %>
-                                <% } else { %>
-                                    <tr>
-                                        <td colspan="5" class="text-center py-4 text-muted">
-                                            <i class="fas fa-folder-open fs-3 d-block mb-2 text-secondary opacity-50"></i>
-                                            Belum ada Program Kerja terdaftar di lembaga ini.
-                                        </td>
-                                    </tr>
-                                <% } %>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
 

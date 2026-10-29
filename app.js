@@ -4,12 +4,12 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const multer = require('multer');
 const { Op } = require('sequelize');
-// DITAMBAHKAN: Mengimpor RealisasiBiaya agar ikut tersinkronisasi otomatis oleh Sequelize
 const { User, Lembaga, Pengaturan, SiklusTahun, Bidang, Proker, RincianBiaya, RealisasiBiaya, sequelize } = require('./models');
 
-// IMPORT ROUTER PROKER & ADMIN LEMBAGA
+// IMPORT ROUTER PROKER, ADMIN LEMBAGA, & SUPERADMIN
 const prokerRoutes = require('./routes/proker');
 const lembagaAdminRoutes = require('./routes/lembagaAdmin');
+const superadminRoutes = require('./routes/superadmin');
 
 const app = express();
 
@@ -36,14 +36,13 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- MIDDLEWARE FLASH MESSAGE & GLOBAL SETTING (AGAR BISA DIAKSES DI SEMUA VIEW / SIDEBAR) ---
+// --- MIDDLEWARE FLASH MESSAGE & GLOBAL SETTING ---
 app.use(async (req, res, next) => {
     res.locals.success_msg = req.session.success_msg || null;
     res.locals.error_msg = req.session.error_msg || null;
     delete req.session.success_msg;
     delete req.session.error_msg;
 
-    // Ambil pengaturan global untuk keperluan sidebar/header global secara otomatis
     try {
         let globalSetting = await Pengaturan.findOne();
         if (!globalSetting) {
@@ -79,7 +78,8 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             pengaturan = await Pengaturan.create({ nama_aplikasi: 'Aplikasi Program Kerja', tahun_aktif: 2026 });
         }
 
-        const tahunAktifStr = String(pengaturan.tahun_aktif);
+        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const tahunAktifStr = String(tahunAktifInt);
 
         let currentSiklus = await SiklusTahun.findOne({ where: { tahun: tahunAktifStr } });
         if (!currentSiklus) {
@@ -109,8 +109,14 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             statusServer: 'Online'
         };
 
+        // KUNCI UTAMA: Ambil Lembaga beserta Bidang yang terfilter murni berdasarkan tahun aktif
         const rawListLembaga = await Lembaga.findAll({
-            include: [{ model: Bidang, as: 'Bidangs' }]
+            include: [{ 
+                model: Bidang, 
+                as: 'Bidangs',
+                where: { tahun: tahunAktifInt },
+                required: false 
+            }]
         });
 
         const listLembaga = rawListLembaga.map(lembaga => {
@@ -120,11 +126,11 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             if (jumlahBidang > 0) {
                 plainLembaga.statusKelengkapan = 'Lengkap';
                 plainLembaga.badgeClass = 'bg-success';
-                plainLembaga.keteranganStatus = `${jumlahBidang} Bidang Terdaftar`;
+                plainLembaga.keteranganStatus = `${jumlahBidang} Bidang Terdaftar (${tahunAktifInt})`;
             } else {
                 plainLembaga.statusKelengkapan = 'Belum Lengkap';
                 plainLembaga.badgeClass = 'bg-warning text-dark';
-                plainLembaga.keteranganStatus = 'Belum ada bidang';
+                plainLembaga.keteranganStatus = `Belum ada bidang untuk ${tahunAktifInt}`;
             }
             return plainLembaga;
         });
@@ -140,12 +146,18 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
         const siklusList = await SiklusTahun.findAll({ order: [['tahun', 'DESC']] });
         const listTahun = siklusList.map(s => String(s.tahun));
 
+        let totalBidangGlobal = 0;
+        rawListLembaga.forEach(l => {
+            if (l.Bidangs) totalBidangGlobal += l.Bidangs.length;
+        });
+
         res.render('index', { 
             pengaturan, 
             listLembaga,
             dataUser,
             listTahun,
             systemHealth, 
+            totalBidangGlobal,
             userSession: req.session.user 
         });
     } catch (err) {
@@ -158,14 +170,19 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
 app.get('/lembaga/detail/:id', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        
         let pengaturan = await Pengaturan.findOne();
         if (!pengaturan) {
             pengaturan = await Pengaturan.create({ nama_aplikasi: 'Aplikasi Program Kerja', tahun_aktif: 2026 });
         }
+        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
 
         const lembaga = await Lembaga.findByPk(id, {
-            include: [{ model: Bidang, as: 'Bidangs' }]
+            include: [{ 
+                model: Bidang, 
+                as: 'Bidangs',
+                where: { tahun: tahunAktifInt },
+                required: false 
+            }]
         });
 
         if (!lembaga) {
@@ -277,7 +294,14 @@ app.post('/lembaga/edit/:id', isAuthenticated, isSuperAdmin, upload.single('logo
 app.post('/bidang/tambah', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { nama_bidang, lembagaId } = req.body;
-        await Bidang.create({ nama_bidang, lembagaId });
+        let pengaturan = await Pengaturan.findOne();
+        const tahunAktif = pengaturan ? pengaturan.tahun_aktif : 2026;
+
+        await Bidang.create({ 
+            nama_bidang, 
+            lembagaId,
+            tahun: tahunAktif 
+        });
         req.session.success_msg = "Bidang baru berhasil ditambahkan!";
         const referer = req.get('Referer') || '/';
         res.redirect(referer);
@@ -292,7 +316,6 @@ app.post('/user/tambah', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const { nama_lengkap, username, password, role, lembagaId } = req.body;
         const hashedPassword = bcrypt.hashSync(password, 10);
-        
         const validRole = (role === 'superadmin') ? 'superadmin' : 'admin_lembaga';
 
         await User.create({ 
@@ -338,13 +361,14 @@ app.post('/user/edit/:id', isAuthenticated, isSuperAdmin, async (req, res) => {
     }
 });
 
-// --- PENGATURAN GLOBAL & SIKLUS TAHUN (DENGAN DUKUNGAN UPLOAD LOGO APLIKASI INDUK) ---
+// --- PENGATURAN GLOBAL & SIKLUS TAHUN (ISOLASI TAHUN & ANTI-DUPLIKASI MUTLAK) ---
 app.post('/pengaturan', isAuthenticated, isSuperAdmin, upload.single('logo_aplikasi'), async (req, res) => {
     try {
         const { nama_aplikasi, tahun_aktif } = req.body;
         const tahunInt = parseInt(tahun_aktif, 10);
-        let pengaturan = await Pengaturan.findOne();
+        const tahunBaruStr = String(tahunInt);
 
+        let pengaturan = await Pengaturan.findOne();
         if (pengaturan) {
             pengaturan.nama_aplikasi = nama_aplikasi;
             pengaturan.tahun_aktif = tahunInt;
@@ -361,17 +385,60 @@ app.post('/pengaturan', isAuthenticated, isSuperAdmin, upload.single('logo_aplik
             });
         }
 
-        await SiklusTahun.update({ status: 'Arsip' }, { where: {} });
         let [siklus, created] = await SiklusTahun.findOrCreate({
-            where: { tahun: String(tahunInt) },
+            where: { tahun: tahunBaruStr },
             defaults: { status: 'Aktif' }
         });
-        if (!created) {
-            siklus.status = 'Aktif';
-            await siklus.save();
+
+        // 🔍 CEK ISOLASI TAHUN: Apakah tahun target ini sudah memiliki data bidang sebelumnya?
+        const totalBidangTahunIni = await Bidang.count({ where: { tahun: tahunInt } });
+
+        // KLONING HANYA JIKA BELUM ADA DATA SAMA SEKALI PADA TAHUN TERSEBUT
+        if (totalBidangTahunIni === 0) {
+            // Cari data acuan dari tahun sebelumnya atau fallback ke 2026
+            let tahunAcuan = tahunInt - 1;
+            let listBidangAcuan = await Bidang.findAll({
+                where: { tahun: tahunAcuan },
+                include: [{ model: Proker, as: 'Prokers' }]
+            });
+
+            if (listBidangAcuan.length === 0) {
+                listBidangAcuan = await Bidang.findAll({
+                    where: { tahun: 2026 },
+                    include: [{ model: Proker, as: 'Prokers' }]
+                });
+            }
+
+            for (let bidangLama of listBidangAcuan) {
+                const bidangBaru = await Bidang.create({
+                    nama_bidang: bidangLama.nama_bidang,
+                    deskripsi_tugas: bidangLama.deskripsi_tugas,
+                    lembagaId: bidangLama.lembagaId,
+                    tahun: tahunInt // <-- Disematkan tahun aktif baru
+                });
+
+                if (bidangLama.Prokers && bidangLama.Prokers.length > 0) {
+                    for (let prokerLama of bidangLama.Prokers) {
+                        await Proker.create({
+                            nama_program: prokerLama.nama_program,
+                            deskripsi: prokerLama.deskripsi,
+                            waktu_pelaksanaan: prokerLama.waktu_pelaksanaan,
+                            status: 'Direncanakan',
+                            anggaran: 0, // <-- Anggaran bersih dipaksa 0
+                            lembagaId: prokerLama.lembagaId,
+                            bidangId: bidangBaru.id,
+                            tahun: tahunInt // <-- Disematkan tahun aktif baru
+                        });
+                    }
+                }
+            }
         }
 
-        req.session.success_msg = `Pengaturan Global & Tahun Anggaran aktif berhasil diperbarui ke ${tahunInt}!`;
+        await SiklusTahun.update({ status: 'Arsip' }, { where: {} });
+        siklus.status = 'Aktif';
+        await siklus.save();
+
+        req.session.success_msg = `Tahun Anggaran ${tahunInt} berhasil diaktifkan dengan isolasi data mandiri!`;
         res.redirect('/');
     } catch (err) {
         console.error(err);
@@ -410,6 +477,7 @@ app.get('/lembaga/dashboard', isAuthenticated, (req, res) => {
 // --- DAFTARKAN RUTE MODUL APLIKASI ---
 app.use('/proker', isAuthenticated, prokerRoutes);
 app.use('/lembaga-admin', isAuthenticated, lembagaAdminRoutes);
+app.use('/superadmin', isAuthenticated, isSuperAdmin, superadminRoutes);
 
 async function createSuperUser() {
     try {
@@ -431,10 +499,105 @@ async function createSuperUser() {
     }
 }
 
+app.get('/siklus-ta/hapus/:tahun', isAuthenticated, isSuperAdmin, async (req, res) => {
+    try {
+        const tahunTarget = req.params.tahun;
+        let pengaturan = await Pengaturan.findOne();
+        if (pengaturan && String(pengaturan.tahun_aktif) === tahunTarget) {
+            req.session.error_msg = `Tidak dapat menghapus Tahun Anggaran ${tahunTarget} karena sedang aktif digunakan! Pindahkan dulu tahun aktif ke tahun lain.`;
+            return res.redirect('/');
+        }
+
+        await SiklusTahun.destroy({ where: { tahun: tahunTarget } });
+        // Opsional: Hapus data bidang/proker yang terikat pada tahun tersebut agar bersih total
+        await Bidang.destroy({ where: { tahun: parseInt(tahunTarget, 10) } });
+        await Proker.destroy({ where: { tahun: parseInt(tahunTarget, 10) } });
+
+        req.session.success_msg = `Arsip dan data terkait Tahun Anggaran ${tahunTarget} berhasil dibersihkan dari sistem.`;
+        res.redirect('/');
+    } catch (err) {
+        console.error(err);
+        req.session.error_msg = "Gagal menghapus tahun anggaran: " + err.message;
+        res.redirect('/');
+    }
+});
+
+// --- SINKRONISASI / BUAT TAHUN ANGGARAN BARU MANUAL ---
+app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, res) => {
+    try {
+        const { tahun_target } = req.body;
+        const tahunInt = parseInt(tahun_target, 10);
+        const tahunBaruStr = String(tahunInt);
+
+        if (!tahunInt || isNaN(tahunInt)) {
+            req.session.error_msg = "Tahun anggaran tidak valid!";
+            return res.redirect('/');
+        }
+
+        // Pastikan siklus tahun tercatat
+        let [siklus, created] = await SiklusTahun.findOrCreate({
+            where: { tahun: tahunBaruStr },
+            defaults: { status: 'Arsip' }
+        });
+
+        // Cek apakah data untuk tahun ini sudah ada
+        const totalBidangTahunIni = await Bidang.count({ where: { tahun: tahunInt } });
+
+        if (totalBidangTahunIni === 0) {
+            // Ambil acuan dari tahun sebelumnya atau fallback ke 2026
+            let tahunAcuan = tahunInt - 1;
+            let listBidangAcuan = await Bidang.findAll({
+                where: { tahun: tahunAcuan },
+                include: [{ model: Proker, as: 'Prokers' }]
+            });
+
+            if (listBidangAcuan.length === 0) {
+                listBidangAcuan = await Bidang.findAll({
+                    where: { tahun: 2026 },
+                    include: [{ model: Proker, as: 'Prokers' }]
+                });
+            }
+
+            for (let bidangLama of listBidangAcuan) {
+                const bidangBaru = await Bidang.create({
+                    nama_bidang: bidangLama.nama_bidang,
+                    deskripsi_tugas: bidangLama.deskripsi_tugas,
+                    lembagaId: bidangLama.lembagaId,
+                    tahun: tahunInt
+                });
+
+                if (bidangLama.Prokers && bidangLama.Prokers.length > 0) {
+                    for (let prokerLama of bidangLama.Prokers) {
+                        await Proker.create({
+                            nama_program: prokerLama.nama_program,
+                            deskripsi: prokerLama.deskripsi,
+                            waktu_pelaksanaan: prokerLama.waktu_pelaksanaan,
+                            status: 'Direncanakan',
+                            anggaran: 0, // Anggaran bersih otomatis 0
+                            lembagaId: prokerLama.lembagaId,
+                            bidangId: bidangBaru.id,
+                            tahun: tahunInt
+                        });
+                    }
+                }
+            }
+            req.session.success_msg = `Tahun Anggaran ${tahunInt} berhasil disinkronkan dan dikloning dengan struktur bersih!`;
+        } else {
+            req.session.success_msg = `Tahun Anggaran ${tahunInt} sudah memiliki data sebelumnya (tidak ada duplikasi ganda).`;
+        }
+
+        res.redirect('/');
+    } catch (err) {
+        console.error(err);
+        req.session.error_msg = "Gagal menyinkronkan tahun anggaran: " + err.message;
+        res.redirect('/');
+    }
+});
+
 // --- MENJALANKAN SERVER & SINKRONISASI DATABASE OTOMATIS ---
 const PORT = 3000;
 sequelize.sync({ alter: true }).then(async () => {
-    console.log('Database & tabel (termasuk Proker, RincianBiaya, & RealisasiBiaya) berhasil disinkronkan.');
+    console.log('Database & tabel berhasil disinkronkan.');
     await createSuperUser();
     app.listen(PORT, () => {
         console.log(`Server berjalan di http://localhost:${PORT}`);
