@@ -14,22 +14,17 @@
     </style>
 </head>
 <body>
-    <div class="d-flex">
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
         <!-- Memanggil Sidebar -->
         <%- include('partials/sidebar') %>
 
-        <div class="flex-grow-1 p-4 min-vh-100">
-            <div class="container-fluid">
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
                 
-                <!-- Header Title -->
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <div>
-                        <h2 class="fw-bold text-dark mb-1">Laporan Realisasi Anggaran</h2>
-                        <p class="text-muted mb-0">Monitoring perbandingan antara Pagu Anggaran (RAB) dan Pengeluaran Riil (Realisasi).</p>
-                    </div>
-                    <a href="/lembaga-admin" class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-arrow-left me-1"></i> Kembali ke Dashboard
-                    </a>
+                <!-- Header Title (Clean Header) -->
+                <div class="mb-4">
+                    <h2 class="fw-bold text-dark mb-1">Laporan Realisasi Anggaran</h2>
+                    <p class="text-muted mb-0">Monitoring perbandingan antara Pagu Anggaran (RAB) dan Pengeluaran Riil (Realisasi).</p>
                 </div>
 
                 <!-- Tabel Laporan Monitoring -->

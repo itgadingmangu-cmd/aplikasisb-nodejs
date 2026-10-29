@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setting Profil Lembaga</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Title (Clean Header) -->
+                <div class="mb-4">
+                    <h2 class="fw-bold text-dark mb-1">Pengaturan Lembaga</h2>
+                    <p class="text-muted mb-0">Kelola informasi profil, kontak, dan logo resmi lembaga Anda.</p>
+                </div>
+
+                <!-- Notifikasi Flash Message -->
+                <% if (locals.success_msg && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (locals.error_msg && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <!-- Form Setting Lembaga -->
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card p-4 bg-white">
+                            <form action="/lembaga-admin/setting/update" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Nama Organisasi / Lembaga</label>
+                                    <input type="text" class="form-control" name="nama_organisasi" value="<%= lembaga.nama_organisasi %>" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Nama Pimpinan / Ketua</label>
+                                    <input type="text" class="form-control" name="nama_ketua" value="<%= lembaga.nama_ketua || '' %>">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Nomor Kontak / WhatsApp</label>
+                                    <input type="text" class="form-control" name="nomor_hp" value="<%= lembaga.nomor_hp || '' %>">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Alamat Sekretariat</label>
+                                    <textarea class="form-control" name="alamat" rows="3"><%= lembaga.alamat || '' %></textarea>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold small">Ganti Logo Lembaga (Opsional)</label>
+                                    <input type="file" class="form-control" name="logo" accept="image/*">
+                                    <small class="text-muted">Format yang didukung: JPG, PNG, atau JPEG.</small>
+                                </div>
+                                <button type="submit" class="btn btn-primary fw-bold px-4 py-2">
+                                    <i class="fas fa-save me-1"></i> Simpan Perubahan
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Panel Preview Logo & Info (Kanan) -->
+                    <div class="col-lg-4">
+                        <div class="card p-4 bg-white text-center h-100">
+                            <h5 class="fw-bold text-dark mb-3">Logo Lembaga Saat Ini</h5>
+                            <div class="mb-3 flex-grow-1 d-flex align-items-center justify-content-center">
+                                <% if (lembaga.logo) { %>
+                                    <img src="/uploads/logo/<%= lembaga.logo %>" alt="Logo Lembaga" class="img-fluid rounded border p-2" style="max-height: 150px; object-fit: contain;">
+                                <% } else { %>
+                                    <div class="bg-light rounded p-4 text-muted border w-100">
+                                        <i class="fas fa-image fa-3x mb-2"></i>
+                                        <p class="small mb-0">Belum ada logo diunggah.</p>
+                                    </div>
+                                <% } %>
+                            </div>
+                            <span class="badge bg-primary bg-opacity-10 text-primary py-2 px-3 fw-bold">
+                                ID Lembaga: #<%= lembaga.id %>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
