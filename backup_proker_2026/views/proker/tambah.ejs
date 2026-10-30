@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Wrapper utama bersisian -->
+    <div class="d-flex">
+        
+        <!-- Panggil Sidebar di kiri -->
+        <%- include('../partials/sidebar') %>
+        
+        <!-- Area Konten Utama di kanan -->
+        <div class="flex-grow-1" style="height: 100vh; overflow-y: auto;">
+            <div class="container mt-5 px-4 px-md-5 mb-5">
+                
+                <div class="mb-4">
+                    <a href="/proker" class="text-decoration-none text-muted mb-2 d-inline-block">
+                        <i class="fas fa-arrow-left me-2"></i> Kembali ke Daftar Proker
+                    </a>
+                    <h2 class="fw-bold text-dark mb-0"><%= title %></h2>
+                    <p class="text-muted small">Lengkapi formulir di bawah ini untuk merencanakan kegiatan baru.</p>
+                </div>
+
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger shadow-sm"><i class="fas fa-exclamation-circle me-2"></i><%= error_msg %></div>
+                <% } %>
+
+                <div class="card shadow-sm border-0 rounded-4">
+                    <div class="card-body p-4 p-md-5">
+                        <form action="/proker/tambah" method="POST">
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Nama Program / Kegiatan <span class="text-danger">*</span></label>
+                                    <input type="text" name="nama_program" class="form-control" placeholder="Contoh: Pelatihan Digital Marketing" required autofocus>
+                                </div>
+                                <div class="col-md-6 mt-3 mt-md-0">
+                                    <label class="form-label fw-bold">Bidang Penanggung Jawab <span class="text-danger">*</span></label>
+                                    <select name="bidangId" class="form-select" required>
+                                        <option value="" disabled selected>-- Pilih Bidang --</option>
+                                        <% bidangs.forEach(bidang => { %>
+                                            <option value="<%= bidang.id %>"><%= bidang.nama_bidang %></option>
+                                        <% }) %>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Waktu Pelaksanaan <span class="text-danger">*</span></label>
+                                    <select name="waktu_pelaksanaan" class="form-select" required>
+                                        <option value="" disabled selected>-- Pilih Bulan Pelaksanaan --</option>
+                                        <option value="Januari">Januari</option>
+                                        <option value="Februari">Februari</option>
+                                        <option value="Maret">Maret</option>
+                                        <option value="April">April</option>
+                                        <option value="Mei">Mei</option>
+                                        <option value="Juni">Juni</option>
+                                        <option value="Juli">Juli</option>
+                                        <option value="Agustus">Agustus</option>
+                                        <option value="September">September</option>
+                                        <option value="Oktober">Oktober</option>
+                                        <option value="November">November</option>
+                                        <option value="Desember">Desember</option>
+                                        <option value="Sepanjang Tahun">Sepanjang Tahun (Rutin)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mt-3 mt-md-0">
+                                    <label class="form-label fw-bold">Status Saat Ini <span class="text-danger">*</span></label>
+                                    <select name="status" class="form-select" required>
+                                        <option value="Perencanaan" selected>Perencanaan (Belum Mulai)</option>
+                                        <option value="Dalam Proses">Dalam Proses (Sedang Berjalan)</option>
+                                        <option value="Selesai">Selesai</option>
+                                        <option value="Tertunda">Tertunda / Batal</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Deskripsi & Target Capaian</label>
+                                <textarea name="deskripsi" class="form-control" rows="4" placeholder="Jelaskan secara singkat tujuan, sasaran, atau detail teknis dari program kerja ini..."></textarea>
+                            </div>
+
+                            <hr class="my-4 text-muted">
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="/proker" class="btn btn-light px-4">Batal</a>
+                                <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-2"></i> Simpan Program Kerja</button>
+                            </div>
+
+                        </form>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+        
+    </div>
+</body>
+</html>

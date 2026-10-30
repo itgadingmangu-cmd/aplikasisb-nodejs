@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambah Bidang & Tugas - Tahun <%= pengaturan.tahun_aktif %></title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card p-4 bg-white shadow-sm">
+                    
+                    <!-- Header dengan Indikator Tahun Aktif -->
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 border-bottom pb-3">
+                        <div>
+                            <h4 class="fw-bold text-dark mb-1">
+                                <i class="fas fa-sitemap text-primary me-2"></i> Tambah Bidang & Uraian Tugas
+                            </h4>
+                            <p class="text-muted small mb-0">Input bidang baru untuk Tahun Anggaran <strong><%= pengaturan.tahun_aktif %></strong>.</p>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary px-3 py-2">
+                                <i class="fas fa-calendar-alt me-1"></i> TA: <%= pengaturan.tahun_aktif %>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Notifikasi Flash Message -->
+                    <% if (locals.success_msg && success_msg) { %>
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    <% } %>
+                    <% if (locals.error_msg && error_msg) { %>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    <% } %>
+
+                    <form action="/lembaga-admin/bidang/tambah" method="POST">
+                        <div class="mb-3">
+                            <label for="nama_bidang" class="form-label fw-bold small">Nama Bidang / Bagian</label>
+                            <input type="text" class="form-control" id="nama_bidang" name="nama_bidang" placeholder="Contoh: Bidang Telematika / Sekretaris / Ketua" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="deskripsi_tugas" class="form-label fw-bold small">Uraian Tugas / Jobdesk</label>
+                            <textarea class="form-control" id="deskripsi_tugas" name="deskripsi_tugas" rows="6" placeholder="Tempel (paste) draft tugas rici di sini..."></textarea>
+                            <div class="form-text small">Anda dapat memasukkan poin-poin tugas pokok dan fungsi (tupoksi) untuk bidang ini.</div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                            <a href="/lembaga-admin/bidang" class="btn btn-secondary px-3">
+                                <i class="fas fa-arrow-left me-1"></i> Batal
+                            </a>
+                            <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">
+                                <i class="fas fa-save me-1"></i> Simpan Bidang
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

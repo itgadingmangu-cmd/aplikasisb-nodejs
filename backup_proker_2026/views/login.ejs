@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistem Manajemen Program Kerja</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f4f7f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 20px 0;
+        }
+        .login-wrapper {
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            max-width: 1100px;
+            width: 100%;
+            margin: auto;
+        }
+        
+        /* Bagian Kiri (Branding & Ilustrasi) */
+        .login-brand {
+            background: linear-gradient(135deg, #eef2fb 0%, #e0e7fd 100%);
+            padding: 50px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .brand-icon {
+            width: 48px;
+            height: 48px;
+            background: #fff;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #4361ee;
+            box-shadow: 0 8px 16px rgba(67, 97, 238, 0.15);
+        }
+        .illustration-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 0;
+            width: 100%;
+        }
+        .illustration-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 16px;
+            box-shadow: 0 15px 30px rgba(67, 97, 238, 0.15);
+            transition: transform 0.3s ease;
+        }
+        .illustration-img:hover {
+            transform: translateY(-5px);
+        }
+        .feature-badge {
+            background: #fff;
+            padding: 10px 15px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #4b5563;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        /* Bagian Kanan (Form) */
+        .login-form-container {
+            padding: 60px 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: #ffffff;
+        }
+        .form-control {
+            padding: 14px 18px;
+            border-radius: 12px;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            font-size: 0.95rem;
+        }
+        .form-control:focus {
+            background-color: #fff;
+            border-color: #4361ee;
+            box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.1);
+        }
+        .input-group-text {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-right: none;
+            color: #94a3b8;
+            border-radius: 12px 0 0 12px;
+            padding-left: 18px;
+        }
+        .input-with-icon {
+            border-left: none;
+            border-radius: 0 12px 12px 0;
+            padding-left: 10px;
+        }
+        .btn-login {
+            background-color: #4361ee;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+        .btn-login:hover {
+            background-color: #3651d4;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(67, 97, 238, 0.3);
+        }
+        
+        /* Penyesuaian Mobile: Menampilkan gambar di atas form */
+        @media (max-width: 991px) {
+            .login-wrapper {
+                margin: 0 15px;
+            }
+            .login-brand {
+                padding: 30px 25px 20px 25px;
+            }
+            .login-brand h1 {
+                font-size: 1.8rem !important;
+            }
+            .login-brand p {
+                font-size: 0.9rem;
+            }
+            .login-form-container {
+                padding: 30px 25px 40px 25px;
+            }
+            .illustration-img {
+                max-height: 250px;
+                object-fit: cover;
+            }
+            .feature-badges-container {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="row login-wrapper m-auto">
+            
+            <!-- BAGIAN KIRI/ATAS: BRANDING & ILUSTRASI POSTER -->
+            <div class="col-lg-7 login-brand">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <div class="brand-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark">SISTEM INFORMASI</h6>
+                        <small class="text-primary fw-bold" style="letter-spacing: 1px;">PORTAL ADMIN</small>
+                    </div>
+                </div>
+
+                <div class="d-none d-lg-block">
+                    <h1 class="fw-bolder text-dark mb-3" style="font-size: 2.5rem; line-height: 1.2;">
+                        Transformasi Digital,<br><span class="text-primary">Selaras dalam Pencapaian.</span>
+                    </h1>
+                    <p class="text-secondary mb-2 fs-6" style="max-width: 440px; line-height: 1.6;">
+                        Mewujudkan <strong>transparansi, digitalisasi, dan efisiensi</strong> melalui Sistem Manajemen Program Kerja. Koordinasi lapangan menjadi lebih cepat, terstruktur, dan tepat sasaran.
+                    </p>
+                </div>
+
+                <!-- Judul Mobile (Lebih ringkas) -->
+                <div class="d-block d-lg-none mb-3">
+                    <h1 class="fw-bolder text-dark mb-2" style="font-size: 1.8rem; line-height: 1.2;">
+                        Transformasi Digital,<br><span class="text-primary">Selaras dalam Pencapaian.</span>
+                    </h1>
+                </div>
+
+                <!-- Ilustrasi Utama dari Poster -->
+                <div class="illustration-container">
+                    <img src="/images/Transparent Digital Management Dashboard.png" 
+                         alt="Transparansi, Digitalisasi, dan Efisiensi Sistem Manajemen Program Kerja" 
+                         class="illustration-img">
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap mt-3 feature-badges-container">
+                    <div class="feature-badge">
+                        <i class="fas fa-bolt text-warning"></i> Cepat Tanggap
+                    </div>
+                    <div class="feature-badge">
+                        <i class="fas fa-check-double text-success"></i> Tepat Sasaran
+                    </div>
+                    <div class="feature-badge">
+                        <i class="fas fa-search text-primary"></i> Transparan
+                    </div>
+                </div>
+            </div>
+
+            <!-- BAGIAN KANAN/BAWAH: FORM LOGIN -->
+            <div class="col-lg-5 login-form-container">
+                
+                <div class="mb-4">
+                    <h6 class="text-primary fw-bold mb-1" style="font-size: 0.8rem; letter-spacing: 1px;">RUANG KERJA DIGITAL</h6>
+                    <h2 class="fw-bold text-dark mb-2">Selamat Datang!</h2>
+                    <p class="text-muted small">Masuk menggunakan username dan password.</p>
+                </div>
+
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger border-0 border-start border-4 border-danger shadow-sm small py-2 mb-4" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                    </div>
+                <% } %>
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success border-0 border-start border-4 border-success shadow-sm small py-2 mb-4" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                    </div>
+                <% } %>
+
+                <form action="/login" method="POST">
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-dark">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-user"></i></span>
+                            <input type="text" name="username" class="form-control input-with-icon" placeholder="Masukkan username" required autofocus>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-dark">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="password" name="password" class="form-control input-with-icon" placeholder="Masukkan password" required>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mt-5 mb-4">
+                        <button type="submit" class="btn btn-primary btn-login text-white">
+                            Masuk ke Portal <i class="fas fa-arrow-right ms-2 opacity-75"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="text-center mt-4">
+                    <p class="small text-muted mb-1">Belum punya akses atau lupa password?</p>
+                    <a href="#" class="small fw-bold text-primary text-decoration-none">Hubungi administrator sistem.</a>
+                </div>
+                
+                <div class="text-center mt-5">
+                    <small class="text-muted" style="font-size: 0.7rem;">&copy; 2026 Sistem Manajemen Program Kerja</small>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Utilitas - Manajemen Akun & Keamanan</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Title (Clean Header) -->
+                <div class="mb-4">
+                    <h2 class="fw-bold text-dark mb-1">Manajemen Akun & Keamanan</h2>
+                    <p class="text-muted mb-0">Kelola daftar pengurus lembaga, lakukan reset password, atau hapus akun jika diperlukan.</p>
+                </div>
+
+                <!-- Notifikasi Flash Message -->
+                <% if (locals.success_msg && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (locals.error_msg && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <!-- Tabel Daftar User -->
+                <div class="card p-3 p-md-4 bg-white">
+                    <h5 class="fw-bold text-dark mb-3">
+                        <i class="fas fa-users-cog text-success me-2"></i> Daftar Pengurus & Hak Akses Terdaftar
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small text-uppercase">
+                                    <th>No</th>
+                                    <th>Nama Lengkap</th>
+                                    <th>Username</th>
+                                    <th>Role / Jabatan</th>
+                                    <th>Bidang Terkait</th>
+                                    <th class="text-center">Aksi (Reset Password / Hapus)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (lembaga && lembaga.Users && lembaga.Users.length > 0) { %>
+                                    <% lembaga.Users.forEach((u, index) => { %>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                            <td><span class="fw-bold text-dark"><%= u.nama_lengkap %></span></td>
+                                            <td><code><%= u.username %></code></td>
+                                            <td>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1">
+                                                    <%= u.role === 'admin_lembaga' ? 'Admin Lembaga' : 'Pengurus Bidang' %>
+                                                </span>
+                                                <% if (u.jabatan && u.jabatan.trim() !== '') { %>
+                                                    <small class="text-muted d-block mt-1"><%= u.jabatan %></small>
+                                                <% } %>
+                                            </td>
+                                            <td><%= u.Bidang ? u.Bidang.nama_bidang : 'Semua Bidang (Admin)' %></td>
+                                            <td>
+                                                <!-- Tombol Aksi (Reset Password & Hapus) -->
+                                                <div class="d-flex justify-content-center gap-1">
+                                                    <!-- Tombol Pemicu Modal Reset Password -->
+                                                    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#resetModal<%= u.id %>" title="Reset Password">
+                                                        <i class="fas fa-key me-1"></i> Reset Password
+                                                    </button>
+                                                    
+                                                    <!-- Tombol Hapus Akun -->
+                                                    <a href="/lembaga-admin/utilitas/users/hapus/<%= u.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Akun" onclick="return confirm('<%= u.id === userSession.id ? "PERINGATAN: Anda akan menghapus akun yang sedang Anda gunakan untuk login! Lanjutkan?" : "Yakin ingin menghapus akun pengurus ini?" %>');">
+                                                        <i class="fas fa-trash-alt me-1"></i> Hapus
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Modal Reset Password per User -->
+                                        <div class="modal fade" id="resetModal<%= u.id %>" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <form action="/lembaga-admin/utilitas/users/reset-password/<%= u.id %>" method="POST">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title fw-bold">Reset Password: <%= u.nama_lengkap %></h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body text-start">
+                                                            <div class="mb-3">
+                                                                <label class="form-label fw-bold small">Masukkan Password Baru</label>
+                                                                <input type="text" class="modal-input form-control" name="password_baru" placeholder="Minimal 6 karakter" required>
+                                                                <small class="text-muted">Catat password baru ini sebelum memberikannya ke yang bersangkutan.</small>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                                                            <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">Simpan Password Baru</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted small">Belum ada akun pengurus terdaftar dalam lembaga ini.</td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
