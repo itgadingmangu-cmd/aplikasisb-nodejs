@@ -22,18 +22,18 @@ const { isLoggedIn, isAdminLembaga } = require('../middleware/auth');
 router.get('/', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.lembagaId;
+        const lembagaId = user.activeLembagaId || user.lembagaId;
         let lembagaData;
 
         // Ambil pengaturan global agar tahun aktif selalu sinkron
         const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026, nama_aplikasi: 'Aplikasi Program Kerja' };
         const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
 
-        if (user.role === 'admin_lembaga') {
+        if (user.role === 'admin_lembaga' || user.role === 'superadmin') {
             lembagaData = await Lembaga.findByPk(lembagaId, {
                 include: [
-                    { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
-                    { model: User, as: 'Users' },
+                    { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false, include: [{ model: Proker, as: 'Prokers' }] },
+                    { model: User, as: 'Users', include: [{ model: Bidang, as: 'Bidang' }] },
                     { model: Proker, as: 'Prokers', where: { tahun: tahunAktifInt }, include: [{ model: Bidang, as: 'Bidang' }], required: false }
                 ]
             });
@@ -41,7 +41,7 @@ router.get('/', isLoggedIn, async (req, res) => {
             lembagaData = await Lembaga.findByPk(lembagaId, {
                 include: [
                     { model: Bidang, as: 'Bidangs', where: { id: user.id_bidang, tahun: tahunAktifInt }, required: false },
-                    { model: User, as: 'Users', where: { id_bidang: user.id_bidang }, required: false },
+                    { model: User, as: 'Users', where: { id_bidang: user.id_bidang }, required: false, include: [{ model: Bidang, as: 'Bidang' }] },
                     { model: Proker, as: 'Prokers', where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, include: [{ model: Bidang, as: 'Bidang' }], required: false }
                 ]
             });
@@ -49,29 +49,47 @@ router.get('/', isLoggedIn, async (req, res) => {
 
         if (!lembagaData) {
             req.session.error_msg = "Data lembaga tidak ditemukan!";
-            return res.redirect('/login');
+            return res.redirect('/');
         }
 
+        // Ambil seluruh daftar lembaga untuk dropdown Switch Organization Superadmin di kanan atas
+        const listLembaga = await Lembaga.findAll();
+
+        // Ekstraksi variabel agar sesuai dengan yang dipanggil di lembaga_admin.ejs (bidangs, users, prokers)
+        const bidangs = lembagaData.Bidangs || [];
+        const users = lembagaData.Users || [];
+        const prokers = lembagaData.Prokers || [];
+
         let totalAnggaranLembaga = 0;
-        if (lembagaData.Prokers && lembagaData.Prokers.length > 0) {
-            totalAnggaranLembaga = lembagaData.Prokers.reduce((sum, proker) => {
+        if (prokers.length > 0) {
+            totalAnggaranLembaga = prokers.reduce((sum, proker) => {
                 return sum + (parseFloat(proker.anggaran) || 0);
             }, 0);
         }
 
         res.render('lembaga_admin', {
+            title: 'Dashboard Admin Lembaga',
             pengaturan,
             userSession: user,
             lembagaData,
-            totalAnggaranLembaga
+            bidangs,
+            users,
+            prokers,
+            listLembaga, // <-- Sangat penting untuk dropdown Switch Organization di kanan atas
+            totalAnggaranLembaga,
+            success_msg: req.session.success_msg || null,
+            error_msg: req.session.error_msg || null
         });
+
+        // Bersihkan flash message setelah dirender
+        delete req.session.success_msg;
+        delete req.session.error_msg;
 
     } catch (err) {
         console.error("Error pada dashboard lembaga:", err);
         res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
-
 // ==========================================
 // MODUL MANAJEMEN BIDANG
 // ==========================================

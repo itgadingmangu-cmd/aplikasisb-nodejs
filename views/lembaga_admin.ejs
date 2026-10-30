@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Admin Lembaga</title>
+    <title><%= typeof title !== 'undefined' ? title : 'Panel Kontrol Admin Lembaga' %></title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome Icons -->
@@ -27,34 +27,110 @@
             justify-content: center;
             border-radius: 10px;
         }
+
+        /* --- PERBAIKAN RESPONSIF MURNI (TANPA MERUBAH STRUKTUR/FUNGSI LAIN) --- */
+        
+        /* 1. Tampilan Laptop / Desktop: Mengunci agar konten utama fleksibel di samping sidebar */
+        @media (min-width: 992px) {
+            .d-flex#wrapper {
+                flex-direction: row !important;
+            }
+            .flex-grow-1 {
+                width: calc(100% - 280px) !important;
+                min-width: 0 !important; /* Mencegah elemen flex meluber */
+            }
+        }
+
+        /* 2. Tampilan HP / Mobile: Mengubah arah flex menjadi ke bawah secara rapi */
+        @media (max-width: 991.98px) {
+            .d-flex#wrapper {
+                flex-direction: column !important;
+            }
+            .flex-grow-1 {
+                width: 100% !important;
+            }
+        }
     </style>
 </head>
-<body>
-    <div class="d-flex flex-column flex-lg-row min-vh-100">
-        <!-- Memanggil Sidebar -->
+<body class="bg-light">
+
+    <div class="d-flex flex-column flex-lg-row min-vh-100" id="wrapper">
+        <!-- Sidebar -->
         <%- include('partials/sidebar') %>
 
         <!-- Konten Utama Dashboard Lembaga -->
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
                 
-                <!-- Header Title & Tombol Aksi Kanan Atas -->
+                <!-- Header Title & Tombol Aksi Kanan Atas (Switch Organization, Home Pusat, TA, Logout) -->
                 <div class="row align-items-center mb-4 g-3">
-                    <div class="col-lg-8">
+                    <div class="col-lg-4">
                         <h2 class="fw-bold text-dark mb-1">Panel Kontrol Admin Lembaga</h2>
                         <p class="text-muted mb-0">Kelola bidang operasional, pengurus, dan program kerja di bawah lembaga Anda.</p>
                     </div>
-                    <div class="col-lg-4 text-lg-end">
-                        <div class="d-inline-flex align-items-center gap-2">
+                    <div class="col-lg-8 text-lg-end">
+                        <div class="d-inline-flex align-items-center gap-2 flex-wrap justify-content-lg-end">
+                            
+                            <!-- Tombol Beranda / Kembali ke Pusat (Muncul jika Superadmin yang akses) -->
+                            <% if (typeof userSession !== 'undefined' && userSession.role === 'superadmin') { %>
+                                <a href="/" class="btn btn-light btn-sm fw-bold border text-dark px-3 py-2 shadow-sm">
+                                    <i class="fas fa-home me-1 text-primary"></i> Home Pusat
+                                </a>
+                            <% } %>
+
+                            <!-- Dropdown Switch Organization di Kanan Atas -->
+                            <% if (typeof userSession !== 'undefined' && userSession.role === 'superadmin' && typeof listLembaga !== 'undefined') { %>
+                                <div class="dropdown">
+                                    <button class="btn btn-primary btn-sm dropdown-toggle fw-bold px-3 py-2 shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #0d6efd;">
+                                        <i class="fas fa-landmark me-1"></i> 
+                                        <% 
+                                            let activeOrgName = "Pilih Lembaga";
+                                            let foundOrg = listLembaga.find(o => o.id == userSession.activeLembagaId);
+                                            if (foundOrg) activeOrgName = foundOrg.nama_organisasi;
+                                            else if (typeof lembagaData !== 'undefined' && lembagaData) activeOrgName = lembagaData.nama_organisasi;
+                                        %>
+                                        <%= activeOrgName %>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width: 220px;">
+                                        <li><h6 class="dropdown-header small text-uppercase text-muted">Switch Organization</h6></li>
+                                        <% listLembaga.forEach(org => { %>
+                                            <li>
+                                                <a class="dropdown-item py-2 small fw-semibold <%= (userSession.activeLembagaId == org.id) ? 'active' : '' %>" href="/superadmin/pilih-lembaga/<%= org.id %>">
+                                                    <i class="fas fa-building me-2 text-primary"></i> <%= org.nama_organisasi %>
+                                                </a>
+                                            </li>
+                                        <% }) %>
+                                    </ul>
+                                </div>
+                            <% } %>
+
+                            <!-- Badge Tahun Aktif -->
                             <span class="badge bg-primary px-3 py-2 rounded-pill fs-6 shadow-sm">
-                                <i class="fas fa-calendar-alt me-1"></i> Tahun Aktif: <%= (typeof pengaturan !== 'undefined' && pengaturan.tahun_aktif) ? pengaturan.tahun_aktif : '2026' %>
+                                <i class="fas fa-calendar-alt me-1"></i> TA: <%= (typeof pengaturan !== 'undefined' && pengaturan.tahun_aktif) ? pengaturan.tahun_aktif : '2026' %>
                             </span>
-                            <a href="/logout" class="item-link btn btn-outline-danger btn-sm fw-bold">
+
+                            <!-- Tombol Keluar / Logout -->
+                            <a href="/logout" class="item-link btn btn-outline-danger btn-sm fw-bold px-3 py-2 shadow-sm">
                                 <i class="fas fa-sign-out-alt me-1"></i> Keluar
                             </a>
                         </div>
                     </div>
                 </div>
+
+                <!-- Flash Messages -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
 
                 <!-- 1. Kartu Statistik Modern (4 Kolom Seimbang) -->
                 <div class="row g-4 mb-4">
@@ -85,7 +161,7 @@
                                 <div>
                                     <span class="text-muted small d-block">Total Bidang</span>
                                     <h5 class="fw-bold text-dark mb-0">
-                                        <%= (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Bidangs) ? lembagaData.Bidangs.length : 0 %> Bidang
+                                        <%= (typeof bidangs !== 'undefined' && bidangs) ? bidangs.length : 0 %> Bidang
                                     </h5>
                                 </div>
                             </div>
@@ -102,7 +178,7 @@
                                 <div>
                                     <span class="text-muted small d-block">Total Pengurus</span>
                                     <h5 class="fw-bold text-dark mb-0">
-                                        <%= (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Users) ? lembagaData.Users.length : 0 %> Akun
+                                        <%= (typeof users !== 'undefined' && users) ? users.length : 0 %> Akun
                                     </h5>
                                 </div>
                             </div>
@@ -127,7 +203,7 @@
                     </div>
                 </div>
 
-                <!-- 2. Matriks Program Kerja & Anggaran (Bulan 1 - 12) - Pindah ke bawah statistik -->
+                <!-- 2. Matriks Program Kerja & Anggaran (Bulan 1 - 12) -->
                 <div class="card p-4 bg-white mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="fw-bold text-dark mb-0">
@@ -152,8 +228,8 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Prokers && lembagaData.Prokers.length > 0) { %>
-                                    <% lembagaData.Prokers.forEach((proker, index) => { %>
+                                <% if (typeof prokers !== 'undefined' && prokers && prokers.length > 0) { %>
+                                    <% prokers.forEach((proker, index) => { %>
                                         <tr>
                                             <td class="fw-bold text-muted"><%= index + 1 %></td>
                                             <td class="text-start">
@@ -163,7 +239,6 @@
                                                 <span class="text-muted small"><%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %></span>
                                             </td>
                                             
-                                            <!-- Looping Check Matriks Bulan 1 s.d 12 -->
                                             <% 
                                                 let activeMonths = [];
                                                 if (proker.waktu_pelaksanaan) {
@@ -205,7 +280,7 @@
                     </div>
                 </div>
 
-                <!-- 3. Bagian Tabel Bawah: Bidang & Pengurus -->
+                <!-- 3. Bagian Tabel Bawah: Daftar Bidang & Pengurus -->
                 <div class="row g-4 mb-4">
                     <!-- TABEL DAFTAR BIDANG -->
                     <div class="col-lg-6">
@@ -220,37 +295,26 @@
                                     <thead class="table-light">
                                         <tr class="small text-uppercase">
                                             <th scope="col" style="width: 10%;">No</th>
-                                            <th scope="col" style="width: 35%;">Nama Bidang</th>
-                                            <th scope="col" style="width: 35%;">Uraian Tugas Singkat</th>
-                                            <th scope="col" class="text-center" style="width: 20%;">Aksi</th>
+                                            <th scope="col" style="width: 45%;">Nama Bidang</th>
+                                            <th scope="col" style="width: 45%;">Uraian Tugas Singkat</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Bidangs && lembagaData.Bidangs.length > 0) { %>
-                                            <% lembagaData.Bidangs.forEach((bidang, index) => { %>
+                                        <% if (typeof bidangs !== 'undefined' && bidangs && bidangs.length > 0) { %>
+                                            <% bidangs.forEach((bidang, index) => { %>
                                                 <tr>
                                                     <td class="fw-bold text-muted"><%= index + 1 %></td>
                                                     <td><span class="fw-bold text-dark"><%= bidang.nama_bidang %></span></td>
                                                     <td>
-                                                        <span class="text-muted small" style="display: inline-block; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<%= bidang.deskripsi_tugas %>">
+                                                        <span class="text-muted small" title="<%= bidang.deskripsi_tugas %>">
                                                             <%= bidang.deskripsi_tugas ? bidang.deskripsi_tugas : '-' %>
                                                         </span>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <div class="d-flex justify-content-center gap-1">
-                                                            <a href="/lembaga-admin/bidang/edit/<%= bidang.id %>" class="btn btn-outline-warning btn-sm" title="Edit Bidang">
-                                                                <i class="fas fa-edit"></i>
-                                                            </a>
-                                                            <a href="/lembaga-admin/bidang/hapus/<%= bidang.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Bidang" onclick="return confirm('Yakin ingin menghapus bidang ini?');">
-                                                                <i class="fas fa-trash-alt"></i>
-                                                            </a>
-                                                        </div>
                                                     </td>
                                                 </tr>
                                             <% }) %>
                                         <% } else { %>
                                             <tr>
-                                                <td colspan="4" class="text-center py-3 text-muted small">Belum ada bidang terdaftar. Gunakan menu sidebar untuk menambah bidang.</td>
+                                                <td colspan="3" class="text-center py-3 text-muted small">Belum ada bidang terdaftar.</td>
                                             </tr>
                                         <% } %>
                                     </tbody>
@@ -273,23 +337,19 @@
                                         <tr class="small text-uppercase">
                                             <th scope="col" style="width: 15%;">No</th>
                                             <th scope="col" style="width: 50%;">Nama / Username</th>
-                                            <th scope="col" style="width: 35%;">Role</th>
+                                            <th scope="col" style="width: 35%;">Bidang</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <% if (typeof lembagaData !== 'undefined' && lembagaData && lembagaData.Users && lembagaData.Users.length > 0) { %>
-                                            <% lembagaData.Users.forEach((usr, index) => { %>
+                                        <% if (typeof users !== 'undefined' && users && users.length > 0) { %>
+                                            <% users.forEach((usr, index) => { %>
                                                 <tr>
                                                     <td class="fw-bold text-muted"><%= index + 1 %></td>
                                                     <td>
                                                         <span class="fw-bold text-dark d-block"><%= usr.nama_lengkap %></span>
                                                         <small class="text-muted">@<%= usr.username %></small>
                                                     </td>
-                                                    <td>
-                                                        <span class="badge bg-secondary bg-opacity-10 text-dark px-2 py-1">
-                                                            <%= usr.role %>
-                                                        </span>
-                                                    </td>
+                                                    <td><%= usr.Bidang ? usr.Bidang.nama_bidang : '-' %></td>
                                                 </tr>
                                             <% }) %>
                                         <% } else { %>

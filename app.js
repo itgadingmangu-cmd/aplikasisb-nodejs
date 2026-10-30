@@ -70,6 +70,32 @@ function isSuperAdmin(req, res, next) {
     res.status(403).send("Akses ditolak: Halaman ini khusus untuk Superadmin!");
 }
 
+// --- RUTE SWITCH / PILIH LEMBAGA AKTIF UNTUK SUPERADMIN ---
+app.get('/superadmin/pilih-lembaga/:id', isAuthenticated, isSuperAdmin, async (req, res) => {
+    try {
+        const targetLembagaId = req.params.id;
+        const lembagaTarget = await Lembaga.findByPk(targetLembagaId);
+
+        if (!lembagaTarget) {
+            req.session.error_msg = "Lembaga tidak ditemukan!";
+            return res.redirect('/');
+        }
+
+        // Set session activeLembagaId dan lembagaId agar controller admin lembaga membaca lembaga ini
+        req.session.user.activeLembagaId = targetLembagaId;
+        req.session.user.lembagaId = targetLembagaId; 
+
+        req.session.success_msg = `Berhasil beralih ke panel operasional: ${lembagaTarget.nama_organisasi}`;
+        
+        // Langsung arahkan otomatis ke dashboard lembaga-admin
+        return res.redirect('/lembaga-admin');
+    } catch (err) {
+        console.error(err);
+        req.session.error_msg = "Gagal beralih lembaga: " + err.message;
+        res.redirect('/');
+    }
+});
+
 // --- RUTE HALAMAN UTAMA (DASHBOARD SUPERADMIN) ---
 app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
@@ -109,7 +135,7 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             statusServer: 'Online'
         };
 
-        // KUNCI UTAMA: Ambil Lembaga beserta Bidang yang terfilter murni berdasarkan tahun aktif
+        // Ambil daftar lembaga beserta bidang yang terfilter murni berdasarkan tahun aktif
         const rawListLembaga = await Lembaga.findAll({
             include: [{ 
                 model: Bidang, 
@@ -135,6 +161,19 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             return plainLembaga;
         });
 
+        // Tentukan lembaga aktif yang sedang dipilih oleh Superadmin di session
+        let activeLembagaId = req.session.user.activeLembagaId || (listLembaga.length > 0 ? listLembaga[0].id : null);
+        let selectedLembaga = null;
+
+        if (activeLembagaId) {
+            selectedLembaga = await Lembaga.findByPk(activeLembagaId, {
+                include: [
+                    { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
+                    { model: Proker, as: 'Prokers', where: { tahun: tahunAktifInt }, include: [{ model: Bidang, as: 'Bidang' }], required: false }
+                ]
+            });
+        }
+
         const dataUser = await User.findAll({ 
             where: {
                 role: { [Op.in]: ['superadmin', 'admin_lembaga'] }
@@ -154,6 +193,8 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
         res.render('index', { 
             pengaturan, 
             listLembaga,
+            selectedLembaga,
+            activeLembagaId,
             dataUser,
             listTahun,
             systemHealth, 
@@ -238,7 +279,8 @@ app.post('/login', async (req, res) => {
                 username: user.username,
                 role: user.role,          
                 lembagaId: user.lembagaId,
-                id_bidang: user.id_bidang || null
+                id_bidang: user.id_bidang || null,
+                activeLembagaId: user.lembagaId || null
             };
             return res.redirect(user.role === 'superadmin' ? '/' : '/lembaga-admin');
         } else {
@@ -361,7 +403,7 @@ app.post('/user/edit/:id', isAuthenticated, isSuperAdmin, async (req, res) => {
     }
 });
 
-// --- PENGATURAN GLOBAL & SIKLUS TAHUN (ISOLASI TAHUN & ANTI-DUPLIKASI MUTLAK) ---
+// --- PENGATURAN GLOBAL & SIKLUS TAHUN ---
 app.post('/pengaturan', isAuthenticated, isSuperAdmin, upload.single('logo_aplikasi'), async (req, res) => {
     try {
         const { nama_aplikasi, tahun_aktif } = req.body;
@@ -390,12 +432,9 @@ app.post('/pengaturan', isAuthenticated, isSuperAdmin, upload.single('logo_aplik
             defaults: { status: 'Aktif' }
         });
 
-        // 🔍 CEK ISOLASI TAHUN: Apakah tahun target ini sudah memiliki data bidang sebelumnya?
         const totalBidangTahunIni = await Bidang.count({ where: { tahun: tahunInt } });
 
-        // KLONING HANYA JIKA BELUM ADA DATA SAMA SEKALI PADA TAHUN TERSEBUT
         if (totalBidangTahunIni === 0) {
-            // Cari data acuan dari tahun sebelumnya atau fallback ke 2026
             let tahunAcuan = tahunInt - 1;
             let listBidangAcuan = await Bidang.findAll({
                 where: { tahun: tahunAcuan },
@@ -414,7 +453,7 @@ app.post('/pengaturan', isAuthenticated, isSuperAdmin, upload.single('logo_aplik
                     nama_bidang: bidangLama.nama_bidang,
                     deskripsi_tugas: bidangLama.deskripsi_tugas,
                     lembagaId: bidangLama.lembagaId,
-                    tahun: tahunInt // <-- Disematkan tahun aktif baru
+                    tahun: tahunInt
                 });
 
                 if (bidangLama.Prokers && bidangLama.Prokers.length > 0) {
@@ -424,10 +463,10 @@ app.post('/pengaturan', isAuthenticated, isSuperAdmin, upload.single('logo_aplik
                             deskripsi: prokerLama.deskripsi,
                             waktu_pelaksanaan: prokerLama.waktu_pelaksanaan,
                             status: 'Direncanakan',
-                            anggaran: 0, // <-- Anggaran bersih dipaksa 0
+                            anggaran: 0,
                             lembagaId: prokerLama.lembagaId,
                             bidangId: bidangBaru.id,
-                            tahun: tahunInt // <-- Disematkan tahun aktif baru
+                            tahun: tahunInt
                         });
                     }
                 }
@@ -509,7 +548,6 @@ app.get('/siklus-ta/hapus/:tahun', isAuthenticated, isSuperAdmin, async (req, re
         }
 
         await SiklusTahun.destroy({ where: { tahun: tahunTarget } });
-        // Opsional: Hapus data bidang/proker yang terikat pada tahun tersebut agar bersih total
         await Bidang.destroy({ where: { tahun: parseInt(tahunTarget, 10) } });
         await Proker.destroy({ where: { tahun: parseInt(tahunTarget, 10) } });
 
@@ -534,17 +572,14 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
             return res.redirect('/');
         }
 
-        // Pastikan siklus tahun tercatat
         let [siklus, created] = await SiklusTahun.findOrCreate({
             where: { tahun: tahunBaruStr },
             defaults: { status: 'Arsip' }
         });
 
-        // Cek apakah data untuk tahun ini sudah ada
         const totalBidangTahunIni = await Bidang.count({ where: { tahun: tahunInt } });
 
         if (totalBidangTahunIni === 0) {
-            // Ambil acuan dari tahun sebelumnya atau fallback ke 2026
             let tahunAcuan = tahunInt - 1;
             let listBidangAcuan = await Bidang.findAll({
                 where: { tahun: tahunAcuan },
@@ -573,7 +608,7 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
                             deskripsi: prokerLama.deskripsi,
                             waktu_pelaksanaan: prokerLama.waktu_pelaksanaan,
                             status: 'Direncanakan',
-                            anggaran: 0, // Anggaran bersih otomatis 0
+                            anggaran: 0,
                             lembagaId: prokerLama.lembagaId,
                             bidangId: bidangBaru.id,
                             tahun: tahunInt
@@ -583,7 +618,7 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
             }
             req.session.success_msg = `Tahun Anggaran ${tahunInt} berhasil disinkronkan dan dikloning dengan struktur bersih!`;
         } else {
-            req.session.success_msg = `Tahun Anggaran ${tahunInt} sudah memiliki data sebelumnya (tidak ada duplikasi ganda).`;
+            req.session.success_msg = `Tahun Anggaran ${tahunInt} sudah memiliki data sebelumnya.`;
         }
 
         res.redirect('/');

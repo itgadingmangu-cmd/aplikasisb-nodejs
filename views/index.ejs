@@ -113,19 +113,58 @@
         <div class="main-content flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
 
-                <!-- Header Kanan Atas (Tahun Aktif & Tombol Logout) -->
+                <!-- Header Kanan Atas: Tombol Home, Logout, Dropdown Organisasi, Tahun Anggaran (Ala GIES) -->
                 <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
                     <div>
                         <span class="text-muted small">Panel Kontrol Utama / Superadmin</span>
                         <h4 class="fw-bold text-dark mb-0">Dashboard Sistem</h4>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-primary px-3 py-2 rounded-pill fs-6 shadow-sm">
-                            <i class="fas fa-calendar-alt me-1"></i> Tahun Anggaran: <%= pengaturan.tahun_aktif %>
-                        </span>
-                        <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold px-3 py-2 shadow-sm">
+
+                    <!-- Kumpulan Tombol Navigasi Kanan Atas -->
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        
+                        <!-- Tombol Home / Beranda -->
+                        <a href="/" class="btn btn-light btn-sm fw-bold border text-dark px-3 py-2 shadow-sm">
+                            <i class="fas fa-home me-1 text-primary"></i> Home
+                        </a>
+
+                        <!-- Tombol Logout -->
+                        <a href="/logout" class="btn btn-danger btn-sm fw-bold px-3 py-2 shadow-sm">
                             <i class="fas fa-sign-out-alt me-1"></i> Logout
                         </a>
+
+                        <!-- Dropdown Switch Organization (Pemilih Lembaga Aktif) -->
+                        <div class="dropdown">
+                            <button class="btn btn-primary btn-sm dropdown-toggle fw-bold px-3 py-2 shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #0d6efd;">
+                                <i class="fas fa-landmark me-1"></i> 
+                                <% 
+                                    let activeLembagaName = "Pilih Lembaga Aktif";
+                                    if (typeof listLembaga !== 'undefined' && typeof userSession !== 'undefined' && userSession.activeLembagaId) {
+                                        let found = listLembaga.find(l => l.id == userSession.activeLembagaId);
+                                        if (found) activeLembagaName = found.nama_organisasi;
+                                    }
+                                %>
+                                <%= activeLembagaName %>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width: 220px;">
+                                <li><h6 class="dropdown-header small text-uppercase text-muted">Pilih Lembaga Tujuan</h6></li>
+                                <% if (typeof listLembaga !== 'undefined' && listLembaga.length > 0) { %>
+                                    <% listLembaga.forEach(l => { %>
+                                        <li>
+                                            <a class="dropdown-item py-2 small fw-semibold <%= (typeof userSession !== 'undefined' && userSession.activeLembagaId == l.id) ? 'active' : '' %>" href="/superadmin/pilih-lembaga/<%= l.id %>">
+                                                <i class="fas fa-building me-2 text-primary"></i> <%= l.nama_organisasi %>
+                                            </a>
+                                        </li>
+                                    <% }) %>
+                                <% } %>
+                            </ul>
+                        </div>
+
+                        <!-- Badge Tahun Anggaran Aktif -->
+                        <span class="badge bg-primary px-3 py-2 rounded fs-6 shadow-sm">
+                            <i class="fas fa-calendar-alt me-1"></i> TA: <%= pengaturan.tahun_aktif %>
+                        </span>
+
                     </div>
                 </div>
 
@@ -249,6 +288,33 @@
                             </div>
                         <% } %>
 
+                        <!-- TAMPILAN LEMBAGA YANG SEDANG DIPILIH (DETAIL FOCUS) -->
+                        <% if (typeof selectedLembaga !== 'undefined' && selectedLembaga) { %>
+                            <div class="card bg-white shadow-sm border-0 mb-4 p-4 border-start border-4 border-primary">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <% if (selectedLembaga.logo) { %>
+                                            <img src="/uploads/logo/<%= selectedLembaga.logo %>" alt="Logo" width="60" height="60" class="rounded-circle object-fit-cover shadow-sm">
+                                        <% } else { %>
+                                            <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center shadow-sm" style="width: 60px; height: 60px; font-size: 20px;">
+                                                <i class="fas fa-landmark"></i>
+                                            </div>
+                                        <% } %>
+                                        <div>
+                                            <span class="badge bg-primary text-white mb-1">Lembaga Fokus Aktif</span>
+                                            <h3 class="fw-bold text-dark mb-0"><%= selectedLembaga.nama_organisasi %></h3>
+                                            <small class="text-muted">Ketua: <%= selectedLembaga.nama_ketua || '-' %> | Telp: <%= selectedLembaga.nomor_hp || '-' %></small>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <a href="/lembaga-admin" class="btn btn-outline-primary fw-bold shadow-sm">
+                                            <i class="fas fa-external-link-alt me-2"></i> Masuk Panel Operasional Lembaga Ini
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        <% } %>
+
                         <h4 class="fw-bold mb-3 text-secondary"><i class="fas fa-building me-2"></i>Daftar Lembaga (<%= pengaturan.tahun_aktif %>)</h4>
                         <div class="row g-3">
                             <% if (typeof listLembaga !== 'undefined' && listLembaga.length > 0) { %>
@@ -303,10 +369,14 @@
                                                     <p class="text-secondary small mb-0"><%= lembaga.alamat || 'Alamat belum diatur' %></p>
                                                 </div>
 
-                                                <!-- TOMBOL KELOLA LEMBAGA -->
+                                                <!-- TOMBOL PILIH / MASUK LEMBAGA INI -->
                                                 <div class="mt-3 pt-2">
-                                                    <a href="/lembaga/detail/<%= lembaga.id %>" class="btn btn-sm btn-primary w-100 fw-bold shadow-sm">
-                                                        <i class="fas fa-cogs me-1"></i> Monitoring & Detail Lembaga
+                                                    <a href="/superadmin/pilih-lembaga/<%= lembaga.id %>" class="btn btn-sm <%= (typeof userSession !== 'undefined' && userSession.activeLembagaId == lembaga.id) ? 'btn-success' : 'btn-primary' %> w-100 fw-bold shadow-sm py-2">
+                                                        <% if (typeof userSession !== 'undefined' && userSession.activeLembagaId == lembaga.id) { %>
+                                                            <i class="fas fa-check-circle me-1"></i> Masuk Panel Lembaga Ini
+                                                        <% } else { %>
+                                                            <i class="fas fa-arrow-alt-circle-right me-1"></i> Pilih & Masuk Lembaga
+                                                        <% } %>
                                                     </a>
                                                 </div>
                                             </div>

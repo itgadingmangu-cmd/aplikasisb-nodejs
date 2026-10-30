@@ -1,4 +1,5 @@
-<div class="d-flex flex-column flex-shrink-0 p-3 text-white bg-primary" style="width: 280px; min-height: 100vh;">
+<!-- Sidebar Responsif Global (Otomatis menyesuaikan laptop dan HP tanpa merusak fungsi) -->
+<div class="d-flex flex-column flex-shrink-0 p-3 text-white bg-primary sidebar-responsive" style="width: 280px; min-height: 100vh;">
     
     <!-- 1. NAMA & LOGO APLIKASI INDUK (GLOBAL) -->
     <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
@@ -9,16 +10,14 @@
         <% } else { %>
             <i class="fas fa-layer-group fs-4 me-2"></i>
         <% } %>
-        <span class="fs-6 fw-bold">
+        <span class="fs-6 fw-bold text-truncate">
             <%= (typeof globalSetting !== 'undefined' && globalSetting && globalSetting.nama_aplikasi) ? globalSetting.nama_aplikasi : ((typeof pengaturan !== 'undefined' && pengaturan && pengaturan.nama_aplikasi) ? pengaturan.nama_aplikasi : 'Aplikasi Program Kerja') %>
         </span>
     </a>
-    
+
     <!-- 2. KOTAK LEMBAGA AKTIF -->
-    <% if (typeof userSession !== 'undefined' && userSession.role === 'admin_lembaga') { %>
-    <div class="bg-white text-dark p-2 rounded-3 mb-2 shadow-sm d-flex align-items-center">
+    <div class="bg-white text-dark p-2 rounded-3 mb-3 shadow-sm d-flex align-items-center">
         <% 
-            // Mendukung variabel lembagaData (dari sebagian besar modul) maupun lembaga (dari setting lembaga)
             let activeLembaga = (typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData : ((typeof lembaga !== 'undefined' && lembaga) ? lembaga : null);
             let lembagaLogo = null;
             if (activeLembaga) {
@@ -39,16 +38,15 @@
             </strong>
         </div>
     </div>
-    <% } %>
 
     <!-- 3. TOMBOL HOME / DASHBOARD -->
     <a href="/lembaga-admin" class="btn btn-light w-100 text-primary fw-bold mb-3 shadow-sm d-flex align-items-center justify-content-center gap-2 py-2">
         <i class="fas fa-home"></i> Home / Dashboard
     </a>
 
-    <!-- 4. NAVIGASI MENU UTAMA & DROPDOWN -->
+    <!-- 4. NAVIGASI MENU UTAMA -->
     <ul class="nav nav-pills flex-column mb-auto" id="sidebarNav">
-        <% if (typeof userSession !== 'undefined' && userSession.role === 'admin_lembaga') { %>
+        <% if (typeof userSession !== 'undefined' && (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin')) { %>
 
             <!-- MENU ORGANISASI -->
             <li class="nav-item mb-1">
@@ -107,7 +105,7 @@
                 </div>
             </li>
 
-            <!-- MENU UTILITAS / MANAJEMEN AKUN -->
+            <!-- MENU UTILITAS -->
             <li class="nav-item mb-1">
                 <a href="#utilitasSubmenu" data-bs-toggle="collapse" class="nav-link text-white d-flex justify-content-between align-items-center text-decoration-none">
                     <span><i class="fas fa-tools me-2"></i> Utilitas</span>
@@ -130,22 +128,16 @@
             </li>
 
         <% } else { %>
-            <!-- Menu Superadmin -->
             <li class="nav-item mb-1">
                 <a href="/" class="nav-link text-white active bg-white text-primary fw-bold">
                     <i class="fas fa-home me-2"></i> Dashboard Pusat
                 </a>
             </li>
-            <li class="nav-item mb-1">
-                <a href="/superadmin/settings" class="nav-link text-white">
-                    <i class="fas fa-cog me-2"></i> Pengaturan Global
-                </a>
-            </li>
         <% } %>
     </ul>
 
-    <!-- 5. INFORMASI USER & TOMBOL KELUAR DI BAWAH -->
-    <div class="dropdown mt-3">
+    <!-- 5. INFORMASI USER & TOMBOL KELUAR -->
+    <div class="dropdown mt-3 border-top pt-3">
         <div class="d-flex align-items-center text-white text-decoration-none mb-2">
             <i class="fas fa-user-circle fs-3 me-2"></i>
             <div>
@@ -159,12 +151,42 @@
     </div>
 </div>
 
-<!-- SCRIPT OTOMATIS BUKA SUB-MENU SESUAI URL AKTIF -->
+<!-- Styling Tambahan Khusus CSS Sidebar agar Responsif Otomatis -->
+<style>
+    @media (min-width: 992px) {
+        .sidebar-responsive {
+            width: 280px !important;
+            min-width: 280px !important;
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        /* Memberikan jarak otomatis pada pembungkus halaman sebelah kanan di laptop */
+        body > .d-flex {
+            padding-left: 280px;
+        }
+    }
+    @media (max-width: 991.98px) {
+        .sidebar-responsive {
+            width: 100% !important;
+            min-width: 100% !important;
+            min-height: auto !important;
+            position: static !important;
+        }
+        body > .d-flex {
+            padding-left: 0 !important;
+            flex-direction: column !important;
+        }
+    }
+</style>
+
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const currentPath = window.location.pathname;
         const subLinks = document.querySelectorAll('.sub-menu-link');
-        
         subLinks.forEach(link => {
             if (link.getAttribute('href') === currentPath) {
                 link.classList.add('fw-bold', 'bg-white', 'bg-opacity-25', 'rounded');
