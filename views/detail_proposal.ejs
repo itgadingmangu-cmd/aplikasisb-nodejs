@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Draf Proposal & RAB</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <%- include('partials/sidebar') %>
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Navigasi Kembali -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <a href="/lembaga-admin/proposal" class="btn btn-outline-secondary btn-sm mb-2">
+                            <i class="fas fa-arrow-left me-1"></i> Kembali ke Daftar Proposal
+                        </a>
+                        <h2 class="fw-bold text-dark mb-1">Editor Proposal & Konfigurasi TTD</h2>
+                        <p class="text-muted mb-0">Program Kerja: <span class="fw-semibold text-primary"><%= proker.nama_program %></span></p>
+                    </div>
+                    <div>
+                        <span class="badge bg-<%= proposal.status === 'Disetujui' ? 'success' : (proposal.status === 'Diajukan' ? 'warning text-dark' : 'secondary') %> fs-6 px-3 py-2">
+                            Status: <%= proposal.status %>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Notifikasi -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <form action="/lembaga-admin/proker/proposal/update/<%= proposal.id %>" method="POST">
+                    <div class="row g-4">
+                        <!-- Kolom Kiri: Editor Narasi & RAB Otomatis -->
+                        <div class="col-lg-8">
+                            <!-- Card Narasi -->
+                            <div class="card p-4 bg-white mb-4">
+                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-edit text-primary me-2"></i> Narasi Proposal Kegiatan</h5>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Tema Kegiatan</label>
+                                    <input type="text" class="form-control" name="tema" value="<%= proposal.tema || '' %>">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Latar Belakang</label>
+                                    <textarea class="form-control" name="latar_belakang" rows="4" required><%= proposal.latar_belakang || '' %></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Tujuan Kegiatan (Gunakan baris baru untuk poin)</label>
+                                    <textarea class="form-control" name="tujuan" rows="4" required><%= proposal.tujuan || '' %></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Card Informasi RAB Otomatis dari Program Kerja -->
+                            <div class="card p-4 bg-white">
+                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-wallet text-success me-2"></i> Rincian Anggaran (RAB) Terintegrasi</h5>
+                                <div class="p-3 bg-light rounded border mb-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted">Total Anggaran Program Kerja:</span>
+                                        <h4 class="fw-bold text-danger mb-0">Rp <%= proker.anggaran ? proker.anggaran.toLocaleString('id-ID') : '0' %></h4>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">Nominal dan rincian ini ditarik otomatis dari modul Program Kerja & RAB.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Kolom Kanan: Konfigurasi 8 Slot TTD & Aksi -->
+                        <div class="col-lg-4">
+                            <div class="card p-4 bg-white mb-4">
+                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-signature text-warning me-2"></i> Konfigurasi Tanda Tangan (8 Slot)</h5>
+                                <p class="text-muted small mb-3">Pengaju dan Ketua Lembaga bersifat wajib. Anda dapat menambahkan nama Pembina secara opsional.</p>
+
+                                <div class="mb-2 p-2 bg-light rounded border">
+                                    <label class="form-label small fw-bold mb-1">1. Pihak Pengaju (Wajib)</label>
+                                    <input type="text" class="form-control form-control-sm" value="<%= userSession.nama_lengkap || 'Ketua Bidang' %>" disabled>
+                                </div>
+
+                                <div class="mb-3 p-2 bg-light rounded border">
+                                    <label class="form-label small fw-bold mb-1">2. Ketua Lembaga (Wajib)</label>
+                                    <input type="text" class="form-control form-control-sm" value="<%= lembaga.nama_ketua || 'Pimpinan Lembaga' %>" disabled>
+                                </div>
+
+                                <hr>
+                                <span class="text-muted small fw-bold d-block mb-2">Slot Pembina Opsional (1 s.d. 6):</span>
+
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_1" placeholder="Nama Pembina 1" value="<%= proposal.pembina_1 || '' %>">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_2" placeholder="Nama Pembina 2" value="<%= proposal.pembina_2 || '' %>">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_3" placeholder="Nama Pembina 3" value="<%= proposal.pembina_3 || '' %>">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_4" placeholder="Nama Pembina 4" value="<%= proposal.pembina_4 || '' %>">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_5" placeholder="Nama Pembina 5" value="<%= proposal.pembina_5 || '' %>">
+                                </div>
+                                <div class="mb-4">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_6" placeholder="Nama Pembina 6" value="<%= proposal.pembina_6 || '' %>">
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button type="submit" name="action" value="save" class="btn btn-outline-primary fw-bold py-2">
+                                        <i class="fas fa-save me-1"></i> Simpan Draf
+                                    </button>
+                                    <button type="submit" name="action" value="submit" class="btn btn-success fw-bold py-2">
+                                        <i class="fas fa-paper-plane me-1"></i> Ajukan Proposal
+                                    </button>
+                                    <a href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>" target="_blank" class="btn btn-dark fw-bold py-2">
+                                        <i class="fas fa-print me-1"></i> Cetak / Pratinjau Dokumen
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

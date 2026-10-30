@@ -24,7 +24,7 @@
                 <!-- Header Title (Clean Header) -->
                 <div class="mb-4">
                     <h2 class="fw-bold text-dark mb-1">Pengaturan Lembaga</h2>
-                    <p class="text-muted mb-0">Kelola informasi profil, kontak, dan logo resmi lembaga Anda.</p>
+                    <p class="text-muted mb-0">Kelola informasi profil, kontak, logo, kop surat, dan stempel resmi lembaga Anda.</p>
                 </div>
 
                 <!-- Notifikasi Flash Message -->
@@ -62,11 +62,45 @@
                                     <label class="form-label fw-bold small">Alamat Sekretariat</label>
                                     <textarea class="form-control" name="alamat" rows="3"><%= lembaga.alamat || '' %></textarea>
                                 </div>
-                                <div class="mb-4">
+                                <div class="mb-3">
                                     <label class="form-label fw-bold small">Ganti Logo Lembaga (Opsional)</label>
                                     <input type="file" class="form-control" name="logo" accept="image/*">
-                                    <small class="text-muted">Format yang didukung: JPG, PNG, atau JPEG.</small>
+                                    <small class="text-muted">Format: JPG, PNG. Maksimal 1 MB.</small>
                                 </div>
+
+                                <!-- TAMBAHAN: Upload Kop Surat -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Kop Surat Resmi Lembaga (Opsional)</label>
+                                    <input type="file" class="form-control" name="kop_surat" accept="image/*">
+                                    <small class="text-muted">Format: JPG, PNG. Digunakan di lembar atas proposal/RAB. Maksimal 1 MB.</small>
+                                </div>
+
+                                <!-- TAMBAHAN: Upload Stempel -->
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold small">Stempel Lembaga (Opsional)</label>
+                                    <input type="file" class="form-control" name="stempel" accept="image/*">
+                                    <small class="text-muted">Format: JPG, PNG. Digunakan di sebelah tanda tangan pimpinan. Maksimal 1 MB.</small>
+                                </div>
+                                 <!-- Upload TTD Ketua -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Tanda Tangan (TTD) Ketua Lembaga (Opsional)</label>
+                                    <% if (lembaga.ttd_ketua) { %>
+                                        <div class="mb-2"><img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" class="img-thumbnail border" style="max-height: 50px;"></div>
+                                    <% } %>
+                                    <input type="file" class="form-control" name="ttd_ketua" accept="image/*">
+                                    <small class="text-muted">Format: PNG/JPG transparan. Maksimal 1 MB.</small>
+                                </div>
+
+                                <!-- Upload TTD Pengaju -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Tanda Tangan (TTD) Pengaju / Bidang (Opsional)</label>
+                                    <% if (lembaga.ttd_pengaju) { %>
+                                        <div class="mb-2"><img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" class="img-thumbnail border" style="max-height: 50px;"></div>
+                                    <% } %>
+                                    <input type="file" class="form-control" name="ttd_pengaju" accept="image/*">
+                                    <small class="text-muted">Format: PNG/JPG transparan. Maksimal 1 MB.</small>
+                                </div>
+
                                 <button type="submit" class="btn btn-primary fw-bold px-4 py-2">
                                     <i class="fas fa-save me-1"></i> Simpan Perubahan
                                 </button>
@@ -74,23 +108,67 @@
                         </div>
                     </div>
 
-                    <!-- Panel Preview Logo & Info (Kanan) -->
+                   
+                    <!-- Panel Preview Logo, Kop Surat, & Stempel (Kanan) -->
                     <div class="col-lg-4">
                         <div class="card p-4 bg-white text-center h-100">
-                            <h5 class="fw-bold text-dark mb-3">Logo Lembaga Saat Ini</h5>
-                            <div class="mb-3 flex-grow-1 d-flex align-items-center justify-content-center">
+                            <h5 class="fw-bold text-dark mb-3">Berkas Lembaga</h5>
+                            
+                            <!-- Preview Logo -->
+                            <div class="mb-3">
+                                <span class="text-muted small d-block mb-1">Logo Saat Ini:</span>
                                 <% if (lembaga.logo) { %>
-                                    <img src="/uploads/logo/<%= lembaga.logo %>" alt="Logo Lembaga" class="img-fluid rounded border p-2" style="max-height: 150px; object-fit: contain;">
+                                    <img src="/uploads/logo/<%= lembaga.logo %>" alt="Logo" class="img-fluid rounded border p-1" style="max-height: 80px; object-fit: contain;">
                                 <% } else { %>
-                                    <div class="bg-light rounded p-4 text-muted border w-100">
-                                        <i class="fas fa-image fa-3x mb-2"></i>
-                                        <p class="small mb-0">Belum ada logo diunggah.</p>
-                                    </div>
+                                    <span class="badge bg-light text-muted border py-2 px-3">Belum ada logo</span>
                                 <% } %>
                             </div>
-                            <span class="badge bg-primary bg-opacity-10 text-primary py-2 px-3 fw-bold">
-                                ID Lembaga: #<%= lembaga.id %>
-                            </span>
+
+                            <!-- Preview Kop Surat -->
+                            <div class="mb-3">
+                                <span class="text-muted small d-block mb-1">Kop Surat Saat Ini:</span>
+                                <% if (lembaga.kop_surat) { %>
+                                    <img src="/uploads/logo/<%= lembaga.kop_surat %>" alt="Kop Surat" class="img-fluid rounded border p-1" style="max-height: 60px; object-fit: contain;">
+                                <% } else { %>
+                                    <span class="badge bg-light text-muted border py-2 px-3">Belum ada kop surat</span>
+                                <% } %>
+                            </div>
+
+                            <!-- Preview Stempel -->
+                            <div class="mb-3">
+                                <span class="text-muted small d-block mb-1">Stempel Saat Ini:</span>
+                                <% if (lembaga.stempel) { %>
+                                    <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel" class="img-fluid rounded-circle border p-1" style="width: 60px; height: 60px; object-fit: cover;">
+                                <% } else { %>
+                                    <span class="badge bg-light text-muted border py-2 px-3">Belum ada stempel</span>
+                                <% } %>
+                            </div>
+
+                            <!-- Preview TTD Ketua Lembaga -->
+                            <div class="mb-3">
+                                <span class="text-muted small d-block mb-1">TTD Ketua Saat Ini:</span>
+                                <% if (lembaga.ttd_ketua) { %>
+                                    <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" class="img-fluid rounded border bg-light p-1" style="max-height: 60px; object-fit: contain;">
+                                <% } else { %>
+                                    <span class="badge bg-light text-muted border py-2 px-3">Belum ada TTD ketua</span>
+                                <% } %>
+                            </div>
+
+                            <!-- Preview TTD Pengaju / Bidang -->
+                            <div class="mb-3">
+                                <span class="text-muted small d-block mb-1">TTD Pengaju Saat Ini:</span>
+                                <% if (lembaga.ttd_pengaju) { %>
+                                    <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" class="img-fluid rounded border bg-light p-1" style="max-height: 60px; object-fit: contain;">
+                                <% } else { %>
+                                    <span class="badge bg-light text-muted border py-2 px-3">Belum ada TTD pengaju</span>
+                                <% } %>
+                            </div>
+
+                            <div class="mt-auto pt-3 border-top">
+                                <span class="badge bg-primary bg-opacity-10 text-primary py-2 px-3 fw-bold">
+                                    ID Lembaga: #<%= lembaga.id %>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>

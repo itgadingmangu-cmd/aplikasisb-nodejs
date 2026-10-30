@@ -13,8 +13,11 @@ module.exports = (sequelize, DataTypes) => {
       // Relasi Proker ke RincianBiaya (RAB)
       Proker.hasMany(models.RincianBiaya, { foreignKey: 'prokerId', as: 'RincianBiayas', onDelete: 'CASCADE' });
 
-      // TAMBAHAN UTAMA: Relasi Proker ke RealisasiBiaya (Pengeluaran Riil)
+      // Relasi Proker ke RealisasiBiaya (Pengeluaran Riil)
       Proker.hasMany(models.RealisasiBiaya, { foreignKey: 'prokerId', as: 'Realisasis', onDelete: 'CASCADE' });
+
+      // TAMBAHAN UTAMA: Relasi Proker ke Proposal (1 Program Kerja memiliki 1 Dokumen Proposal)
+      Proker.hasOne(models.Proposal, { foreignKey: 'prokerId', as: 'Proposal', onDelete: 'CASCADE' });
     }
   }
   Proker.init({

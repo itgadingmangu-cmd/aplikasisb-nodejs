@@ -270,7 +270,12 @@ app.get('/login', (req, res) => {
 app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        const user = await User.findOne({ where: { username } });
+        
+        // Sertakan relasi Bidang jika diperlukan untuk mengambil nama/detail bidang
+        const user = await User.findOne({ 
+            where: { username },
+            include: [{ model: Bidang, as: 'Bidang' }] 
+        });
 
         if (user && bcrypt.compareSync(password, user.password)) {
             req.session.user = {
@@ -280,6 +285,7 @@ app.post('/login', async (req, res) => {
                 role: user.role,          
                 lembagaId: user.lembagaId,
                 id_bidang: user.id_bidang || null,
+                nama_bidang: user.Bidang ? user.Bidang.nama_bidang : null, // <-- Tambahan opsional info nama bidang
                 activeLembagaId: user.lembagaId || null
             };
             return res.redirect(user.role === 'superadmin' ? '/' : '/lembaga-admin');

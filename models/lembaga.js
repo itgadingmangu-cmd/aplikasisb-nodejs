@@ -12,6 +12,9 @@ module.exports = (sequelize, DataTypes) => {
       
       // Satu Lembaga memiliki banyak Program Kerja
       Lembaga.hasMany(models.Proker, { foreignKey: 'lembagaId', as: 'Prokers', onDelete: 'CASCADE' });
+
+      // Satu Lembaga memiliki banyak Proposal
+      Lembaga.hasMany(models.Proposal, { foreignKey: 'lembagaId', as: 'Proposals', onDelete: 'CASCADE' });
     }
   }
   
@@ -23,7 +26,11 @@ module.exports = (sequelize, DataTypes) => {
     nama_ketua: DataTypes.STRING,
     nomor_hp: DataTypes.STRING,
     alamat: DataTypes.TEXT,
-    logo: DataTypes.STRING
+    logo: DataTypes.STRING,
+    kop_surat: DataTypes.STRING,
+    stempel: DataTypes.STRING,
+    ttd_ketua: DataTypes.STRING,
+    ttd_pengaju: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Lembaga',

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Bidang - <%= bidang ? bidang.nama_bidang : 'Bidang' %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <%- include('partials/sidebar') %>
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- NOTIFIKASI / PESAN DIAGNOSTIK -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <div class="mb-4">
+                    <h2 class="fw-bold text-dark mb-1">Panel Bidang: <%= bidang ? bidang.nama_bidang : '-' %></h2>
+                    <p class="text-muted mb-0">Kelola program kerja, usulan kegiatan, dan laporan bidang Anda.</p>
+                </div>
+
+                <!-- Ringkasan Tugas Bidang -->
+                <div class="card p-4 bg-white shadow-sm mb-4">
+                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-info-circle text-primary me-2"></i> Uraian Tugas & Deskripsi</h5>
+                    <p class="text-secondary mb-0"><%= bidang && bidang.uraian_tugas ? bidang.uraian_tugas : 'Belum ada uraian tugas yang diatur untuk bidang ini.' %></p>
+                </div>
+
+                <!-- Daftar Program Kerja Bidang -->
+                <div class="card p-4 bg-white shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold text-dark mb-0"><i class="fas fa-tasks text-primary me-2"></i> Program Kerja Terdaftar</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small text-uppercase">
+                                    <th>No</th>
+                                    <th>Nama Program Kerja</th>
+                                    <th>Waktu</th>
+                                    <th>Status</th>
+                                    <th class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (bidang && bidang.Prokers && bidang.Prokers.length > 0) { %>
+                                    <% bidang.Prokers.forEach((p, idx) => { %>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><%= idx + 1 %></td>
+                                            <td class="fw-bold text-dark"><%= p.nama_program %></td>
+                                            <td>Bulan ke-<%= p.waktu_pelaksanaan || '-' %></td>
+                                            <td><span class="badge bg-secondary"><%= p.status || 'Direncanakan' %></span></td>
+                                            <td class="text-center">
+                                                <a href="/lembaga-admin/proker/proposal/<%= p.id %>" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-file-contract me-1"></i> Proposal & RAB
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-muted">Belum ada program kerja untuk bidang ini pada tahun aktif.</td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

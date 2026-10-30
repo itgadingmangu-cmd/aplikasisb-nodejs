@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnostik Bidang & Lembaga</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <%- include('partials/sidebar') %>
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <a href="/lembaga-admin" class="btn btn-outline-secondary btn-sm mb-2">
+                            <i class="fas fa-arrow-left me-1"></i> Kembali ke Dashboard
+                        </a>
+                        <h2 class="fw-bold text-dark mb-1">Diagnostik Bidang & Lembaga</h2>
+                        <p class="text-muted mb-0">Menampilkan rincian bidang operasional dan status keterhubungan data untuk <span class="fw-bold text-primary"><%= lembaga.nama_organisasi %></span>.</p>
+                    </div>
+                </div>
+
+                <!-- Kartu Status Diagnostik -->
+                <div class="alert alert-success d-flex align-items-center mb-4" role="alert">
+                    <i class="fas fa-check-circle fa-2x me-3"></i>
+                    <div>
+                        <h5 class="alert-heading fw-bold mb-1">Diagnostik Sistem OK</h5>
+                        <p class="mb-0">Berhasil memuat <strong><%= bidangs.length %> Bidang</strong> dan <strong><%= users.length %> Akun Pengurus</strong> yang aktif dalam sesi lembaga ini.</p>
+                    </div>
+                </div>
+
+                <!-- Tabel Rincian Bidang Masing-Masing -->
+                <div class="card p-4 bg-white shadow-sm mb-4">
+                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-sitemap text-primary me-2"></i> Daftar Bidang Terdaftar</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small text-uppercase">
+                                    <th>No</th>
+                                    <th>Nama Bidang</th>
+                                    <th>Uraian Tugas / Deskripsi</th>
+                                    <th class="text-center">Aksi Terkait</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (bidangs && bidangs.length > 0) { %>
+                                    <% bidangs.forEach((b, idx) => { %>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><%= idx + 1 %></td>
+                                            <td class="fw-bold text-dark"><%= b.nama_bidang %></td>
+                                            <td><%= b.uraian_tugas || '-' %></td>
+                                            <td class="text-center">
+                                                <a href="/lembaga-admin/proker" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-tasks me-1"></i> Lihat Proker Bidang
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-muted">Belum ada bidang yang terdaftar pada lembaga ini.</td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
