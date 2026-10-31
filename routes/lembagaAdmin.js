@@ -971,9 +971,10 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
             return res.redirect('/lembaga-admin');
         }
 
-        proposal.latar_belakang = latar_belakang;
-        proposal.tujuan = tujuan;
-        proposal.tema = tema;
+        // Perbarui data dengan pengaman fallback string kosong / null
+        proposal.latar_belakang = latar_belakang || '';
+        proposal.tujuan = tujuan || '';
+        proposal.tema = tema || '';
         proposal.pembina_1 = pembina_1 || null;
         proposal.pembina_2 = pembina_2 || null;
         proposal.pembina_3 = pembina_3 || null;
@@ -981,11 +982,16 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         proposal.pembina_5 = pembina_5 || null;
         proposal.pembina_6 = pembina_6 || null;
 
-        // Jika tombol ajukan diklik
+        // Logika status berdasarkan tombol yang diklik
         if (action === 'submit') {
             proposal.status = 'Diajukan';
             req.session.success_msg = "Proposal berhasil diajukan ke pimpinan lembaga!";
         } else {
+            // Opsional: Pastikan jika disimpan sebagai draf saat status sudah 'Disetujui', 
+            // status tidak turun kembali ke 'Draft' (kecuali memang diinginkan reset)
+            if (proposal.status !== 'Disetujui') {
+                proposal.status = 'Draft';
+            }
             req.session.success_msg = "Perubahan draf proposal berhasil disimpan!";
         }
 
@@ -996,7 +1002,6 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
-
 // Rute Daftar Proposal Lembaga (Menu Khusus Proposal)
 router.get('/proposal', isLoggedIn, async (req, res) => {
     try {
@@ -1035,36 +1040,40 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
 // Rute Pratinjau Cetak / Print Proposal & RAB Lengkap
 router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
     try {
-        const { id } = req.params;
-        const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-
-        const proposal = await Proposal.findOne({
-            where: { id: id, lembagaId: lembagaId },
+        const proposalId = req.params.id;
+        const opsiTtd = req.query.ttd;
+        
+        const proposal = await Proposal.findByPk(proposalId, {
             include: [
                 {
                     model: Proker,
                     as: 'Proker',
-                    include: [{ model: Bidang, as: 'Bidang' }]
-                },
-                { model: Lembaga, as: 'Lembaga' }
+                    include: [
+                        { model: Bidang, as: 'Bidang' },
+                        { model: RincianBiaya, as: 'RincianBiayas' }
+                    ]
+                }
             ]
         });
 
         if (!proposal) {
-            req.session.error_msg = "Dokumen proposal tidak ditemukan!";
+            req.session.error_msg = "Proposal tidak ditemukan!";
             return res.redirect('/lembaga-admin/proposal');
         }
+
+        const lembaga = await Lembaga.findByPk(proposal.Proker.lembagaId);
 
         res.render('print_proposal', {
             proposal,
             proker: proposal.Proker,
-            lembaga: proposal.Lembaga,
-            userSession: user
+            rincianRab: (proposal.Proker && proposal.Proker.RincianBiayas) ? proposal.Proker.RincianBiayas : [],
+            lembaga,
+            // Memastikan data sesi user terkirim lengkap
+            userSession: req.session.user, 
+            ttd: opsiTtd
         });
-
     } catch (err) {
-        console.error("Gagal memuat halaman cetak proposal:", err);
+        console.error("Gagal membuka pratinjau cetak proposal:", err);
         res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
@@ -1088,6 +1097,36 @@ router.post('/proker/proposal/approval/:id', isLoggedIn, async (req, res) => {
         res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
     } catch (err) {
         console.error("Gagal memperbarui status approval:", err);
+        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
+// Rute Cetak Rekapitulasi Global Tahunan Lembaga & RAB Keseluruhan
+router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
+    try {
+        const lembagaId = req.session.lembagaId; // Sesuaikan dengan cara Anda menyimpan sesi lembaga aktif
+        
+        // Ambil data lembaga
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        if (!lembaga) {
+            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            return res.redirect('/lembaga-admin');
+        }
+
+        // Ambil seluruh program kerja dan RAB dalam 1 tahun untuk lembaga ini
+        const listProker = await Proker.findAll({
+            where: { lembagaId: lembagaId },
+            include: [{ model: Bidang }] // Sesuaikan relasi model Bidang jika ada
+        });
+
+        // Render ke halaman view cetak global
+        res.render('print_rekap_global', {
+            lembaga,
+            listProker,
+            userSession: req.session.user
+        });
+    } catch (err) {
+        console.error("Gagal mencetak rekap global:", err);
         res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });

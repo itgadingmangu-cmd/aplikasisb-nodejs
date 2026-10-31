@@ -13,7 +13,8 @@
             .sheet { width: 100%; margin: 0; padding: 10mm; box-shadow: none; }
             .no-print { display: none !important; }
         }
-        .signature-box { min-height: 75px; display: flex; align-items: center; justify-content: center; }
+        /* Kotak tanda tangan dipertinggi dan diperluas agar stempel lebih leluasa */
+        .signature-box { min-height: 105px; position: relative; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
@@ -32,7 +33,7 @@
         <!-- KOP SURAT LEMBAGA -->
         <div class="text-center mb-4 border-bottom pb-3">
             <% if (lembaga.kop_surat) { %>
-                <img src="/uploads/logo/<%= lembaga.kop_surat %>" alt="Kop Surat" class="img-fluid" style="max-height: 120px; object-fit: contain;">
+                <img src="/uploads/logo/<%= lembaga.kop_surat %>" alt="Kop Surat" class="img-fluid" style="max-height: 170px; object-fit: contain;">
             <% } else { %>
                 <h3 class="fw-bold text-uppercase"><%= lembaga.nama_organisasi %></h3>
                 <p class="mb-0 small"><%= lembaga.alamat || 'Alamat Sekretariat Lembaga' %> | Telp: <%= lembaga.nomor_hp || '-' %></p>
@@ -43,7 +44,9 @@
         <div class="text-center my-4">
             <h4 class="fw-bold text-uppercase">PROPOSAL KEGIATAN</h4>
             <h5 class="fw-bold text-uppercase text-secondary"><%= proker.nama_program %></h5>
-            <p class="small text-muted mb-0">Tema: "<%= proposal.tema || '-' %>"</p>
+            <p class="small text-muted mb-1">Tema: "<%= proposal.tema || '-' %>"</p>
+            <!-- Salam Pembuka Bahasa Arab di Bawah Tema -->
+            <p class="fw-bold mt-2 mb-0" style="font-size: 1.2rem; font-family: 'Traditional Arabic', serif;" dir="rtl">اَلسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ</p>
         </div>
 
         <!-- 1. LATAR BELAKANG -->
@@ -62,33 +65,68 @@
         <div class="mb-3">
             <h6 class="fw-bold text-uppercase">III. Waktu & Tempat Pelaksanaan</h6>
             <ul>
-                <li>Bulan Pelaksanaan: Bulan ke-<%= proker.waktu_pelaksanaan || '-' %> (Tahun Anggaran <%= proker.tahun %>)</li>
+                <% 
+                    const namaBulan = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                    let rawBulan = String(proker.waktu_pelaksanaan || '');
+                    let arrBulan = rawBulan.split(',').map(b => parseInt(b.trim())).filter(Boolean);
+                    let namaBulanTampil = arrBulan.length > 0 ? namaBulan[arrBulan[0]] : '-'; 
+                %>
+                <li>Bulan Pelaksanaan: <strong><%= namaBulanTampil %></strong> (Tahun Anggaran <%= proker.tahun %>)</li>
                 <li>Tempat: Ruang Lingkup Operasional Lembaga / Sesuai Ketentuan Bidang</li>
             </ul>
         </div>
 
-        <!-- 4. RENCANA ANGGARAN (RAB) -->
+        <!-- 4. RENCANA ANGGARAN BIAYA (RAB) -->
         <div class="mb-4">
             <h6 class="fw-bold text-uppercase">IV. Rencana Anggaran Biaya (RAB)</h6>
             <table class="table table-bordered table-sm align-middle">
                 <thead class="table-light text-center">
                     <tr>
-                        <th>No</th>
-                        <th>Uraian Kebutuhan Program</th>
-                        <th>Jumlah / Nominal Total</th>
+                        <th style="width: 5%;">No</th>
+                        <th>Uraian Kebutuhan</th>
+                        <th style="width: 20%;">Vol / Satuan</th>
+                        <th style="width: 22%;">Harga Satuan</th>
+                        <th style="width: 25%;">Jumlah</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td class="text-center">1</td>
-                        <td>Alokasi Anggaran Utama Kegiatan: <%= proker.nama_program %></td>
-                        <td class="text-end fw-bold">Rp <%= proker.anggaran ? proker.anggaran.toLocaleString('id-ID') : '0' %></td>
-                    </tr>
+                    <% 
+                        let totalGlobalRAB = 0;
+                        let rabItems = (typeof rincianRab !== 'undefined' && rincianRab) ? rincianRab : ((proker && proker.RincianBiayas) ? proker.RincianBiayas : []);
+                    %>
+
+                    <% if (rabItems.length > 0) { %>
+                        <% rabItems.forEach((item, index) => { %>
+                            <% 
+                                let volume = item.jumlah || item.volume || item.qty || 1;
+                                let satuan = item.satuan || '';
+                                let hargaSatuan = item.harga_satuan || item.harga || 0;
+                                let subTotal = volume * hargaSatuan;
+                                totalGlobalRAB += subTotal;
+                            %>
+                            <tr>
+                                <td class="text-center"><%= index + 1 %></td>
+                                <td><%= item.uraian || item.nama_item || item.nama_barang || '-' %></td>
+                                <td class="text-center"><%= volume %> <%= satuan %></td>
+                                <td class="text-end">Rp <%= Number(hargaSatuan).toLocaleString('id-ID') %></td>
+                                <td class="text-end fw-bold">Rp <%= Number(subTotal).toLocaleString('id-ID') %></td>
+                            </tr>
+                        <% }) %>
+                    <% } else { %>
+                        <% totalGlobalRAB = proker.anggaran || 0; %>
+                        <tr>
+                            <td class="text-center">1</td>
+                            <td>Alokasi Anggaran Utama Kegiatan: <%= proker.nama_program %></td>
+                            <td class="text-center">1 Paket</td>
+                            <td class="text-end">Rp <%= Number(proker.anggaran || 0).toLocaleString('id-ID') %></td>
+                            <td class="text-end fw-bold">Rp <%= Number(proker.anggaran || 0).toLocaleString('id-ID') %></td>
+                        </tr>
+                    <% } %>
                 </tbody>
                 <tfoot>
                     <tr class="table-light fw-bold">
-                        <td colspan="2" class="text-end">TOTAL KEBUTUHAN DANA:</td>
-                        <td class="text-end text-danger">Rp <%= proker.anggaran ? proker.anggaran.toLocaleString('id-ID') : '0' %></td>
+                        <td colspan="4" class="text-end">TOTAL KEBUTUHAN DANA:</td>
+                        <td class="text-end text-danger">Rp <%= Number(totalGlobalRAB).toLocaleString('id-ID') %></td>
                     </tr>
                 </tfoot>
             </table>
@@ -97,71 +135,121 @@
         <!-- 5. PENUTUP -->
         <div class="mb-5">
             <h6 class="fw-bold text-uppercase">V. Penutup</h6>
-            <p class="text-justify" style="text-align: justify;">
+            <p class="text-justify mb-3" style="text-align: justify;">
                 Demikian proposal dan Rencana Anggaran Biaya (RAB) ini kami sampaikan. Besar harapan kami atas dukungan, bimbingan, serta pengesahan dari Bapak/Ibu pimpinan dan pembina sekalian demi kelancaran dan kesuksesan program kerja ini. Atas perhatian dan kerjasamanya, kami ucapkan terima kasih.
             </p>
+            <!-- Tutup Salam & Syukur Bahasa Arab di Bawah Penutup -->
+            <div class="mt-3 text-center">
+                <p class="fw-bold mb-1" style="font-size: 1.2rem; font-family: 'Traditional Arabic', serif;" dir="rtl">اَلْحَمْدُ للهِ، جَزَاكُمُ اللهُ خَيْرًا</p>
+                <p class="fw-bold mb-0" style="font-size: 1.1rem; font-family: 'Traditional Arabic', serif;" dir="rtl">وَالسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ</p>
+            </div>
         </div>
 
-        <!-- LEMBAR TANDA TANGAN (8 SLOT TTD & STEMPEL) -->
-        <div class="mt-5 pt-3">
+        <!-- LEMBAR TANDA TANGAN & TANGGAL PENGAJUAN -->
+        <% 
+            let tampilkanTtd = (typeof ttd !== 'undefined' && ttd === 'false') ? false : true; 
+        %>
+
+        <div class="mt-4 pt-2">
+            <!-- Baris Tanggal Pengajuan (Selalu tampil) -->
+            <div class="row text-center mb-1">
+                <div class="col-6"></div>
+                <div class="col-6">
+                    <% 
+                        const bulanIndo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                        let tglSkrg = new Date();
+                        let tanggalCetak = tglSkrg.getDate() + " " + bulanIndo[tglSkrg.getMonth()] + " " + tglSkrg.getFullYear();
+                    %>
+                    <p class="mb-0"><%= 'Jombang' %>, <%= tanggalCetak %></p>
+                </div>
+            </div>
+
             <div class="row text-center">
-                <!-- Kolom Pengaju (Wajib) -->
+                <!-- Kolom Pengaju -->
                 <div class="col-6 mb-4">
                     <p class="mb-1">Diajukan Oleh,</p>
-                    <p class="fw-bold mb-2">Kepala Bidang / Pengaju</p>
+                    <p class="fw-bold mb-2">
+                        <% if (typeof userSession !== 'undefined' && userSession.jabatan && userSession.jabatan.trim() !== '') { %>
+                            <%= userSession.jabatan %>
+                        <% } else if (proker && proker.Bidang && proker.Bidang.nama_bidang) { %>
+                            <%= proker.Bidang.nama_bidang %>
+                        <% } else { %>
+                            Pengaju
+                        <% } %>
+                    </p>
                     
-                    <div class="signature-box mb-2">
-                        <% if (lembaga.ttd_pengaju) { %>
-                            <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 60px; object-fit: contain;">
+                    <!-- Kotak Tanda Tangan Pengaju -->
+                    <div class="signature-box mb-2" style="min-height: 100px;">
+                        <% if (tampilkanTtd && lembaga.ttd_pengaju) { %>
+                            <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 130px; width: auto; object-fit: contain;">
                         <% } %>
                     </div>
 
-                    <p class="fw-bold mb-0 text-decoration-underline"><%= userSession.nama_lengkap || 'Pengaju' %></p>
+                    <p class="fw-bold mb-0 text-decoration-underline"><%= (typeof userSession !== 'undefined' && userSession.nama_lengkap) ? userSession.nama_lengkap : 'Diyanto, S.Pd' %></p>
                 </div>
 
-                <!-- Kolom Ketua Lembaga (Wajib) -->
+                <!-- Kolom Ketua Lembaga & Stempel -->
                 <div class="col-6 mb-4 position-relative">
                     <p class="mb-1">Mengetahui / Mengesahkan,</p>
-                    <p class="fw-bold mb-2">Ketua Lembaga</p>
+                    <p class="fw-bold mb-2">Ketua <%= lembaga.nama_organisasi || 'Lembaga' %></p>
                     
-                    <!-- Stempel Lembaga di Samping Tanda Tangan Ketua -->
-                    <% if (lembaga.stempel) { %>
-                        <div style="position: absolute; left: 38%; transform: translateX(-50%); bottom: 25px; opacity: 0.85; pointer-events: none;">
-                            <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 80px; height: 80px; object-fit: cover;">
-                        </div>
-                    <% } %>
+                    <!-- Kotak Tanda Tangan & Stempel Ketua -->
+                    <div class="signature-box mb-2" style="min-height: 100px;">
+                        <!-- Stempel Lembaga (Hanya muncul jika tampilkanTtd bernilai true) -->
+                        <% if (tampilkanTtd && lembaga.stempel) { %>
+                            <div style="position: absolute; left: 30%; transform: translateX(-80%); top: -60px; opacity: 0.88; pointer-events: none; z-index: 2;">
+                                <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 225px; height: 240px; object-fit: contain;">
+                            </div>
+                        <% } %>
 
-                    <div class="signature-box mb-2">
-                        <% if (lembaga.ttd_ketua) { %>
-                            <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 60px; object-fit: contain;">
+                        <!-- Tanda Tangan Ketua (Hanya muncul jika tampilkanTtd bernilai true) -->
+                        <% if (tampilkanTtd && lembaga.ttd_ketua) { %>
+                            <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 130px; width: auto; object-fit: contain; position: relative; z-index: 1;">
                         <% } %>
                     </div>
 
-                    <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || 'Pimpinan Lembaga' %></p>
+                    <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || 'Agus Efendy' %></p>
                 </div>
 
-                <!-- Slot Pembina Opsional (1 s.d. 6) -->
+               <!-- Slot Wilayah / Tempat Opsional (1 s.d. 6) -->
                 <% 
+                   // Daftar nama wilayah / tempat default sesuai permintaan
+                   let wilayahList = [
+                       "Jombang Kota", 
+                       "Jombang Barat", 
+                       "Jombang Timur", 
+                       "Jombang Utara", 
+                       "Jombang Selatan", 
+                       "Muhajir Gadingmangu"
+                   ];
+
                    let pembinaList = [
                        proposal.pembina_1, proposal.pembina_2, proposal.pembina_3,
                        proposal.pembina_4, proposal.pembina_5, proposal.pembina_6
-                   ].filter(p => p && p.trim() !== '');
+                   ];
+
+                   // Menyaring slot yang terisi data saja
+                   let activeWilayahList = pembinaList.map((p, idx) => {
+                       return {
+                           namaWilayah: wilayahList[idx] || `Wilayah ${idx + 1}`,
+                           namaPejabat: p
+                       };
+                   }).filter(item => item.namaPejabat && item.namaPejabat.trim() !== '');
                 %>
 
-                <% if (pembinaList.length > 0) { %>
-                    <div class="col-12 mt-3 mb-2"><hr><p class="fw-bold small text-uppercase text-muted">Tim Pembina / Penasihat</p></div>
-                    <% pembinaList.forEach((pembinaName, idx) => { %>
+                <% if (activeWilayahList.length > 0) { %>
+                    <div class="col-12 mt-3 mb-2"><hr><p class="fw-bold small text-uppercase text-muted">Dewan Penasihat / Pimpinan Wilayah</p></div>
+                    <% activeWilayahList.forEach((item) => { %>
                         <div class="col-4 mb-4">
-                            <p class="mb-1 small">Pembina <%= idx + 1 %></p>
-                            <div class="signature-box mb-2" style="min-height: 50px;"></div>
-                            <p class="fw-bold small mb-0 text-decoration-underline"><%= pembinaName %></p>
+                            <!-- Menyesuaikan teks menjadi "Pembina [Nama Wilayah]" -->
+                            <p class="mb-1 small">Pembina <%= item.namaWilayah %></p>
+                            <div class="signature-box mb-2" style="min-height: 70px;"></div>
+                            <p class="fw-bold small mb-0 text-decoration-underline"><%= item.namaPejabat %></p>
                         </div>
                     <% }) %>
                 <% } %>
             </div>
         </div>
-
-    </div>
 
 </body>
 </html>

@@ -77,7 +77,7 @@
                                 <div class="p-3 bg-light rounded border mb-3">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="text-muted">Total Anggaran Program Kerja:</span>
-                                        <h4 class="fw-bold text-danger mb-0">Rp <%= proker.anggaran ? proker.anggaran.toLocaleString('id-ID') : '0' %></h4>
+                                        <h4 class="fw-bold text-danger mb-0">Rp <%= proker.anggaran ? Number(proker.anggaran).toLocaleString('id-ID') : '0' %></h4>
                                     </div>
                                     <small class="text-muted d-block mt-1">Nominal dan rincian ini ditarik otomatis dari modul Program Kerja & RAB.</small>
                                 </div>
@@ -101,25 +101,25 @@
                                 </div>
 
                                 <hr>
-                                <span class="text-muted small fw-bold d-block mb-2">Slot Pembina Opsional (1 s.d. 6):</span>
+                                <span class="text-muted small fw-bold d-block mb-2">Slot Dewan Penasihat / Pimpinan Wilayah:</span>
 
                                 <div class="mb-2">
-                                    <input type="text" class="form-control form-control-sm" name="pembina_1" placeholder="Nama Pembina 1" value="<%= proposal.pembina_1 || '' %>">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_1" placeholder="Pembina Jombang Kota" value="<%= proposal.pembina_1 || '' %>">
                                 </div>
                                 <div class="mb-2">
-                                    <input type="text" class="form-control form-control-sm" name="pembina_2" placeholder="Nama Pembina 2" value="<%= proposal.pembina_2 || '' %>">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_2" placeholder="Pembina Jombang Barat" value="<%= proposal.pembina_2 || '' %>">
                                 </div>
                                 <div class="mb-2">
-                                    <input type="text" class="form-control form-control-sm" name="pembina_3" placeholder="Nama Pembina 3" value="<%= proposal.pembina_3 || '' %>">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_3" placeholder="Pembina Jombang Timur" value="<%= proposal.pembina_3 || '' %>">
                                 </div>
                                 <div class="mb-2">
-                                    <input type="text" class="form-control form-control-sm" name="pembina_4" placeholder="Nama Pembina 4" value="<%= proposal.pembina_4 || '' %>">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_4" placeholder="Pembina Jombang Utara" value="<%= proposal.pembina_4 || '' %>">
                                 </div>
                                 <div class="mb-2">
-                                    <input type="text" class="form-control form-control-sm" name="pembina_5" placeholder="Nama Pembina 5" value="<%= proposal.pembina_5 || '' %>">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_5" placeholder="Pembina Jombang Selatan" value="<%= proposal.pembina_5 || '' %>">
                                 </div>
                                 <div class="mb-4">
-                                    <input type="text" class="form-control form-control-sm" name="pembina_6" placeholder="Nama Pembina 6" value="<%= proposal.pembina_6 || '' %>">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_6" placeholder="Pembina Muhajir Gadingmangu" value="<%= proposal.pembina_6 || '' %>">
                                 </div>
 
                                 <div class="d-grid gap-2">
@@ -129,9 +129,52 @@
                                     <button type="submit" name="action" value="submit" class="btn btn-success fw-bold py-2">
                                         <i class="fas fa-paper-plane me-1"></i> Ajukan Proposal
                                     </button>
-                                    <a href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>" target="_blank" class="btn btn-dark fw-bold py-2">
-                                        <i class="fas fa-print me-1"></i> Cetak / Pratinjau Dokumen
-                                    </a>
+
+                                    <!-- Opsi Cetak Pratinjau dengan / Tanpa TTD -->
+                                    <div class="dropdown">
+                                        <button class="btn btn-info fw-bold py-2 text-white w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="fas fa-eye me-1"></i> Pratinjau Dokumen (Preview)
+                                        </button>
+                                        <ul class="dropdown-menu w-100 shadow">
+                                            <li>
+                                                <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=true" target="_blank">
+                                                    <i class="fas fa-file-signature text-primary me-2"></i> Pratinjau dengan TTD & Stempel
+                                                </a>
+                                            </li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=false" target="_blank">
+                                                    <i class="fas fa-file-alt text-secondary me-2"></i> Pratinjau Tanpa TTD / Bersih
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Tombol Cetak Resmi (Hanya Aktif Jika Status 'Disetujui') -->
+                                    <% if (proposal.status === 'Disetujui') { %>
+                                        <div class="dropdown">
+                                            <button class="btn btn-dark fw-bold py-2 w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fas fa-print me-1"></i> Cetak / Simpan PDF Resmi
+                                            </button>
+                                            <ul class="dropdown-menu w-100 shadow">
+                                                <li>
+                                                    <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=true" target="_blank">
+                                                        <i class="fas fa-file-signature text-primary me-2"></i> Cetak Resmi dengan TTD & Stempel
+                                                    </a>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=false" target="_blank">
+                                                        <i class="fas fa-file-alt text-secondary me-2"></i> Cetak Resmi Tanpa TTD
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    <% } else { %>
+                                        <button type="button" class="btn btn-secondary fw-bold py-2" disabled title="Tombol cetak resmi aktif setelah proposal disetujui oleh Ketua Lembaga">
+                                            <i class="fas fa-lock me-1"></i> Cetak Terkunci (Menunggu Persetujuan)
+                                        </button>
+                                    <% } %>
                                 </div>
                             </div>
                         </div>

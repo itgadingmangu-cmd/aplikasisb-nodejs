@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cetak Rekapitulasi Global Tahunan - <%= lembaga.nama_organisasi %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #ffffff; font-family: 'Times New Roman', Times, serif; color: #000; line-height: 1.5; }
+        .sheet { width: 210mm; min-height: 297mm; padding: 20mm; margin: 10mm auto; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        @media print {
+            body { background: none; }
+            .sheet { width: 100%; margin: 0; padding: 10mm; box-shadow: none; }
+            .no-print { display: none !important; }
+        }
+        .signature-box { min-height: 65px; display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <!-- Tombol Cetak / Kembali (Hilang Saat Diprint) -->
+    <div class="container text-center my-3 no-print">
+        <button onclick="window.print()" class="btn btn-primary fw-bold px-4 me-2">
+            <i class="fas fa-print me-1"></i> Cetak / Simpan PDF Rekap Global
+        </button>
+        <a href="/lembaga-admin/dashboard" class="btn btn-outline-secondary fw-bold px-4">
+            Kembali ke Dashboard
+        </a>
+    </div>
+
+    <div class="sheet">
+        <!-- KOP SURAT LEMBAGA -->
+        <div class="text-center mb-4 border-bottom pb-3">
+            <% if (lembaga.kop_surat) { %>
+                <img src="/uploads/logo/<%= lembaga.kop_surat %>" alt="Kop Surat" class="img-fluid" style="max-height: 120px; object-fit: contain;">
+            <% } else { %>
+                <h3 class="fw-bold text-uppercase"><%= lembaga.nama_organisasi %></h3>
+                <p class="mb-0 small"><%= lembaga.alamat || 'Alamat Sekretariat Lembaga' %> | Telp: <%= lembaga.nomor_hp || '-' %></p>
+            <% } %>
+        </div>
+
+        <!-- JUDUL LAPORAN -->
+        <div class="text-center my-4">
+            <h4 class="fw-bold text-uppercase">REKAPITULASI PROGRAM KERJA & ANGGARAN (RAB) GLOBAL</h4>
+            <h5 class="fw-bold text-uppercase text-secondary"><%= lembaga.nama_organisasi %> Tahun Anggaran</h5>
+        </div>
+
+        <!-- TABEL REKAPITULASI PROGRAM KERJA & RAB -->
+        <div class="mb-4">
+            <table class="table table-bordered table-sm align-middle">
+                <thead class="table-light text-center">
+                    <tr>
+                        <th>No</th>
+                        <th>Nama Program Kerja</th>
+                        <th>Bidang</th>
+                        <th>Waktu Pelaksanaan</th>
+                        <th>Nominal Anggaran (RAB)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% let totalGlobal = 0; %>
+                    <% if (listProker && listProker.length > 0) { %>
+                        <% listProker.forEach((proker, index) => { %>
+                            <% totalGlobal += (proker.anggaran || 0); %>
+                            <tr>
+                                <td class="text-center"><%= index + 1 %></td>
+                                <td><%= proker.nama_program %></td>
+                                <td><%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %></td>
+                                <td class="text-center">Bulan ke-<%= proker.waktu_pelaksanaan || '-' %></td>
+                                <td class="text-end">Rp <%= proker.anggaran ? proker.anggaran.toLocaleString('id-ID') : '0' %></td>
+                            </tr>
+                        <% }) %>
+                    <% } else { %>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">Belum ada program kerja terdaftar.</td>
+                        </tr>
+                    <% } %>
+                </thead>
+                <tfoot>
+                    <tr class="table-light fw-bold">
+                        <td colspan="4" class="text-end">TOTAL KESELURUHAN ANGGARAN TAHUNAN:</td>
+                        <td class="text-end text-danger">Rp <%= totalGlobal.toLocaleString('id-ID') %></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- LEMBAR TANDA TANGAN GLOBAL (KETUA LEMBAGA, PEMBINA LEMBAGA, & 6 PEMBINA OPSIONAL) -->
+        <div class="mt-5 pt-3">
+            <div class="row text-center">
+                
+                <!-- 1. Ketua Lembaga -->
+                <div class="col-6 mb-4 position-relative">
+                    <p class="mb-1">Mengetahui / Mengesahkan,</p>
+                    <p class="fw-bold mb-2">Ketua <%= lembaga.nama_organisasi %></p>
+                    
+                    <!-- Stempel Lembaga -->
+                    <% if (lembaga.stempel) { %>
+                        <div style="position: absolute; left: 38%; transform: translateX(-50%); bottom: 25px; opacity: 0.85; pointer-events: none;">
+                            <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 75px; height: 75px; object-fit: cover;">
+                        </div>
+                    <% } %>
+
+                    <div class="signature-box mb-2">
+                        <% if (lembaga.ttd_ketua) { %>
+                            <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 60px; object-fit: contain;">
+                        <% } %>
+                    </div>
+                    <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || 'Pimpinan Lembaga' %></p>
+                </div>
+
+                <!-- 2. Pembina Lembaga -->
+                <div class="col-6 mb-4">
+                    <p class="mb-1">Menyetujui,</p>
+                    <p class="fw-bold mb-2">Pembina Lembaga</p>
+                    
+                    <div class="signature-box mb-2"></div>
+                    <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_pembina || 'Dewan Pembina' %></p>
+                </div>
+
+                <!-- 3. Slot 6 Pembina Opsional Tambahan -->
+                <% 
+                   let pembinaList = [
+                       lembaga.pembina_1, lembaga.pembina_2, lembaga.pembina_3,
+                       lembaga.pembina_4, lembaga.pembina_5, lembaga.pembina_6
+                   ].filter(p => p && p.trim() !== '');
+                %>
+
+                <% if (pembinaList.length > 0) { %>
+                    <div class="col-12 mt-2 mb-2"><hr><p class="fw-bold small text-uppercase text-muted">Tim Penasihat / Pembina Pendamping</p></div>
+                    <% pembinaList.forEach((pembinaName, idx) => { %>
+                        <div class="col-4 mb-4">
+                            <p class="mb-1 small">Pembina <%= idx + 1 %></p>
+                            <div class="signature-box mb-2" style="min-height: 45px;"></div>
+                            <p class="fw-bold small mb-0 text-decoration-underline"><%= pembinaName %></p>
+                        </div>
+                    <% }) %>
+                <% } %>
+
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
