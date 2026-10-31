@@ -47,7 +47,7 @@
                     </div>
                 <% } %>
 
-                <form action="/lembaga-admin/proker/proposal/update/<%= proposal.id %>" method="POST">
+                <form action="/lembaga-admin/proker/proposal/update/<%= proposal.id %>" method="POST" id="formProposal">
                     <div class="row g-4">
                         <!-- Kolom Kiri: Editor Narasi & RAB Otomatis -->
                         <div class="col-lg-8">
@@ -84,10 +84,53 @@
                             </div>
                         </div>
 
-                        <!-- Kolom Kanan: Konfigurasi 8 Slot TTD & Aksi -->
+                        <!-- Kolom Kanan: Konfigurasi TTD, Checkbox & Aksi -->
                         <div class="col-lg-4">
+                            <!-- Card Pengaturan Checkbox TTD & Stempel -->
+                            <div class="card p-3 bg-white mb-4 border-0">
+                                <h6 class="fw-bold text-dark mb-2 small text-uppercase"><i class="fas fa-check-square me-2 text-primary"></i> Pengaturan Komponen TTD:</h6>
+                                <div class="vstack gap-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_stempel" value="true" id="checkStempel" <%= (lembaga.print_stempel !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkStempel">
+                                            <i class="fas fa-stamp text-warning me-1"></i> Tampilkan Stempel Digital
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_ketua_img" value="true" id="checkTtdKetuaImg" <%= (lembaga.print_ttd_ketua_img !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkTtdKetuaImg">
+                                            <i class="fas fa-signature text-primary me-1"></i> Tampilkan TTD Ketua (Gambar)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_pembina_img" value="true" id="checkTtdPembinaImg" <%= (lembaga.print_ttd_pembina_img !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkTtdPembinaImg">
+                                            <i class="fas fa-signature text-success me-1"></i> Tampilkan TTD Pembina (Gambar)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ketua" value="true" id="checkKetua" <%= (lembaga.print_ketua !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkKetua">
+                                            TTD Ketua Lembaga
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_pengaju" value="true" id="checkPengaju" <%= (lembaga.print_pengaju !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkPengaju">
+                                            TTD Pengaju / Bidang
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_pembina" value="true" id="checkPembina" <%= (lembaga.print_pembina !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkPembina">
+                                            TTD 6 Pembina Wilayah
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="card p-4 bg-white mb-4">
-                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-signature text-warning me-2"></i> Konfigurasi Tanda Tangan (8 Slot)</h5>
+                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-signature text-warning me-2"></i> Konfigurasi Pejabat</h5>
                                 <p class="text-muted small mb-3">Pengaju dan Ketua Lembaga bersifat wajib. Anda dapat menambahkan nama Pembina secara opsional.</p>
 
                                 <div class="mb-2 p-2 bg-light rounded border">
@@ -101,7 +144,7 @@
                                 </div>
 
                                 <hr>
-                                <span class="text-muted small fw-bold d-block mb-2">Slot Dewan Penasihat / Pimpinan Wilayah:</span>
+                                <span class="text-muted small fw-bold d-block mb-2">Slot Dewan Penasihat :</span>
 
                                 <div class="mb-2">
                                     <input type="text" class="form-control form-control-sm" name="pembina_1" placeholder="Pembina Jombang Kota" value="<%= proposal.pembina_1 || '' %>">
@@ -123,28 +166,22 @@
                                 </div>
 
                                 <div class="d-grid gap-2">
-                                    <button type="submit" name="action" value="save" class="btn btn-outline-primary fw-bold py-2">
+                                    <button type="submit" name="action" value="save" class="btn btn-outline-primary fw-bold py-2" id="btnSimpan">
                                         <i class="fas fa-save me-1"></i> Simpan Draf
                                     </button>
-                                    <button type="submit" name="action" value="submit" class="btn btn-success fw-bold py-2">
+                                    <button type="submit" name="action" value="submit" class="btn btn-success fw-bold py-2" id="btnAjukan">
                                         <i class="fas fa-paper-plane me-1"></i> Ajukan Proposal
                                     </button>
 
-                                    <!-- Opsi Cetak Pratinjau dengan / Tanpa TTD -->
+                                    <!-- Opsi Cetak Pratinjau dengan Validasi Simpan Dulu -->
                                     <div class="dropdown">
                                         <button class="btn btn-info fw-bold py-2 text-white w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                             <i class="fas fa-eye me-1"></i> Pratinjau Dokumen (Preview)
                                         </button>
                                         <ul class="dropdown-menu w-100 shadow">
                                             <li>
-                                                <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=true" target="_blank">
-                                                    <i class="fas fa-file-signature text-primary me-2"></i> Pratinjau dengan TTD & Stempel
-                                                </a>
-                                            </li>
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li>
-                                                <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=false" target="_blank">
-                                                    <i class="fas fa-file-alt text-secondary me-2"></i> Pratinjau Tanpa TTD / Bersih
+                                                <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>" target="_blank">
+                                                    <i class="fas fa-file-signature text-primary me-2"></i> Pratinjau Dokumen Lengkap
                                                 </a>
                                             </li>
                                         </ul>
@@ -158,14 +195,8 @@
                                             </button>
                                             <ul class="dropdown-menu w-100 shadow">
                                                 <li>
-                                                    <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=true" target="_blank">
-                                                        <i class="fas fa-file-signature text-primary me-2"></i> Cetak Resmi dengan TTD & Stempel
-                                                    </a>
-                                                </li>
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li>
-                                                    <a class="dropdown-item py-2 fw-semibold" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?ttd=false" target="_blank">
-                                                        <i class="fas fa-file-alt text-secondary me-2"></i> Cetak Resmi Tanpa TTD
+                                                    <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>" target="_blank">
+                                                        <i class="fas fa-file-signature text-primary me-2"></i> Cetak Resmi Dokumen
                                                     </a>
                                                 </li>
                                             </ul>
@@ -185,5 +216,31 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let isDirty = false;
+        const form = document.getElementById('formProposal');
+
+        // Tandai ada perubahan jika user mengubah input, textarea, atau centang
+        form.addEventListener('change', () => { isDirty = true; });
+        form.addEventListener('input', () => { isDirty = true; });
+
+        // Pastikan saat tombol Simpan Draf diklik, status isDirty di-reset dan tersimpan sempurna
+        document.getElementById('btnSimpan').addEventListener('click', () => { 
+            isDirty = false; 
+        });
+        document.getElementById('btnAjukan').addEventListener('click', () => { 
+            isDirty = false; 
+        });
+
+        // Validasi saat link pratinjau / cetak diklik
+        document.querySelectorAll('.btnPreviewLink').forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (isDirty) {
+                    alert('⚠️ Anda baru saja mengubah narasi atau pengaturan centang.\n\nSilakan klik tombol "Simpan Draf" terlebih dahulu sebelum membuka pratinjau atau mencetak dokumen!');
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
 </body>
 </html>

@@ -32,6 +32,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 2026 // <-- Kolom baru untuk isolasi data per Tahun Anggaran
+    },
+    ttd_bidang: {
+      type: DataTypes.STRING, // <-- Kolom untuk menyimpan nama file TTD khusus bidang
+      allowNull: true
     }
   }, {
     sequelize,

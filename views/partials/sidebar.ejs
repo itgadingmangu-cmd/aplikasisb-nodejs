@@ -93,8 +93,14 @@
                         <!-- Menu Rekapitulasi Global Tahunan (Khusus Admin Lembaga / Superadmin) -->
                         <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>
                             <li class="nav-item mb-1">
-                                <a href="/lembaga-admin/rekap-global/print" target="_blank" class="nav-link text-white small py-1 sub-menu-link">
-                                    <i class="fas fa-file-invoice-dollar me-1"></i> Cetak Rekap Global & RAB
+                                <a href="/lembaga-admin/rekap-global" class="nav-link text-white small py-1 sub-menu-link">
+                                    <i class="fas fa-file-invoice-dollar me-1"></i> Rekap Global & RAB
+                                </a>
+                            </li>
+                            <!-- Menu Tambahan: Persetujuan Proposal (Approval khusus Ketua/Admin Lembaga) -->
+                            <li class="nav-item mb-1">
+                                <a href="/lembaga-admin/proposal/approval" class="nav-link text-white small py-1 sub-menu-link <%= (typeof activeMenu !== 'undefined' && activeMenu === 'approval') ? 'active' : '' %>">
+                                    <i class="fas fa-check-double me-1"></i> Persetujuan Proposal
                                 </a>
                             </li>
                         <% } %>

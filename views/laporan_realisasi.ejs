@@ -11,6 +11,11 @@
     <style>
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: #fff; }
+            .card { box-shadow: none; border: none; padding: 0 !important; }
+        }
     </style>
 </head>
 <body>
@@ -21,16 +26,20 @@
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
                 
-                <!-- Header Title dengan Indikator Tahun Anggaran -->
+                <!-- Header Title dengan Indikator Tahun Anggaran & Tombol Cetak -->
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div>
                         <h2 class="fw-bold text-dark mb-1">Laporan Realisasi Anggaran</h2>
                         <p class="text-muted mb-0">Monitoring perbandingan antara Pagu Anggaran (RAB) dan Pengeluaran Riil (Realisasi).</p>
                     </div>
-                    <div>
+                    <div class="d-flex align-items-center gap-2">
                         <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm">
                             <i class="fas fa-calendar-alt me-1"></i> Tahun Anggaran: <%= pengaturan.tahun_aktif %>
                         </span>
+                        <!-- Tombol Pemicu Modal Pengaturan Cetak -->
+                        <button type="button" class="btn btn-dark shadow-sm no-print" data-bs-toggle="modal" data-bs-target="#modalCetakRealisasi">
+                            <i class="fas fa-print me-1"></i> Cetak Laporan
+                        </button>
                     </div>
                 </div>
 
@@ -49,7 +58,7 @@
                                     <th class="text-end">Total Realisasi (Riil)</th>
                                     <th class="text-end">Sisa / Selisih</th>
                                     <th class="text-center">Status</th>
-                                    <th class="text-center">Aksi</th>
+                                    <th class="text-center no-print">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -84,7 +93,7 @@
                                                     <%= p.status %>
                                                 </span>
                                             </td>
-                                            <td class="text-center">
+                                            <td class="text-center no-print">
                                                 <a href="/lembaga-admin/proker/realisasi/<%= p.id %>" class="btn btn-outline-primary btn-sm shadow-sm" title="Kelola Realisasi">
                                                     <i class="fas fa-edit me-1"></i> Kelola Realisasi
                                                 </a>
@@ -108,7 +117,75 @@
         </div>
     </div>
 
+    <!-- MODAL PENGATURAN CETAK LAPORAN REALISASI -->
+    <div class="modal fade no-print" id="modalCetakRealisasi" tabindex="-1" aria-labelledby="modalCetakRealisasiLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-dark" id="modalCetakRealisasiLabel">
+                        <i class="fas fa-print text-primary me-2"></i> Konfigurasi Cetak Laporan Realisasi
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">Pilih komponen tanda tangan dan stempel yang ingin ditampilkan pada lembar cetak laporan realisasi anggaran:</p>
+                    
+                    <div class="vstack gap-2 bg-light p-3 rounded-3 border">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="modalStempel" <%= (lembagaData.print_stempel !== false) ? 'checked' : '' %>>
+                            <label class="form-check-label small fw-semibold text-secondary" for="modalStempel">
+                                <i class="fas fa-stamp text-warning me-1"></i> Tampilkan Stempel Digital Lembaga
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="modalKetua" <%= (lembagaData.print_ketua !== false) ? 'checked' : '' %>>
+                            <label class="form-check-label small fw-semibold text-secondary" for="modalKetua">
+                                TTD Ketua Lembaga
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="modalPengaju" <%= (lembagaData.print_pengaju !== false) ? 'checked' : '' %>>
+                            <label class="form-check-label small fw-semibold" for="modalPengaju">
+                                TTD Pengaju / Bidang
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="modalPembina" <%= (lembagaData.print_pembina !== false) ? 'checked' : '' %>>
+                            <label class="form-check-label small fw-semibold text-secondary" for="modalPembina">
+                                TTD 6 Pembina Wilayah
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary px-4 fw-semibold" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-primary px-4 fw-semibold" id="btnProsesCetak">
+                        <i class="fas fa-external-link-alt me-1"></i> Buka Pratinjau Cetak
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Skrip untuk mengarahkan ke halaman cetak laporan realisasi dengan membawa status checkbox
+        document.getElementById('btnProsesCetak').addEventListener('click', function() {
+            const stempel = document.getElementById('modalStempel').checked;
+            const ketua = document.getElementById('modalKetua').checked;
+            const pengaju = document.getElementById('modalPengaju').checked;
+            const pembina = document.getElementById('modalPembina').checked;
+
+            const queryParams = new URLSearchParams({
+                show_stempel: stempel,
+                show_ketua: ketua,
+                show_pengaju: pengaju,
+                show_pembina: pembina
+            });
+
+            window.open('/lembaga-admin/realisasi/print?' + queryParams.toString(), '_blank');
+        });
+    </script>
 </body>
 </html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengaturan Cetak Rekap Global & RAB</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-light">
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <%- include('partials/sidebar') %>
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1"><i class="fas fa-file-invoice-dollar text-primary me-2"></i> Pengaturan Cetak Rekap Global & RAB</h2>
+                        <p class="text-muted mb-0">Tahun Anggaran: <span class="fw-semibold text-dark"><%= pengaturan.tahun_aktif %></span></p>
+                    </div>
+                </div>
+
+                <!-- Notifikasi Flash -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <div class="row">
+                    <div class="col-lg-8 mx-auto">
+                        <div class="card border-0 shadow-sm p-4 rounded-4 bg-white">
+                            <form action="/lembaga-admin/rekap-global/simpan" method="POST" id="formPengaturanCetak">
+                                
+                                <h5 class="fw-bold text-secondary mb-3"><i class="fas fa-signature me-2"></i> Konfigurasi Tanda Tangan & Pejabat</h5>
+                                <hr>
+
+                                <!-- PENGATURAN TAMPILAN TTD & STEMPEL BERBASIS DATABASE -->
+                                <div class="card p-3 mb-4 bg-light border-0">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="checkMaster">
+                                        <label class="form-check-label fw-bold text-dark small text-uppercase" for="checkMaster">
+                                            PENGATURAN KOMPONEN TANDA TANGAN & STEMPEL DOKUMEN (Pilih Semua):
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="row g-3 mt-1">
+                                        <!-- Opsi Stempel & Gambar TTD di Bawah Stempel -->
+                                        <div class="col-12 border-bottom pb-3 mb-2">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input item-check" type="checkbox" name="show_stempel" value="true" id="checkStempel" <%= (lembaga.print_stempel !== false) ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-semibold text-secondary small" for="checkStempel">
+                                                    <i class="fas fa-stamp me-1 text-warning"></i> Tampilkan Stempel Digital Lembaga (pada kolom Ketua)
+                                                </label>
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input item-check" type="checkbox" name="show_ttd_ketua_img" value="true" id="checkTtdKetuaImg" <%= (lembaga.print_ttd_ketua_img !== false) ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-semibold text-secondary small" for="checkTtdKetuaImg">
+                                                    <i class="fas fa-signature me-1 text-primary"></i> Tampilkan TTD Ketua (Gambar Tanda Tangan)
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input item-check" type="checkbox" name="show_ttd_pembina_img" value="true" id="checkTtdPembinaImg" <%= (lembaga.print_ttd_pembina_img !== false) ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-semibold text-secondary small" for="checkTtdPembinaImg">
+                                                    <i class="fas fa-signature me-1 text-success"></i> Tampilkan TTD Pembina (Gambar Tanda Tangan)
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 mb-1">
+                                            <span class="small fw-bold text-muted text-uppercase">Pengaturan Kolom Tanda Tangan:</span>
+                                        </div>
+
+                                        <!-- Kolom TTD Ketua -->
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input item-check" type="checkbox" name="show_ketua" value="true" id="checkKetua" <%= (lembaga.print_ketua !== false) ? 'checked' : '' %>>
+                                                <label class="form-check-label small fw-semibold" for="checkKetua">
+                                                    Kolom TTD Ketua
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Kolom TTD Pembina -->
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input item-check" type="checkbox" name="show_pengaju" value="true" id="checkPengaju" <%= (lembaga.print_pengaju !== false) ? 'checked' : '' %>>
+                                                <label class="form-check-label small fw-semibold" for="checkPengaju">
+                                                    Kolom TTD Pembina
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Kolom 6 Pembina Wilayah -->
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input item-check" type="checkbox" name="show_pembina" value="true" id="checkPembina" <%= (lembaga.print_pembina !== false) ? 'checked' : '' %>>
+                                                <label class="form-check-label small fw-semibold" for="checkPembina">
+                                                    Kolom 6 Pembina
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <!-- Ketua Lembaga -->
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label small text-muted mb-1">Nama Ketua Lembaga</label>
+                                        <input type="text" class="form-control form-control-sm" name="nama_ketua" value="<%= lembaga.nama_ketua || '' %>" placeholder="Nama ketua lembaga...">
+                                    </div>
+                                    <!-- Pembina Senkom Jombang -->
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label small text-muted mb-1">Nama Pembina Senkom Jombang</label>
+                                        <input type="text" class="form-control form-control-sm" name="pembina_senkom" value="<%= lembaga.pembina_senkom || '' %>" placeholder="Masukkan nama pembina senkom...">
+                                    </div>
+                                </div>
+
+                                <hr class="my-3">
+                                <span class="text-muted small fw-bold d-block mb-2">Slot 6 Dewan Penasihat / Pimpinan Wilayah:</span>
+
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_1" value="<%= lembaga.pembina_1 || '' %>" placeholder="Pembina Jombang Kota">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_2" value="<%= lembaga.pembina_2 || '' %>" placeholder="Pembina Jombang Barat">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_3" value="<%= lembaga.pembina_3 || '' %>" placeholder="Pembina Jombang Timur">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_4" value="<%= lembaga.pembina_4 || '' %>" placeholder="Pembina Jombang Utara">
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_5" value="<%= lembaga.pembina_5 || '' %>" placeholder="Pembina Jombang Selatan">
+                                </div>
+                                <div class="mb-4">
+                                    <input type="text" class="form-control form-control-sm" name="pembina_6" value="<%= lembaga.pembina_6 || '' %>" placeholder="Pembina Muhajir Gadingmangu">
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <!-- Tombol Simpan Permanen -->
+                                    <button type="submit" class="btn btn-success flex-fill py-2 fw-semibold">
+                                        <i class="fas fa-save me-2"></i> Simpan Pengaturan
+                                    </button>
+                                    <!-- Tombol Buka Pratinjau Cetak -->
+                                    <button type="button" id="btnPreview" class="btn btn-primary flex-fill py-2 fw-semibold">
+                                        <i class="fas fa-print me-2"></i> Buka Pratinjau & Cetak
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let isDirty = false;
+        const form = document.getElementById('formPengaturanCetak');
+        const checkMaster = document.getElementById('checkMaster');
+        const itemChecks = document.querySelectorAll('.item-check');
+
+        // Sinkronisasi awal checkbox master
+        function updateMasterCheck() {
+            const allChecked = Array.from(itemChecks).every(c => c.checked);
+            checkMaster.checked = allChecked;
+        }
+        updateMasterCheck();
+
+        // Fitur centang / uncentang semua
+        checkMaster.addEventListener('change', function() {
+            isDirty = true;
+            itemChecks.forEach(c => c.checked = checkMaster.checked);
+        });
+
+        // Tandai ada perubahan jika user mengubah input atau centang
+        form.addEventListener('change', function() {
+            isDirty = true;
+            updateMasterCheck();
+        });
+        form.addEventListener('input', function() {
+            isDirty = true;
+        });
+
+        // Cegah preview jika perubahan belum disimpan
+        document.getElementById('btnPreview').addEventListener('click', function(e) {
+            if (isDirty) {
+                alert('⚠️ Anda baru saja mengubah pengaturan tanda tangan/pejabat.\n\nSilakan klik tombol hijau "Simpan Pengaturan" terlebih dahulu sebelum membuka Pratinjau & Cetak!');
+                e.preventDefault();
+                return;
+            }
+            window.open('/lembaga-admin/rekap-global/print', '_blank');
+        });
+    </script>
+</body>
+</html>

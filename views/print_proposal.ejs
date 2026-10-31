@@ -13,7 +13,6 @@
             .sheet { width: 100%; margin: 0; padding: 10mm; box-shadow: none; }
             .no-print { display: none !important; }
         }
-        /* Kotak tanda tangan dipertinggi dan diperluas agar stempel lebih leluasa */
         .signature-box { min-height: 105px; position: relative; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
@@ -45,7 +44,6 @@
             <h4 class="fw-bold text-uppercase">PROPOSAL KEGIATAN</h4>
             <h5 class="fw-bold text-uppercase text-secondary"><%= proker.nama_program %></h5>
             <p class="small text-muted mb-1">Tema: "<%= proposal.tema || '-' %>"</p>
-            <!-- Salam Pembuka Bahasa Arab di Bawah Tema -->
             <p class="fw-bold mt-2 mb-0" style="font-size: 1.2rem; font-family: 'Traditional Arabic', serif;" dir="rtl">اَلسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ</p>
         </div>
 
@@ -138,20 +136,32 @@
             <p class="text-justify mb-3" style="text-align: justify;">
                 Demikian proposal dan Rencana Anggaran Biaya (RAB) ini kami sampaikan. Besar harapan kami atas dukungan, bimbingan, serta pengesahan dari Bapak/Ibu pimpinan dan pembina sekalian demi kelancaran dan kesuksesan program kerja ini. Atas perhatian dan kerjasamanya, kami ucapkan terima kasih.
             </p>
-            <!-- Tutup Salam & Syukur Bahasa Arab di Bawah Penutup -->
             <div class="mt-3 text-center">
                 <p class="fw-bold mb-1" style="font-size: 1.2rem; font-family: 'Traditional Arabic', serif;" dir="rtl">اَلْحَمْدُ للهِ، جَزَاكُمُ اللهُ خَيْرًا</p>
                 <p class="fw-bold mb-0" style="font-size: 1.1rem; font-family: 'Traditional Arabic', serif;" dir="rtl">وَالسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ</p>
             </div>
         </div>
 
-        <!-- LEMBAR TANDA TANGAN & TANGGAL PENGAJUAN -->
+       <!-- LEMBAR TANDA TANGAN & TANGGAL PENGAJUAN -->
         <% 
-            let tampilkanTtd = (typeof ttd !== 'undefined' && ttd === 'false') ? false : true; 
+            let showStempel       = Boolean(lembaga.print_stempel);
+            let showTtdKetuaImg   = Boolean(lembaga.print_ttd_ketua_img);
+            let showTtdPembinaImg = Boolean(lembaga.print_ttd_pembina_img);
+            let showKetua         = Boolean(lembaga.print_ketua);
+            let showPengaju       = Boolean(lembaga.print_pengaju);
+            let showPembina       = Boolean(lembaga.print_pembina);
+
+            // Fungsi helper Title Case
+            function toTitleCase(str) {
+                if (!str) return '';
+                return str.toLowerCase().split(' ').map(word => {
+                    return word.charAt(0).toUpperCase() + word.slice(1);
+                }).join(' ');
+            }
         %>
 
         <div class="mt-4 pt-2">
-            <!-- Baris Tanggal Pengajuan (Selalu tampil) -->
+            <!-- Baris Tanggal Pengajuan -->
             <div class="row text-center mb-1">
                 <div class="col-6"></div>
                 <div class="col-6">
@@ -160,96 +170,106 @@
                         let tglSkrg = new Date();
                         let tanggalCetak = tglSkrg.getDate() + " " + bulanIndo[tglSkrg.getMonth()] + " " + tglSkrg.getFullYear();
                     %>
-                    <p class="mb-0"><%= 'Jombang' %>, <%= tanggalCetak %></p>
+                    <p class="mb-0">Jombang, <%= tanggalCetak %></p>
                 </div>
             </div>
 
             <div class="row text-center">
-                <!-- Kolom Pengaju -->
-                <div class="col-6 mb-4">
-                    <p class="mb-1">Diajukan Oleh,</p>
-                    <p class="fw-bold mb-2">
-                        <% if (typeof userSession !== 'undefined' && userSession.jabatan && userSession.jabatan.trim() !== '') { %>
-                            <%= userSession.jabatan %>
-                        <% } else if (proker && proker.Bidang && proker.Bidang.nama_bidang) { %>
-                            <%= proker.Bidang.nama_bidang %>
-                        <% } else { %>
-                            Pengaju
-                        <% } %>
-                    </p>
-                    
-                    <!-- Kotak Tanda Tangan Pengaju -->
-                    <div class="signature-box mb-2" style="min-height: 100px;">
-                        <% if (tampilkanTtd && lembaga.ttd_pengaju) { %>
-                            <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 130px; width: auto; object-fit: contain;">
-                        <% } %>
-                    </div>
-
-                    <p class="fw-bold mb-0 text-decoration-underline"><%= (typeof userSession !== 'undefined' && userSession.nama_lengkap) ? userSession.nama_lengkap : 'Diyanto, S.Pd' %></p>
-                </div>
-
-                <!-- Kolom Ketua Lembaga & Stempel -->
-                <div class="col-6 mb-4 position-relative">
-                    <p class="mb-1">Mengetahui / Mengesahkan,</p>
-                    <p class="fw-bold mb-2">Ketua <%= lembaga.nama_organisasi || 'Lembaga' %></p>
-                    
-                    <!-- Kotak Tanda Tangan & Stempel Ketua -->
-                    <div class="signature-box mb-2" style="min-height: 100px;">
-                        <!-- Stempel Lembaga (Hanya muncul jika tampilkanTtd bernilai true) -->
-                        <% if (tampilkanTtd && lembaga.stempel) { %>
-                            <div style="position: absolute; left: 30%; transform: translateX(-80%); top: -60px; opacity: 0.88; pointer-events: none; z-index: 2;">
-                                <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 225px; height: 240px; object-fit: contain;">
-                            </div>
-                        <% } %>
-
-                        <!-- Tanda Tangan Ketua (Hanya muncul jika tampilkanTtd bernilai true) -->
-                        <% if (tampilkanTtd && lembaga.ttd_ketua) { %>
-                            <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 130px; width: auto; object-fit: contain; position: relative; z-index: 1;">
-                        <% } %>
-                    </div>
-
-                    <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || 'Agus Efendy' %></p>
-                </div>
-
-               <!-- Slot Wilayah / Tempat Opsional (1 s.d. 6) -->
-                <% 
-                   // Daftar nama wilayah / tempat default sesuai permintaan
-                   let wilayahList = [
-                       "Jombang Kota", 
-                       "Jombang Barat", 
-                       "Jombang Timur", 
-                       "Jombang Utara", 
-                       "Jombang Selatan", 
-                       "Muhajir Gadingmangu"
-                   ];
-
-                   let pembinaList = [
-                       proposal.pembina_1, proposal.pembina_2, proposal.pembina_3,
-                       proposal.pembina_4, proposal.pembina_5, proposal.pembina_6
-                   ];
-
-                   // Menyaring slot yang terisi data saja
-                   let activeWilayahList = pembinaList.map((p, idx) => {
-                       return {
-                           namaWilayah: wilayahList[idx] || `Wilayah ${idx + 1}`,
-                           namaPejabat: p
-                       };
-                   }).filter(item => item.namaPejabat && item.namaPejabat.trim() !== '');
-                %>
-
-                <% if (activeWilayahList.length > 0) { %>
-                    <div class="col-12 mt-3 mb-2"><hr><p class="fw-bold small text-uppercase text-muted">Dewan Penasihat / Pimpinan Wilayah</p></div>
-                    <% activeWilayahList.forEach((item) => { %>
-                        <div class="col-4 mb-4">
-                            <!-- Menyesuaikan teks menjadi "Pembina [Nama Wilayah]" -->
-                            <p class="mb-1 small">Pembina <%= item.namaWilayah %></p>
-                            <div class="signature-box mb-2" style="min-height: 70px;"></div>
-                            <p class="fw-bold small mb-0 text-decoration-underline"><%= item.namaPejabat %></p>
+                <!-- 1. Kolom Pengaju / Bidang -->
+                <% if (showPengaju) { %>
+                    <div class="col-6 mb-4">
+                        <p class="mb-1">Diajukan Oleh,</p>
+                        <p class="fw-bold mb-2">
+                            <% if (typeof userSession !== 'undefined' && userSession.jabatan && userSession.jabatan.trim() !== '') { %>
+                                <%= userSession.jabatan %>
+                            <% } else if (proker && proker.Bidang && proker.Bidang.nama_bidang) { %>
+                                <%= proker.Bidang.nama_bidang %>
+                            <% } else { %>
+                                Pengaju
+                            <% } %>
+                        </p>
+                        
+                        <div class="signature-box mb-2" style="min-height: 100px;">
+                            <% if (proker && proker.Bidang && proker.Bidang.ttd_bidang) { %>
+                                <img src="/uploads/logo/<%= proker.Bidang.ttd_bidang %>" alt="TTD Bidang" style="max-height: 130px; width: auto; object-fit: contain;">
+                            <% } else if (lembaga.ttd_pengaju) { %>
+                                <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 130px; width: auto; object-fit: contain;">
+                            <% } %>
                         </div>
-                    <% }) %>
+
+                        <p class="fw-bold mb-0 text-decoration-underline"><%= (typeof userSession !== 'undefined' && userSession.nama_lengkap) ? userSession.nama_lengkap : 'Diyanto, S.Pd' %></p>
+                    </div>
+                <% } else { %>
+                    <div class="col-6 mb-4"></div>
+                <% } %>
+
+                <!-- 2. Kolom Ketua Lembaga & Stempel -->
+                <% if (showKetua) { %>
+                    <div class="col-6 mb-4 position-relative">
+                        <p class="mb-1">Mengetahui / Mengesahkan,</p>
+                        <p class="fw-bold mb-2">Ketua <%= toTitleCase(lembaga.nama_organisasi) %></p>
+                        
+                        <div class="signature-box mb-2" style="min-height: 100px;">
+                            <% if (showStempel && lembaga.stempel) { %>
+                                <div style="position: absolute; left: 20%; transform: translateX(-50%); top: -60px; opacity: 0.88; pointer-events: none; z-index: 2;">
+                                    <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 195px; height: 90px; object-fit: contain;">
+                                </div>
+                            <% } %>
+
+                            <% if (showTtdKetuaImg && lembaga.ttd_ketua) { %>
+                                <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 130px; width: auto; object-fit: contain; position: relative; z-index: 1;">
+                            <% } %>
+                        </div>
+
+                        <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || 'Agus Efendy' %></p>
+                    </div>
+                <% } else { %>
+                    <div class="col-6 mb-4"></div>
+                <% } %>
+
+                <!-- 3. Kolom Pembina Senkom Jombang (Di Tengah / Baris Kedua) -->
+                <% if (lembaga.pembina_senkom) { %>
+                    <div class="col-12 d-flex justify-content-center mb-4">
+                        <div style="width: 50%;">
+                            <p class="mb-1">Mengetahui,</p>
+                            <p class="fw-bold mb-2">Pembina <%= toTitleCase(lembaga.nama_organisasi) %></p>
+                            
+                            <div class="signature-box mb-2" style="min-height: 90px;">
+                                <% if (showTtdPembinaImg && lembaga.ttd_pembina_senkom) { %>
+                                    <img src="/uploads/logo/<%= lembaga.ttd_pembina_senkom %>" alt="TTD Pembina Senkom" style="max-height: 90px; object-fit: contain;">
+                                <% } %>
+                            </div>
+                            <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.pembina_senkom %></p>
+                        </div>
+                    </div>
+                <% } %>
+
+                <!-- 4. Slot 6 Pembina Wilayah / Dewan Penasihat -->
+                <% if (showPembina) { %>
+                    <% 
+                        let pembinaList = [
+                            { nama: lembaga.pembina_1, wilayah: 'Pembina Jombang Kota' },
+                            { nama: lembaga.pembina_2, wilayah: 'Pembina Jombang Barat' },
+                            { nama: lembaga.pembina_3, wilayah: 'Pembina Jombang Timur' },
+                            { nama: lembaga.pembina_4, wilayah: 'Pembina Jombang Utara' },
+                            { nama: lembaga.pembina_5, wilayah: 'Pembina Jombang Selatan' },
+                            { nama: lembaga.pembina_6, wilayah: 'Pembina Muhajir Gadingmangu' }
+                        ].filter(p => p.nama && p.nama.trim() !== '');
+                    %>
+
+                    <% if (pembinaList.length > 0) { %>
+                        <div class="col-12 mt-3 mb-2"><hr><p class="fw-bold big mb-8 text-uppercase">Dewan Pembina</p></div>
+                        <% pembinaList.forEach((pembina) => { %>
+                            <div class="col-4 mb-10">
+                                <p class="mb-15 big"><%= pembina.wilayah %></p>
+                                <div class="signature-box mb-8" style="min-height: 95px;"></div>
+                                <p class="fw-bold big mb-8 text-decoration-underline"><%= pembina.nama %></p>
+                            </div>
+                        <% }) %>
+                    <% } %>
                 <% } %>
             </div>
         </div>
-
+    </div>
 </body>
 </html>

@@ -27,16 +27,29 @@
                         </a>
                     </div>
 
-                    <form action="/lembaga-admin/bidang/edit/<%= bidang.id %>" method="POST">
+                    <!-- Tambahkan enctype="multipart/form-data" untuk mendukung upload file -->
+                    <form action="/lembaga-admin/bidang/edit/<%= bidang.id %>" method="POST" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label for="nama_bidang" class="form-label fw-bold">Nama Bidang / Bagian</label>
                             <input type="text" class="form-control" id="nama_bidang" name="nama_bidang" value="<%= bidang.nama_bidang %>" required>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label for="deskripsi_tugas" class="form-label fw-bold">Uraian Tugas / Jobdesk</label>
-                            <textarea class="form-control" id="deskripsi_tugas" name="deskripsi_tugas" rows="8"><%= bidang.deskripsi_tugas ? bidang.deskripsi_tugas : '' %></textarea>
+                            <textarea class="form-control" id="deskripsi_tugas" name="deskripsi_tugas" rows="5"><%= bidang.deskripsi_tugas ? bidang.deskripsi_tugas : '' %></textarea>
                             <div class="form-text">Sesuaikan kembali poin-poin tugas pokok dan fungsi (tupoksi) untuk bidang ini.</div>
+                        </div>
+
+                        <!-- TAMBAHAN: Upload Tanda Tangan Khusus Bidang -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Tanda Tangan (TTD) Penanggung Jawab Bidang (Opsional)</label>
+                            <% if (bidang.ttd_bidang) { %>
+                                <div class="mb-2">
+                                    <img src="/uploads/logo/<%= bidang.ttd_bidang %>" alt="TTD Bidang" class="img-thumbnail border bg-light p-1" style="max-height: 50px;">
+                                </div>
+                            <% } %>
+                            <input type="file" class="form-control" name="ttd_bidang" accept="image/*">
+                            <small class="text-muted">Format: PNG/JPG transparan. Digunakan untuk opsi TTD pengaju/bidang saat cetak dokumen. Maksimal 1 MB.</small>
                         </div>
 
                         <div class="d-flex justify-content-end gap-2">
