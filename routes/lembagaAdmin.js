@@ -34,7 +34,16 @@ router.get('/', isLoggedIn, async (req, res) => {
                 include: [
                     { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false, include: [{ model: Proker, as: 'Prokers' }] },
                     { model: User, as: 'Users', include: [{ model: Bidang, as: 'Bidang' }] },
-                    { model: Proker, as: 'Prokers', where: { tahun: tahunAktifInt }, include: [{ model: Bidang, as: 'Bidang' }], required: false }
+                    { 
+                        model: Proker, 
+                        as: 'Prokers', 
+                        where: { tahun: tahunAktifInt }, 
+                        include: [
+                            { model: Bidang, as: 'Bidang' },
+                            { model: Proposal, as: 'Proposal' } // WAJIB: Agar dashboard bisa baca status & history revisi proposal
+                        ], 
+                        required: false 
+                    }
                 ]
             });
         } else {
@@ -42,7 +51,16 @@ router.get('/', isLoggedIn, async (req, res) => {
                 include: [
                     { model: Bidang, as: 'Bidangs', where: { id: user.id_bidang, tahun: tahunAktifInt }, required: false },
                     { model: User, as: 'Users', where: { id_bidang: user.id_bidang }, required: false, include: [{ model: Bidang, as: 'Bidang' }] },
-                    { model: Proker, as: 'Prokers', where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, include: [{ model: Bidang, as: 'Bidang' }], required: false }
+                    { 
+                        model: Proker, 
+                        as: 'Prokers', 
+                        where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, 
+                        include: [
+                            { model: Bidang, as: 'Bidang' },
+                            { model: Proposal, as: 'Proposal' } // WAJIB: Agar dashboard bisa baca status & history revisi proposal
+                        ], 
+                        required: false 
+                    }
                 ]
             });
         }
@@ -72,7 +90,7 @@ router.get('/', isLoggedIn, async (req, res) => {
         delete req.session.success_msg;
         delete req.session.error_msg;
 
-        res.render('lembaga_admin', {
+        return res.render('lembaga_admin', {
             title: 'Dashboard Admin Lembaga',
             pengaturan,
             userSession: user,
@@ -88,7 +106,7 @@ router.get('/', isLoggedIn, async (req, res) => {
 
     } catch (err) {
         console.error("Error pada dashboard lembaga:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -105,14 +123,14 @@ router.get('/bidang', isLoggedIn, async (req, res) => {
             include: [{ model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false }]
         });
 
-        res.render('manajemen_bidang', {
+        return res.render('manajemen_bidang', {
             pengaturan,
             userSession: req.session.user,
             lembagaData
         });
     } catch (err) {
         console.error("Error halaman manajemen bidang:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -134,10 +152,10 @@ router.post('/bidang/tambah', isLoggedIn, isAdminLembaga, async (req, res) => {
             tahun: tahunAktifInt
         });
 
-        res.redirect('/lembaga-admin/bidang');
+        return res.redirect('/lembaga-admin/bidang');
     } catch (err) {
         console.error("Gagal menambah bidang:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -153,14 +171,13 @@ router.get('/bidang/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
             return res.status(404).send("Data bidang tidak ditemukan pada tahun aktif atau Anda tidak memiliki akses.");
         }
 
-        res.render('edit_bidang', { pengaturan, userSession: req.session.user, bidang });
+        return res.render('edit_bidang', { pengaturan, userSession: req.session.user, bidang });
     } catch (err) {
         console.error("Error ambil data edit bidang:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
-// Rute Edit Bidang dengan dukungan Upload TTD Bidang
 router.post('/bidang/edit/:id', isLoggedIn, isAdminLembaga, upload.single('ttd_bidang'), async (req, res) => {
     try {
         const bidangId = req.params.id;
@@ -193,10 +210,10 @@ router.post('/bidang/edit/:id', isLoggedIn, isAdminLembaga, upload.single('ttd_b
         await bidang.save();
 
         req.session.success_msg = "Data bidang dan tanda tangan berhasil diperbarui!";
-        res.redirect('/lembaga-admin/bidang');
+        return res.redirect('/lembaga-admin/bidang');
     } catch (err) {
         console.error("Gagal mengupdate bidang:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -208,10 +225,10 @@ router.get('/bidang/hapus/:id', isLoggedIn, isAdminLembaga, async (req, res) => 
         const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
 
         await Bidang.destroy({ where: { id: bidangId, lembagaId: lembagaId, tahun: tahunAktifInt } });
-        res.redirect('/lembaga-admin/bidang');
+        return res.redirect('/lembaga-admin/bidang');
     } catch (err) {
         console.error("Gagal menghapus bidang:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -231,14 +248,14 @@ router.get('/pengurus', isLoggedIn, async (req, res) => {
             ]
         });
 
-        res.render('kelola_pengurus', {
+        return res.render('kelola_pengurus', {
             pengaturan,
             userSession: req.session.user,
             lembagaData
         });
     } catch (err) {
         console.error("Error halaman pengurus:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -263,10 +280,10 @@ router.post('/pengurus/tambah', isLoggedIn, isAdminLembaga, async (req, res) => 
             lembagaId
         });
 
-        res.redirect('/lembaga-admin/pengurus');
+        return res.redirect('/lembaga-admin/pengurus');
     } catch (err) {
         console.error("Gagal menambah pengurus:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -303,14 +320,14 @@ router.get('/proker', isLoggedIn, async (req, res) => {
             });
         }
 
-        res.render('manajemen_proker', {
+        return res.render('manajemen_proker', {
             pengaturan,
             userSession: user,
             lembagaData
         });
     } catch (err) {
         console.error("Error halaman proker:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -343,10 +360,10 @@ router.post('/proker/tambah', isLoggedIn, async (req, res) => {
             tahun: tahunAktifInt
         });
 
-        res.redirect('/lembaga-admin/proker');
+        return res.redirect('/lembaga-admin/proker');
     } catch (err) {
         console.error("Gagal menambah proker:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -370,7 +387,7 @@ router.get('/proker/edit/:id', isLoggedIn, async (req, res) => {
 
         const bidangs = await Bidang.findAll({ where: { lembagaId: user.lembagaId, tahun: tahunAktifInt } });
 
-        res.render('edit_proker', {
+        return res.render('edit_proker', {
             pengaturan,
             userSession: user,
             proker,
@@ -378,7 +395,7 @@ router.get('/proker/edit/:id', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Error ambil form edit proker:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -415,10 +432,10 @@ router.post('/proker/edit/:id', isLoggedIn, async (req, res) => {
         });
 
         req.session.success_msg = "Program kerja berhasil diperbarui!";
-        res.redirect('/lembaga-admin/proker');
+        return res.redirect('/lembaga-admin/proker');
     } catch (err) {
         console.error("Gagal update proker:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -443,14 +460,14 @@ router.get('/proker/rab/:id', isLoggedIn, async (req, res) => {
             return res.redirect('/lembaga-admin/proker');
         }
 
-        res.render('manajemen_rab', {
+        return res.render('manajemen_rab', {
             pengaturan,
             userSession: user,
             proker
         });
     } catch (err) {
         console.error("Error halaman RAB:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -492,10 +509,10 @@ router.post('/proker/rab/tambah/:id', isLoggedIn, async (req, res) => {
 
         await Proker.update({ anggaran: totalAnggaranProker }, { where: { id: prokerId } });
 
-        res.redirect(`/lembaga-admin/proker/rab/${prokerId}`);
+        return res.redirect(`/lembaga-admin/proker/rab/${prokerId}`);
     } catch (err) {
         console.error("Gagal menambah item RAB:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -519,14 +536,14 @@ router.get('/proker/rab/edit/:idItem', isLoggedIn, async (req, res) => {
             return res.redirect('/lembaga-admin/proker');
         }
 
-        res.render('edit_rab', {
+        return res.render('edit_rab', {
             pengaturan,
             userSession: user,
             itemRAB
         });
     } catch (err) {
         console.error("Error ambil form edit RAB:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -565,10 +582,10 @@ router.post('/proker/rab/edit/:idItem', isLoggedIn, async (req, res) => {
         const totalAnggaranProker = allRAB.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
         await Proker.update({ anggaran: totalAnggaranProker }, { where: { id: itemRAB.prokerId } });
 
-        res.redirect(`/lembaga-admin/proker/rab/${itemRAB.prokerId}`);
+        return res.redirect(`/lembaga-admin/proker/rab/${itemRAB.prokerId}`);
     } catch (err) {
         console.error("Gagal update item RAB:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -589,10 +606,10 @@ router.get('/proker/rab/hapus/:idItem', isLoggedIn, async (req, res) => {
 
         await Proker.update({ anggaran: totalAnggaranProker }, { where: { id: prokerId } });
 
-        res.redirect(`/lembaga-admin/proker/rab/${prokerId}`);
+        return res.redirect(`/lembaga-admin/proker/rab/${prokerId}`);
     } catch (err) {
         console.error("Gagal menghapus item RAB:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -616,14 +633,14 @@ router.get('/anggaran', isLoggedIn, async (req, res) => {
             ]
         });
 
-        res.render('rekap_anggaran', {
+        return res.render('rekap_anggaran', {
             pengaturan,
             userSession: user,
             lembagaData
         });
     } catch (err) {
         console.error("Error halaman rekap anggaran:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -659,14 +676,14 @@ router.get('/realisasi', isLoggedIn, async (req, res) => {
             });
         }
 
-        res.render('laporan_realisasi', {
+        return res.render('laporan_realisasi', {
             pengaturan,
             userSession: user,
             lembagaData
         });
     } catch (err) {
         console.error("Error halaman laporan realisasi:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -692,14 +709,14 @@ router.get('/proker/realisasi/:id', isLoggedIn, async (req, res) => {
             return res.redirect('/lembaga-admin/realisasi');
         }
 
-        res.render('manajemen_realisasi', {
+        return res.render('manajemen_realisasi', {
             pengaturan,
             userSession: user,
             proker
         });
     } catch (err) {
         console.error("Error halaman kelola realisasi:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -722,10 +739,10 @@ router.post('/proker/realisasi/tambah/:id', isLoggedIn, async (req, res) => {
             keterangan: keterangan ? keterangan.trim() : null
         });
 
-        res.redirect(`/lembaga-admin/proker/realisasi/${prokerId}`);
+        return res.redirect(`/lembaga-admin/proker/realisasi/${prokerId}`);
     } catch (err) {
         console.error("Gagal menambah realisasi biaya:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -741,10 +758,10 @@ router.get('/proker/realisasi/hapus/:idItem', isLoggedIn, async (req, res) => {
         const prokerId = realisasi.prokerId;
         await realisasi.destroy();
 
-        res.redirect(`/lembaga-admin/proker/realisasi/${prokerId}`);
+        return res.redirect(`/lembaga-admin/proker/realisasi/${prokerId}`);
     } catch (err) {
         console.error("Gagal menghapus realisasi:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -764,7 +781,7 @@ router.get('/rekap-global', isLoggedIn, async (req, res) => {
         const success_msg = req.session.success_msg || null;
         delete req.session.success_msg;
 
-        res.render('rekap_global_form', {
+        return res.render('rekap_global_form', {
             pengaturan,
             userSession: user,
             lembaga,
@@ -772,7 +789,7 @@ router.get('/rekap-global', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Gagal membuka halaman rekap global:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -815,10 +832,10 @@ router.post('/rekap-global/simpan', isLoggedIn, async (req, res) => {
         await lembaga.save();
 
         req.session.success_msg = "Pengaturan cetak berhasil disimpan! Silakan klik Buka Pratinjau & Cetak.";
-        res.redirect('/lembaga-admin/rekap-global');
+        return res.redirect('/lembaga-admin/rekap-global');
     } catch (err) {
         console.error("Gagal menyimpan pengaturan rekap global:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -844,7 +861,7 @@ router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
             ]
         });
 
-        res.render('print_rekap_global', {
+        return res.render('print_rekap_global', {
             lembaga,
             listProker,
             pengaturan,
@@ -852,7 +869,7 @@ router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Gagal mencetak rekap global:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -895,7 +912,7 @@ router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
         delete req.session.success_msg;
         delete req.session.error_msg;
 
-        res.render('detail_proposal', {
+        return res.render('detail_proposal', {
             userSession: user,
             proker,
             proposal,
@@ -905,13 +922,13 @@ router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Gagal membuat/membuka proposal:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
 router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
-    const { id } = req.params; // Tangkap ID dengan aman di sini
     try {
+        const { id } = req.params;
         const { 
             tema, latar_belakang, tujuan, action, 
             pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
@@ -921,7 +938,7 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         const proposal = await Proposal.findByPk(id);
         if (!proposal) {
             req.session.error_msg = "Proposal tidak ditemukan!";
-            return res.redirect(`/lembaga-admin/proker/proposal/${id}`);
+            return res.redirect('/lembaga-admin/proposal');
         }
 
         // Update data proposal
@@ -937,32 +954,30 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
 
         if (action === 'submit') {
             proposal.status = 'Diajukan';
+            req.session.success_msg = "Proposal berhasil diajukan untuk persetujuan!";
+        } else {
+            req.session.success_msg = "Draf proposal dan konfigurasi tanda tangan berhasil disimpan!";
         }
         await proposal.save();
 
         // Update konfigurasi cetak pada tabel Lembaga
         const lembaga = await Lembaga.findByPk(proposal.lembagaId);
         if (lembaga) {
-            lembaga.print_stempel = (show_stempel === 'true');
-            lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true');
-            lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true');
-            lembaga.print_ketua = (show_ketua === 'true');
-            lembaga.print_pengaju = (show_pengaju === 'true');
-            lembaga.print_pembina = (show_pembina === 'true');
+            lembaga.print_stempel = (show_stempel === 'true' || show_stempel === 'on');
+            lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true' || show_ttd_ketua_img === 'on');
+            lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true' || show_ttd_pembina_img === 'on');
+            lembaga.print_ketua = (show_ketua === 'true' || show_ketua === 'on');
+            lembaga.print_pengaju = (show_pengaju === 'true' || show_pengaju === 'on');
+            lembaga.print_pembina = (show_pembina === 'true' || show_pembina === 'on');
             await lembaga.save();
         }
 
-        req.session.success_msg = "Draf proposal dan konfigurasi tanda tangan berhasil disimpan!";
-        
-        // WAJIB MENGGUNAKAN INI: Kembali tepat ke halaman editor proposal bersangkutan
-        return res.redirect(`/lembaga-admin/proker/proposal/${id}`);
+        return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
         
     } catch (err) {
         console.error("Gagal mengupdate proposal:", err);
-        req.session.error_msg = "Terjadi kesalahan pada server: " + err.message;
-        
-        // JANGAN ARAHKAN KE HOME. Arahkan kembali ke editor proposal menggunakan variabel id
-        return res.redirect(`/lembaga-admin/proker/proposal/${id}`);
+        req.session.error_msg = "Terjadi kesalahan pada server.";
+        return res.redirect('/lembaga-admin/proposal');
     }
 });
 
@@ -974,10 +989,13 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
         const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
 
         const prokers = await Proker.findAll({
-            where: { lembagaId: lembagaId, tahun: tahunAktifInt },
+            where: { 
+                lembagaId: lembagaId, 
+                tahun: tahunAktifInt
+            },
             include: [
                 { model: Bidang, as: 'Bidang' },
-                { model: Proposal, as: 'Proposal' }
+                { model: Proposal, as: 'Proposal' } 
             ]
         });
 
@@ -986,7 +1004,8 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
         delete req.session.success_msg;
         delete req.session.error_msg;
 
-        res.render('list_proposal', {
+        // RETURN TUNGGAL: Hanya render halaman list_proposal
+        return res.render('list_proposal', {
             userSession: user,
             pengaturan,
             prokers,
@@ -995,7 +1014,7 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Gagal memuat daftar proposal:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -1023,7 +1042,7 @@ router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
 
         const lembaga = await Lembaga.findByPk(proposal.Proker.lembagaId);
 
-        res.render('print_proposal', {
+        return res.render('print_proposal', {
             proposal,
             proker: proposal.Proker,
             rincianRab: (proposal.Proker && proposal.Proker.RincianBiayas) ? proposal.Proker.RincianBiayas : [],
@@ -1032,7 +1051,7 @@ router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Gagal membuka pratinjau cetak proposal:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -1057,7 +1076,7 @@ router.get('/proposal/approval', isLoggedIn, async (req, res) => {
         delete req.session.success_msg;
         delete req.session.error_msg;
 
-        res.render('proposal_approval', {
+        return res.render('proposal_approval', {
             userSession: user,
             pengaturan,
             prokers,
@@ -1066,29 +1085,40 @@ router.get('/proposal/approval', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Gagal memuat halaman approval proposal:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
 router.post('/proker/proposal/approval/:id', isLoggedIn, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body; 
+        const { status, catatan_revisi } = req.body;  
 
         const proposal = await Proposal.findByPk(id);
         if (!proposal) {
             req.session.error_msg = "Proposal tidak ditemukan!";
-            return res.redirect('/lembaga-admin/proposal');
+            return res.redirect('/lembaga-admin/proposal/approval');
         }
 
-        proposal.status = status;
+        // Terapkan perubahan
+        proposal.status = status; 
+        
+        if (status === 'Perlu Revisi' || status === 'Direvisi') {
+            // Simpan catatan jika ada
+            proposal.catatan_revisi = catatan_revisi ? catatan_revisi.trim() : 'Mohon perbaiki proposal sesuai arahan.';
+        } else if (status === 'Disetujui') {
+            // Bersihkan jika disetujui
+            proposal.catatan_revisi = null; 
+        }
+        
         await proposal.save();
 
-        req.session.success_msg = `Status proposal berhasil diperbarui menjadi: ${status}`;
-        res.redirect('/lembaga-admin/proposal/approval');
+        req.session.success_msg = `Proposal berhasil diperbarui!`;
+        return res.redirect('/lembaga-admin/proposal/approval');
     } catch (err) {
-        console.error("Gagal memperbarui status approval:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error("Gagal approval:", err);
+        req.session.error_msg = "Terjadi kesalahan server.";
+        return res.redirect('/lembaga-admin/proposal/approval');
     }
 });
 
@@ -1109,7 +1139,7 @@ router.get('/setting', isLoggedIn, async (req, res) => {
 
         const listLembaga = await Lembaga.findAll();
 
-        res.render('setting_lembaga', {
+        return res.render('setting_lembaga', {
             pengaturan,
             userSession: user,
             lembaga,
@@ -1117,7 +1147,7 @@ router.get('/setting', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Error halaman setting lembaga:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -1185,10 +1215,10 @@ router.post('/setting/update', isLoggedIn, upload.fields([
 
         await lembaga.save();
         req.session.success_msg = "Profil, pengaturan lembaga, dan master pembina berhasil diperbarui!";
-        res.redirect('/lembaga-admin/setting');
+        return res.redirect('/lembaga-admin/setting');
     } catch (err) {
         console.error("Gagal memperbarui setting lembaga:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -1211,7 +1241,7 @@ router.get('/utilitas/users', isLoggedIn, async (req, res) => {
 
         const listLembaga = await Lembaga.findAll();
 
-        res.render('utilitas_users', {
+        return res.render('utilitas_users', {
             pengaturan,
             userSession: user,
             lembaga: lembagaData,
@@ -1220,7 +1250,7 @@ router.get('/utilitas/users', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Error halaman utilitas users:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -1245,10 +1275,10 @@ router.post('/utilitas/users/reset-password/:id', isLoggedIn, isAdminLembaga, as
         await targetUser.save();
 
         req.session.success_msg = `Password untuk akun [${targetUser.username}] berhasil direset!`;
-        res.redirect('/lembaga-admin/utilitas/users');
+        return res.redirect('/lembaga-admin/utilitas/users');
     } catch (err) {
         console.error("Gagal reset password:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -1264,10 +1294,10 @@ router.get('/utilitas/users/hapus/:id', isLoggedIn, isAdminLembaga, async (req, 
 
         await User.destroy({ where: { id: userId, lembagaId: lembagaId } });
         req.session.success_msg = "Akun pengurus berhasil dihapus dari sistem.";
-        res.redirect('/lembaga-admin/utilitas/users');
+        return res.redirect('/lembaga-admin/utilitas/users');
     } catch (err) {
         console.error("Gagal menghapus user:", err);
-        res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
 
@@ -1281,7 +1311,7 @@ router.get('/diagnostik/cek', isLoggedIn, async (req, res) => {
         const lembaga = await Lembaga.findByPk(lembagaId);
         const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
 
-        res.status(200).json({
+        return res.status(200).json({
             status: "OK",
             pesan: "Sistem diagnostik berjalan normal.",
             waktu_cek: new Date(),
@@ -1305,7 +1335,7 @@ router.get('/diagnostik/cek', isLoggedIn, async (req, res) => {
         });
     } catch (err) {
         console.error("Error pada diagnostik sistem:", err);
-        res.status(500).json({
+        return res.status(500).json({
             status: "ERROR",
             pesan: "Terjadi kesalahan pada server saat pengecekan diagnostik.",
             error: err.message

@@ -27,11 +27,21 @@
                         <p class="text-muted mb-0">Program Kerja: <span class="fw-semibold text-primary"><%= proker.nama_program %></span></p>
                     </div>
                     <div>
-                        <span class="badge bg-<%= proposal.status === 'Disetujui' ? 'success' : (proposal.status === 'Diajukan' ? 'warning text-dark' : 'secondary') %> fs-6 px-3 py-2">
-                            Status: <%= proposal.status %>
+                        <span class="badge bg-<%= proposal.status === 'Disetujui' ? 'success' : (proposal.status === 'Diajukan' ? 'warning text-dark' : (proposal.status === 'Direvisi' || proposal.status === 'Perlu Revisi' ? 'danger' : 'secondary')) %> fs-6 px-3 py-2">
+                            Status: <%= proposal.status === 'Direvisi' ? 'Perlu Revisi' : proposal.status %>
                         </span>
                     </div>
                 </div>
+
+                <!-- Kotak Informasi Catatan Revisi dari Pimpinan -->
+                <% if (proposal.status === 'Direvisi' || proposal.status === 'Perlu Revisi') { %>
+                    <div class="alert alert-danger border-start border-4 border-danger shadow-sm mb-4" role="alert">
+                        <h5 class="fw-bold text-danger mb-1">
+                            <i class="fas fa-exclamation-triangle me-2"></i> Catatan Koreksi dari Pimpinan:
+                        </h5>
+                        <p class="mb-0 text-dark"><%= proposal.catatan_revisi || 'Mohon sesuaikan kembali proposal kegiatan ini sesuai arahan pimpinan.' %></p>
+                    </div>
+                <% } %>
 
                 <!-- Notifikasi -->
                 <% if (typeof success_msg !== 'undefined' && success_msg) { %>
@@ -224,13 +234,34 @@
         form.addEventListener('change', () => { isDirty = true; });
         form.addEventListener('input', () => { isDirty = true; });
 
-        // Pastikan saat tombol Simpan Draf diklik, status isDirty di-reset dan tersimpan sempurna
-        document.getElementById('btnSimpan').addEventListener('click', () => { 
-            isDirty = false; 
-        });
-        document.getElementById('btnAjukan').addEventListener('click', () => { 
-            isDirty = false; 
-        });
+        // Fitur Otomatis Isi Nama Pembina Wilayah saat Checkbox Dicentang
+        const checkPembina = document.getElementById('checkPembina');
+        if (checkPembina) {
+            checkPembina.addEventListener('change', function() {
+                if (this.checked) {
+                    const pembinaDefaults = [
+                        "<%= lembaga.pembina_1 || 'Pembina Jombang Kota' %>",
+                        "<%= lembaga.pembina_2 || 'Pembina Jombang Barat' %>",
+                        "<%= lembaga.pembina_3 || 'Pembina Jombang Timur' %>",
+                        "<%= lembaga.pembina_4 || 'Pembina Jombang Utara' %>",
+                        "<%= lembaga.pembina_5 || 'Pembina Jombang Selatan' %>",
+                        "<%= lembaga.pembina_6 || 'Pembina Muhajir Gadingmangu' %>"
+                    ];
+                    
+                    for (let i = 1; i <= 6; i++) {
+                        const input = document.querySelector(`input[name="pembina_${i}"]`);
+                        if (input && !input.value.trim()) {
+                            input.value = pembinaDefaults[i - 1];
+                            isDirty = true;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Jika tombol simpan atau ajukan diklik, reset status isDirty agar preview bisa dibuka
+        document.getElementById('btnSimpan').addEventListener('click', () => { isDirty = false; });
+        document.getElementById('btnAjukan').addEventListener('click', () => { isDirty = false; });
 
         // Validasi saat link pratinjau / cetak diklik
         document.querySelectorAll('.btnPreviewLink').forEach(link => {

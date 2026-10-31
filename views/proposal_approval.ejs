@@ -60,39 +60,79 @@
                                         <% if (proker.Proposal) { %>
                                             <tr>
                                                 <td><%= no++ %></td>
-                                                <td class="fw-semibold"><%= proker.nama_program %></td>
+                                                <td class="fw-semibold"><%= proker.nama_program || proker.nama_proker %></td>
                                                 <td><span class="badge bg-secondary"><%= proker.Bidang ? proker.Bidang.nama_bidang : 'Umum' %></span></td>
                                                 <td><%= proker.Proposal.tema || '-' %></td>
-                                                <td class="text-center">
+                                                
+                                                <!-- KOLOM STATUS & HISTORY KOREKSI -->
+                                                <td class="text-center align-middle">
                                                     <% if (proker.Proposal.status === 'Disetujui') { %>
                                                         <span class="badge bg-success px-3 py-2">Disetujui</span>
                                                     <% } else if (proker.Proposal.status === 'Diajukan') { %>
                                                         <span class="badge bg-warning text-dark px-3 py-2">Menunggu Persetujuan</span>
-                                                    <% } else if (proker.Proposal.status === 'Direvisi') { %>
+                                                    <% } else if (proker.Proposal.status === 'Perlu Revisi' || proker.Proposal.status === 'Direvisi') { %>
                                                         <span class="badge bg-danger px-3 py-2">Perlu Revisi</span>
+                                                        
+                                                        <!-- HISTORY CATATAN TAMPIL DISINI -->
+                                                        <% if (proker.Proposal.catatan_revisi) { %>
+                                                            <div class="mt-2 text-start p-2 bg-light border border-danger rounded small text-danger shadow-sm" style="min-width: 200px;">
+                                                                <strong>History Koreksi:</strong><br>
+                                                                <%= proker.Proposal.catatan_revisi %>
+                                                            </div>
+                                                        <% } %>
+                                                        
                                                     <% } else { %>
                                                         <span class="badge bg-secondary px-3 py-2"><%= proker.Proposal.status %></span>
                                                     <% } %>
                                                 </td>
+
+                                                <!-- KOLOM AKSI (DIPISAHKAN ANTARA SETUJUI DAN MODAL REVISI) -->
                                                 <td class="text-center">
-                                                    <!-- Tombol Pratinjau Proposal -->
                                                     <a href="/lembaga-admin/proker/proposal/print/<%= proker.Proposal.id %>" target="_blank" class="btn btn-outline-info btn-sm me-1" title="Pratinjau Dokumen">
                                                         <i class="fas fa-eye"></i>
                                                     </a>
                                                     
-                                                    <!-- Form Aksi Setujui / Revisi -->
+                                                    <!-- Form KHUSUS Setujui -->
                                                     <form action="/lembaga-admin/proker/proposal/approval/<%= proker.Proposal.id %>" method="POST" class="d-inline">
-                                                        <button type="submit" name="status" value="Disetujui" class="btn btn-success btn-sm me-1" title="Setujui Proposal">
+                                                        <input type="hidden" name="status" value="Disetujui">
+                                                        <button type="submit" class="btn btn-success btn-sm me-1" title="Setujui Proposal">
                                                             <i class="fas fa-check"></i> Setujui
                                                         </button>
-                                                        <button type="submit" name="status" value="Direvisi" class="btn btn-warning btn-sm text-dark" title="Minta Revisi">
-                                                            <i class="fas fa-redo"></i> Revisi
-                                                        </button>
                                                     </form>
+
+                                                    <!-- Tombol Buka Modal Revisi -->
+                                                    <button type="button" class="btn btn-warning btn-sm text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#modalRevisi<%= proker.Proposal.id %>" title="Minta Revisi">
+                                                        <i class="fas fa-redo"></i> Revisi
+                                                    </button>
+
+                                                    <!-- Modal Form KHUSUS Input Koreksi -->
+                                                    <div class="modal fade text-start" id="modalRevisi<%= proker.Proposal.id %>" tabindex="-1" aria-hidden="true">
+                                                        <div class="modal-dialog">
+                                                            <div class="modal-content">
+                                                                <form action="/lembaga-admin/proker/proposal/approval/<%= proker.Proposal.id %>" method="POST">
+                                                                    <div class="modal-header bg-warning text-dark">
+                                                                        <h5 class="modal-title fw-bold"><i class="fas fa-edit me-2"></i> Berikan Catatan Koreksi</h5>
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                    </div>
+                                                                    <div class="modal-body">
+                                                                        <input type="hidden" name="status" value="Perlu Revisi">
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label fw-bold small">Bagian/Poin yang Perlu Direvisi:</label>
+                                                                            <!-- Memunculkan tulisan koreksi lama di textarea agar bisa diedit lagi -->
+                                                                            <textarea class="form-control" name="catatan_revisi" rows="4" required><%= proker.Proposal.catatan_revisi || '' %></textarea>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="modal-footer">
+                                                                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                                                                        <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">Kirim Koreksi</button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         <% } %>
-                                    <% %>
                                     <% }) %>
                                 <% } else { %>
                                     <tr>

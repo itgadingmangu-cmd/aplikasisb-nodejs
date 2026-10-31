@@ -193,7 +193,7 @@
                             <% if (proker && proker.Bidang && proker.Bidang.ttd_bidang) { %>
                                 <img src="/uploads/logo/<%= proker.Bidang.ttd_bidang %>" alt="TTD Bidang" style="max-height: 130px; width: auto; object-fit: contain;">
                             <% } else if (lembaga.ttd_pengaju) { %>
-                                <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 130px; width: auto; object-fit: contain;">
+                                <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 100px; width: auto; object-fit: contain;">
                             <% } %>
                         </div>
 
@@ -211,13 +211,13 @@
                         
                         <div class="signature-box mb-2" style="min-height: 100px;">
                             <% if (showStempel && lembaga.stempel) { %>
-                                <div style="position: absolute; left: 20%; transform: translateX(-50%); top: -60px; opacity: 0.88; pointer-events: none; z-index: 2;">
-                                    <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 195px; height: 90px; object-fit: contain;">
+                                <div style="position: absolute; left: 15%; transform: translateX(-50%); top: 15px; opacity: 0.85; pointer-events: none; z-index: 2;">
+                                    <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 200px; height: 100px; object-fit: contain;">
                                 </div>
                             <% } %>
 
                             <% if (showTtdKetuaImg && lembaga.ttd_ketua) { %>
-                                <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 130px; width: auto; object-fit: contain; position: relative; z-index: 1;">
+                                <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 100px; width: auto; object-fit: contain; position: relative; z-index: 1;">
                             <% } %>
                         </div>
 

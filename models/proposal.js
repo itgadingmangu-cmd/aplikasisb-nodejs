@@ -31,8 +31,14 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: true
         },
         status: {
-            type: DataTypes.ENUM('Draft', 'Diajukan', 'Disetujui', 'Direvisi'),
+            // Menambahkan 'Perlu Revisi' ke dalam ENUM agar kompatibel dengan proses form
+            type: DataTypes.ENUM('Draft', 'Diajukan', 'Disetujui', 'Direvisi', 'Perlu Revisi'),
             defaultValue: 'Draft'
+        },
+        // Kolom baru untuk menampung riwayat catatan dari pimpinan
+        catatan_revisi: {
+            type: DataTypes.TEXT,
+            allowNull: true
         },
         // Konfigurasi 6 Pembina Opsional (Nama / Status TTD)
         pembina_1: { type: DataTypes.STRING, allowNull: true },
