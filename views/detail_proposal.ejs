@@ -17,6 +17,11 @@
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
                 
+                <!-- Ubah link pratinjau dokumen lengkap menjadi seperti ini -->
+                <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?mode=preview" target="_blank">
+    <i class="fas fa-file-signature text-primary me-2"></i> Pratinjau Dokumen Lengkap
+</a>
+                                
                 <!-- Header Navigasi Kembali -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
@@ -112,6 +117,13 @@
                                             <i class="fas fa-signature text-primary me-1"></i> Tampilkan TTD Ketua (Gambar)
                                         </label>
                                     </div>
+                                    <!-- TAMBAHAN BARU: Checkbox TTD Pengaju (Gambar) -->
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_pengaju_img" value="true" id="checkTtdPengajuImg" <%= (lembaga.print_ttd_pengaju_img !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkTtdPengajuImg">
+                                            <i class="fas fa-signature text-info me-1"></i> Tampilkan TTD Pengaju (Gambar)
+                                        </label>
+                                    </div>
                                     <div class="form-check">
                                         <input class="form-check-input item-check" type="checkbox" name="show_ttd_pembina_img" value="true" id="checkTtdPembinaImg" <%= (lembaga.print_ttd_pembina_img !== false) ? 'checked' : '' %>>
                                         <label class="form-check-label small fw-semibold" for="checkTtdPembinaImg">
@@ -121,19 +133,26 @@
                                     <div class="form-check">
                                         <input class="form-check-input item-check" type="checkbox" name="show_ketua" value="true" id="checkKetua" <%= (lembaga.print_ketua !== false) ? 'checked' : '' %>>
                                         <label class="form-check-label small fw-semibold" for="checkKetua">
-                                            TTD Ketua Lembaga
+                                            Kolom TTD Ketua Lembaga
                                         </label>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input item-check" type="checkbox" name="show_pengaju" value="true" id="checkPengaju" <%= (lembaga.print_pengaju !== false) ? 'checked' : '' %>>
                                         <label class="form-check-label small fw-semibold" for="checkPengaju">
-                                            TTD Pengaju / Bidang
+                                            Kolom TTD Pengaju / Bidang
+                                        </label>
+                                    </div>
+                                    <!-- TAMBAHAN BARU: Checkbox TTD Pembina Lembaga -->
+                                    <div class="form-check">
+                                        <input class="form-check-input item-check" type="checkbox" name="show_pembina_lembaga" value="true" id="checkPembinaLembaga" <%= (lembaga.print_pembina_lembaga !== false) ? 'checked' : '' %>>
+                                        <label class="form-check-label small fw-semibold" for="checkPembinaLembaga">
+                                            Kolom TTD Pembina Lembaga
                                         </label>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input item-check" type="checkbox" name="show_pembina" value="true" id="checkPembina" <%= (lembaga.print_pembina !== false) ? 'checked' : '' %>>
                                         <label class="form-check-label small fw-semibold" for="checkPembina">
-                                            TTD 6 Pembina Wilayah
+                                            Kolom TTD 6 Dewan Pembina
                                         </label>
                                     </div>
                                 </div>
@@ -230,11 +249,9 @@
         let isDirty = false;
         const form = document.getElementById('formProposal');
 
-        // Tandai ada perubahan jika user mengubah input, textarea, atau centang
         form.addEventListener('change', () => { isDirty = true; });
         form.addEventListener('input', () => { isDirty = true; });
 
-        // Fitur Otomatis Isi Nama Pembina Wilayah saat Checkbox Dicentang
         const checkPembina = document.getElementById('checkPembina');
         if (checkPembina) {
             checkPembina.addEventListener('change', function() {
@@ -259,11 +276,9 @@
             });
         }
 
-        // Jika tombol simpan atau ajukan diklik, reset status isDirty agar preview bisa dibuka
         document.getElementById('btnSimpan').addEventListener('click', () => { isDirty = false; });
         document.getElementById('btnAjukan').addEventListener('click', () => { isDirty = false; });
 
-        // Validasi saat link pratinjau / cetak diklik
         document.querySelectorAll('.btnPreviewLink').forEach(link => {
             link.addEventListener('click', function(e) {
                 if (isDirty) {

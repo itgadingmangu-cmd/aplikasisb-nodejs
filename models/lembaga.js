@@ -41,6 +41,17 @@ module.exports = (sequelize, DataTypes) => {
     pembina_4: DataTypes.STRING,
     pembina_5: DataTypes.STRING,
     pembina_6: DataTypes.STRING,
+    
+    // Tambahkan baris ini di dalam definisi kolom model Lembaga:
+    print_ttd_pengaju_img: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true
+    },
+    print_pembina_lembaga: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true
+    },
+    
     // Konfigurasi tampilan komponen tanda tangan & stempel saat cetak
     print_stempel: {
       type: DataTypes.BOOLEAN,

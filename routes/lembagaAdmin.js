@@ -798,13 +798,13 @@ router.post('/rekap-global/simpan', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
         const lembagaId = user.activeLembagaId || user.lembagaId;
+        // TAMBAHKAN show_ttd_pengaju_img DI SINI:
         const { 
             nama_ketua, pembina_senkom, 
             pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
             show_stempel, show_ketua, show_pengaju, show_pembina,
-            show_ttd_ketua_img, show_ttd_pembina_img 
+            show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, show_pembina_lembaga 
         } = req.body;
-
         const lembaga = await Lembaga.findByPk(lembagaId);
         if (!lembaga) {
             req.session.error_msg = "Data lembaga tidak ditemukan!";
@@ -821,14 +821,16 @@ router.post('/rekap-global/simpan', isLoggedIn, async (req, res) => {
         lembaga.pembina_5 = pembina_5 ? pembina_5.trim() : null;
         lembaga.pembina_6 = pembina_6 ? pembina_6.trim() : null;
 
-        // Simpan status centang ke database
-        lembaga.print_stempel = (show_stempel === 'true');
-        lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true');
-        lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true');
-        lembaga.print_ketua = (show_ketua === 'true');
-        lembaga.print_pengaju = (show_pengaju === 'true');
-        lembaga.print_pembina = (show_pembina === 'true');
-
+        // SIMPAN STATUS CENTANG (Gunakan perbandingan eksplisit agar nilai uncheck terbaca false)
+        lembaga.print_stempel = (show_stempel === 'true' || show_stempel === 'on');
+        lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true' || show_ttd_ketua_img === 'on');
+        lembaga.print_ttd_pengaju_img = (show_ttd_pengaju_img === 'true' || show_ttd_pengaju_img === 'on');
+        lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true' || show_ttd_pembina_img === 'on');
+        lembaga.print_ketua = (show_ketua === 'true' || show_ketua === 'on');
+        lembaga.print_pengaju = (show_pengaju === 'true' || show_pengaju === 'on');
+        lembaga.print_pembina_lembaga = (show_pembina_lembaga === 'true' || show_pembina_lembaga === 'on');
+        lembaga.print_pembina = (show_pembina === 'true' || show_pembina === 'on');
+        
         await lembaga.save();
 
         req.session.success_msg = "Pengaturan cetak berhasil disimpan! Silakan klik Buka Pratinjau & Cetak.";
@@ -864,7 +866,9 @@ router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
         return res.render('print_rekap_global', {
             lembaga,
             listProker,
+            prokers: listProker, // <-- KITA TAMBAHKAN ALIAS INI SEBAGAI PENGAMAN JIKA ADA VIEW YANG MEMANGGIL 'prokers'
             pengaturan,
+            tahunAktif: tahunAktifInt, // <-- TAMBAHKAN VARIABEL INI AGAR TAMPILAN EJS TIDAK ERROR
             userSession: user
         });
     } catch (err) {
@@ -932,7 +936,8 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         const { 
             tema, latar_belakang, tujuan, action, 
             pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
-            show_stempel, show_ttd_ketua_img, show_ttd_pembina_img, show_ketua, show_pengaju, show_pembina 
+            show_stempel, show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, 
+            show_ketua, show_pengaju, show_pembina_lembaga, show_pembina 
         } = req.body;
 
         const proposal = await Proposal.findByPk(id);
@@ -965,9 +970,11 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         if (lembaga) {
             lembaga.print_stempel = (show_stempel === 'true' || show_stempel === 'on');
             lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true' || show_ttd_ketua_img === 'on');
+            lembaga.print_ttd_pengaju_img = (show_ttd_pengaju_img === 'true' || show_ttd_pengaju_img === 'on'); // <-- BARIS BARU
             lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true' || show_ttd_pembina_img === 'on');
             lembaga.print_ketua = (show_ketua === 'true' || show_ketua === 'on');
             lembaga.print_pengaju = (show_pengaju === 'true' || show_pengaju === 'on');
+            lembaga.print_pembina_lembaga = (show_pembina_lembaga === 'true' || show_pembina_lembaga === 'on'); // <-- BARIS BARU
             lembaga.print_pembina = (show_pembina === 'true' || show_pembina === 'on');
             await lembaga.save();
         }
@@ -1004,7 +1011,6 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
         delete req.session.success_msg;
         delete req.session.error_msg;
 
-        // RETURN TUNGGAL: Hanya render halaman list_proposal
         return res.render('list_proposal', {
             userSession: user,
             pengaturan,
@@ -1047,14 +1053,14 @@ router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
             proker: proposal.Proker,
             rincianRab: (proposal.Proker && proposal.Proker.RincianBiayas) ? proposal.Proker.RincianBiayas : [],
             lembaga,
-            userSession: req.session.user
+            userSession: req.session.user,
+            req: req // <-- PASTIKAN BARIS INI ADA DI BACKEND ANDA
         });
     } catch (err) {
         console.error("Gagal membuka pratinjau cetak proposal:", err);
         return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
-
 // Halaman Approval Khusus Ketua Lembaga
 router.get('/proposal/approval', isLoggedIn, async (req, res) => {
     try {
