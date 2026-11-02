@@ -1,4 +1,5 @@
-const { Proker, Bidang, RincianBiaya } = require('../models');
+// GABUNGKAN 'Proposal' ke dalam import yang sudah ada agar tidak terjadi crash
+const { Proker, Bidang, RincianBiaya, Proposal, Lembaga, User } = require('../models');
 
 const prokerController = {
     index: async (req, res) => {
@@ -118,6 +119,172 @@ const prokerController = {
             console.error("ERROR STORE RAB:", error);
             req.session.error_msg = 'Gagal menambahkan rincian biaya: ' + error.message;
             res.redirect('back');
+        }
+    },
+
+   // 1. Aksi Pengaju mengirim/mengajukan proposal dari Draft ke Status "Diajukan"
+   ajukanProposal: async (req, res) => {
+        try {
+            const { id } = req.params; // ID Proposal
+            const proposal = await Proposal.findByPk(id); 
+
+            if (!proposal) {
+                req.session.error_msg = 'Program kerja atau proposal tidak ditemukan.';
+                return res.redirect('/lembaga-admin/proker');
+            }
+
+            // Ubah status menjadi Diajukan
+            proposal.status = 'Diajukan';
+            await proposal.save();
+
+            req.session.success_msg = 'Proposal berhasil diajukan kepada Ketua/Pimpinan!';
+            res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
+        } catch (error) {
+            console.error("ERROR AJUKAN PROPOSAL:", error);
+            req.session.error_msg = 'Gagal mengajukan proposal: ' + error.message;
+            res.redirect('/lembaga-admin/proker');
+        }
+    },
+
+   // 2. Aksi Ketua/Admin mereview: Menyetujui atau Meminta Revisi
+   reviewApprovalKetua: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { aksi, catatan_revisi, status } = req.body; 
+
+            // Cari proposal untuk mengambil prokerId
+            const proposal = await Proposal.findByPk(id); 
+            if (!proposal) {
+                req.session.error_msg = 'Proposal tidak ditemukan.';
+                return res.redirect('/lembaga-admin/proposal');
+            }
+
+            // Tentukan keputusan final dengan pembersihan string (trim) & pengecilan huruf (toLowerCase)
+            const rawKeputusan = aksi || status || '';
+            const keputusan = rawKeputusan.trim().toLowerCase();
+            
+            let statusBaru = 'Diajukan';
+            let catatanBaru = null;
+
+            if (keputusan === 'disetujui') {
+                statusBaru = 'Disetujui'; 
+                catatanBaru = null;
+            } else if (keputusan === 'revisi' || keputusan === 'perlu revisi') {
+                statusBaru = 'Perlu Revisi';
+                catatanBaru = catatan_revisi && catatan_revisi.trim() !== '' 
+                    ? catatan_revisi.trim() 
+                    : 'Mohon perbaiki proposal kegiatan ini sesuai arahan pimpinan.';
+            } else {
+                statusBaru = 'Perlu Revisi';
+                catatanBaru = catatan_revisi || 'Mohon perbaiki proposal.';
+            }
+
+            // Eksekusi pembaruan database secara langsung dan eksplisit
+            await Proposal.update({
+                status: statusBaru,
+                catatan_revisi: catatanBaru
+            }, {
+                where: { id: id }
+            });
+
+            req.session.success_msg = `Proposal berhasil diputuskan dengan status: ${statusBaru}`;
+            return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
+        } catch (error) {
+            console.error("ERROR REVIEW KETUA:", error);
+            req.session.error_msg = 'Gagal memproses approval ketua: ' + error.message;
+            return res.redirect('/lembaga-admin/proposal');
+        }
+    },
+
+    // 3. Aksi Bendahara: Menyetujui Pencairan atau Menolak dengan Alasan (Menggunakan ENUM asli database)
+    prosesPencairanBendahara: async (req, res) => {
+        try {
+            // 1. Validasi Keamanan Hak Akses Bendahara
+            const user = req.session.user;
+            if (!user || (user.hierarki !== 'Bendahara' && user.nama_bidang !== 'Bendahara')) {
+                req.session.error_msg = 'Akses ditolak! Hanya Bendahara yang berhak memproses eksekusi keuangan.';
+                return res.redirect('/lembaga-admin/proposal');
+            }
+
+            const { id } = req.params;
+            const { keputusan_bendahara, alasan_penolakan } = req.body; 
+
+            // 2. Cari proposal untuk memastikan keberadaan data
+            const proposal = await Proposal.findByPk(id); 
+            if (!proposal) {
+                req.session.error_msg = 'Proposal tidak ditemukan di dalam database.';
+                return res.redirect('/lembaga-admin/proposal');
+            }
+
+            // 3. Pembersihan input keputusan
+            const keputusan = (keputusan_bendahara || '').trim().toLowerCase();
+            let statusBaru = 'Disetujui';
+            let catatanBaru = null;
+
+            if (keputusan === 'cairkan') {
+                statusBaru = 'Dana Dicairkan'; 
+                catatanBaru = null; 
+            } else if (keputusan === 'tolak') {
+                statusBaru = 'Dana Ditolak'; 
+                catatanBaru = alasan_penolakan && alasan_penolakan.trim() !== '' 
+                    ? alasan_penolakan.trim() 
+                    : 'Pencairan dana ditolak oleh bagian keuangan.';
+            } else {
+                req.session.error_msg = 'Pilihan eksekusi bendahara tidak valid.';
+                return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
+            }
+
+            // 4. Eksekusi UPDATE eksplisit ke database dengan status ENUM baru
+            await Proposal.update({
+                status: statusBaru,
+                catatan_revisi: catatanBaru
+            }, {
+                where: { id: id }
+            });
+
+            req.session.success_msg = `Keputusan keuangan berhasil dieksekusi dengan status: ${statusBaru}`;
+            return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
+        } catch (error) {
+            console.error("ERROR CRITICAL PENCAIRAN BENDAHARA:", error);
+            req.session.error_msg = 'Terjadi kesalahan sistem saat memproses dana: ' + error.message;
+            return res.redirect('/lembaga-admin/proposal');
+        }
+    },
+
+    // Cetak Rekap / Dokumen Berdasarkan Bidang
+    cetakPerBidang: async (req, res) => {
+        try {
+            const { bidangId } = req.params;
+            const lembagaId = req.session.user.lembagaId;
+
+            // Ambil data bidang beserta daftar proker dan rincian biayanya
+            const bidang = await Bidang.findOne({
+                where: { id: bidangId, lembagaId: lembagaId },
+                include: [{
+                    model: Proker,
+                    as: 'Prokers', 
+                    include: [{ model: RincianBiaya, as: 'RincianBiayas' }]
+                }]
+            });
+
+            if (!bidang) {
+                req.session.error_msg = 'Data bidang tidak ditemukan.';
+                return res.redirect('/proker');
+            }
+
+            // Ambil data lembaga untuk konfigurasi ttd/stempel
+            const LembagaModel = require('../models').Lembaga; 
+            const lembaga = await LembagaModel.findByPk(lembagaId);
+
+            res.render('proker/print_bidang', {
+                title: `Cetak Laporan Bidang - ${bidang.nama_bidang}`,
+                bidang,
+                lembaga: lembaga || {},
+                userSession: req.session.user
+            });
+        } catch (error) {
+            console.error("ERROR CETAK PER BIDANG:", error);
+            res.status(500).send('Terjadi kesalahan saat memuat cetak bidang: ' + error.message);
         }
     }
 };

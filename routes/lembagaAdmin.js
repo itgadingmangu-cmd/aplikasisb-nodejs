@@ -4,6 +4,7 @@ const { User, Lembaga, Bidang, Proker, Proposal, RincianBiaya, RealisasiBiaya, P
 const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcrypt');
+const prokerController = require('../controllers/prokerController'); // <-- IMPORT CONTROLLER BARU
 
 // --- KONFIGURASI MULTER UNTUK UPLOAD LOGO & TTD ---
 const storage = multer.diskStorage({
@@ -40,7 +41,7 @@ router.get('/', isLoggedIn, async (req, res) => {
                         where: { tahun: tahunAktifInt }, 
                         include: [
                             { model: Bidang, as: 'Bidang' },
-                            { model: Proposal, as: 'Proposal' } // WAJIB: Agar dashboard bisa baca status & history revisi proposal
+                            { model: Proposal, as: 'Proposal' }
                         ], 
                         required: false 
                     }
@@ -57,7 +58,7 @@ router.get('/', isLoggedIn, async (req, res) => {
                         where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, 
                         include: [
                             { model: Bidang, as: 'Bidang' },
-                            { model: Proposal, as: 'Proposal' } // WAJIB: Agar dashboard bisa baca status & history revisi proposal
+                            { model: Proposal, as: 'Proposal' }
                         ], 
                         required: false 
                     }
@@ -90,6 +91,25 @@ router.get('/', isLoggedIn, async (req, res) => {
         delete req.session.success_msg;
         delete req.session.error_msg;
 
+        // ==============================================================================
+        // ATURAN KETAT: Hitung proposal menunggu pencairan KHUSUS UNTUK BENDAHARA
+        // Independen dari query lembagaData di atas (agar mendeteksi semua bidang)
+        // ==============================================================================
+        let totalPendingPencairan = 0;
+        if (user.hierarki === 'Bendahara' || user.nama_bidang === 'Bendahara' || user.role === 'admin_lembaga') {
+            try {
+                totalPendingPencairan = await Proposal.count({
+                    where: {
+                        lembagaId: lembagaId,
+                        status: 'Disetujui' // Pastikan string ini sama persis dengan yang di database
+                    }
+                });
+            } catch (errCount) {
+                console.error("DEBUG: Gagal menghitung notifikasi pencairan Bendahara:", errCount);
+            }
+        }
+        // ==============================================================================
+
         return res.render('lembaga_admin', {
             title: 'Dashboard Admin Lembaga',
             pengaturan,
@@ -101,7 +121,8 @@ router.get('/', isLoggedIn, async (req, res) => {
             listLembaga,
             totalAnggaranLembaga,
             success_msg,
-            error_msg
+            error_msg,
+            totalPendingPencairan // <-- Injeksi variabel notifikasi Bendahara
         });
 
     } catch (err) {
@@ -987,6 +1008,13 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         return res.redirect('/lembaga-admin/proposal');
     }
 });
+
+// --- TAMBAHAN RUTE BARU UNTUK ALUR APPROVAL & PENCAIRAN ---
+router.post('/proker/proposal/ajukan/:id', isLoggedIn, prokerController.ajukanProposal);
+router.post('/proker/proposal/review/:id', isLoggedIn, prokerController.reviewApprovalKetua);
+router.post('/proker/proposal/pencairan/:id', isLoggedIn, prokerController.prosesPencairanBendahara);
+router.get('/proker/bidang/:bidangId/print', isLoggedIn, prokerController.cetakPerBidang);
+// ----------------------------------------------------------
 
 router.get('/proposal', isLoggedIn, async (req, res) => {
     try {

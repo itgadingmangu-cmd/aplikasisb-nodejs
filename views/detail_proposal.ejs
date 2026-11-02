@@ -17,11 +17,6 @@
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
                 
-                <!-- Ubah link pratinjau dokumen lengkap menjadi seperti ini -->
-                <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?mode=preview" target="_blank">
-    <i class="fas fa-file-signature text-primary me-2"></i> Pratinjau Dokumen Lengkap
-</a>
-                                
                 <!-- Header Navigasi Kembali -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
@@ -32,19 +27,29 @@
                         <p class="text-muted mb-0">Program Kerja: <span class="fw-semibold text-primary"><%= proker.nama_program %></span></p>
                     </div>
                     <div>
-                        <span class="badge bg-<%= proposal.status === 'Disetujui' ? 'success' : (proposal.status === 'Diajukan' ? 'warning text-dark' : (proposal.status === 'Direvisi' || proposal.status === 'Perlu Revisi' ? 'danger' : 'secondary')) %> fs-6 px-3 py-2">
-                            Status: <%= proposal.status === 'Direvisi' ? 'Perlu Revisi' : proposal.status %>
+                        <span class="badge bg-<%= proposal.status === 'Disetujui' ? 'success' : (proposal.status === 'Diajukan' ? 'warning text-dark' : (proposal.status === 'Revisi' || proposal.status === 'Perlu Revisi' ? 'danger' : 'secondary')) %> fs-6 px-3 py-2">
+                            Status: <%= proposal.status === 'Revisi' ? 'Perlu Revisi' : proposal.status %>
                         </span>
                     </div>
                 </div>
 
                 <!-- Kotak Informasi Catatan Revisi dari Pimpinan -->
-                <% if (proposal.status === 'Direvisi' || proposal.status === 'Perlu Revisi') { %>
+                <% if (proposal.status === 'Revisi' || proposal.status === 'Perlu Revisi') { %>
                     <div class="alert alert-danger border-start border-4 border-danger shadow-sm mb-4" role="alert">
                         <h5 class="fw-bold text-danger mb-1">
                             <i class="fas fa-exclamation-triangle me-2"></i> Catatan Koreksi dari Pimpinan:
                         </h5>
                         <p class="mb-0 text-dark"><%= proposal.catatan_revisi || 'Mohon sesuaikan kembali proposal kegiatan ini sesuai arahan pimpinan.' %></p>
+                    </div>
+                <% } %>
+
+                <!-- Kotak Informasi Alasan Penolakan dari Bendahara -->
+                <% if (proposal.status === 'Dana Ditolak') { %>
+                    <div class="alert alert-danger border-start border-4 border-danger shadow-sm mb-4" role="alert">
+                        <h5 class="fw-bold text-danger mb-1">
+                            <i class="fas fa-ban me-2"></i> Pencairan Dana Ditolak oleh Bendahara:
+                        </h5>
+                        <p class="mb-0 text-dark"><%= proposal.alasan_penolakan || 'Mohon sesuaikan kembali RAB atau hubungi bagian keuangan.' %></p>
                     </div>
                 <% } %>
 
@@ -62,6 +67,37 @@
                     </div>
                 <% } %>
 
+                <% 
+                    // Logika penguncian standar untuk narasi
+                    let isLocked = (proposal.status !== 'Draft' && proposal.status !== 'Revisi' && proposal.status !== 'Perlu Revisi' && proposal.status !== 'Dana Ditolak');
+                    const lockAttr = isLocked ? 'disabled' : '';
+
+                    // Deteksi apakah user aktif adalah Pimpinan / Ketua / Admin Lembaga
+                    const isPimpinan = (
+                        typeof userSession !== 'undefined' && (
+                            userSession.role === 'admin' || 
+                            userSession.role === 'ketua' || 
+                            userSession.role === 'admin_lembaga' || 
+                            userSession.role === 'superadmin' ||
+                            (userSession.jabatan && userSession.jabatan.toLowerCase().includes('ketua'))
+                        )
+                    );
+
+                    // Deteksi universal apakah user aktif adalah Bendahara
+                    const isBendahara = (
+                        typeof userSession !== 'undefined' && (
+                            userSession.hierarki === 'Bendahara' || 
+                            userSession.nama_bidang === 'Bendahara' || 
+                            (userSession.role && userSession.role.toLowerCase().includes('bendahara')) ||
+                            (userSession.jabatan && userSession.jabatan.toLowerCase().includes('bendahara'))
+                        )
+                    );
+
+                    // Atribut khusus checkbox TTD
+                    const lockCheckboxAttr = (isLocked && !isPimpinan) ? 'disabled' : '';
+                %>
+
+                <!-- FORM UTAMA -->
                 <form action="/lembaga-admin/proker/proposal/update/<%= proposal.id %>" method="POST" id="formProposal">
                     <div class="row g-4">
                         <!-- Kolom Kiri: Editor Narasi & RAB Otomatis -->
@@ -72,17 +108,17 @@
                                 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Tema Kegiatan</label>
-                                    <input type="text" class="form-control" name="tema" value="<%= proposal.tema || '' %>">
+                                    <input type="text" class="form-control" name="tema" value="<%= proposal.tema || '' %>" <%= lockAttr %>>
                                 </div>
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Latar Belakang</label>
-                                    <textarea class="form-control" name="latar_belakang" rows="4" required><%= proposal.latar_belakang || '' %></textarea>
+                                    <textarea class="form-control" name="latar_belakang" rows="4" required <%= lockAttr %>><%= proposal.latar_belakang || '' %></textarea>
                                 </div>
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Tujuan Kegiatan (Gunakan baris baru untuk poin)</label>
-                                    <textarea class="form-control" name="tujuan" rows="4" required><%= proposal.tujuan || '' %></textarea>
+                                    <textarea class="form-control" name="tujuan" rows="4" required <%= lockAttr %>><%= proposal.tujuan || '' %></textarea>
                                 </div>
                             </div>
 
@@ -99,58 +135,172 @@
                             </div>
                         </div>
 
-                        <!-- Kolom Kanan: Konfigurasi TTD, Checkbox & Aksi -->
+                        <!-- Kolom Kanan: Konfigurasi TTD, Checkbox & Panel Aksi Workflow -->
                         <div class="col-lg-4">
+                            
+                            <!-- PANEL KONTROL ALUR AKSI & APPROVAL -->
+                            <div class="card p-3 bg-white mb-4 border border-primary">
+                                <h6 class="fw-bold text-primary mb-3 small text-uppercase">
+                                    <i class="fas fa-tasks me-2"></i> Status & Aksi Alur Proposal
+                                </h6>
+
+                                <!-- 1. AKSI UNTUK PENGAJU (Draft / Revisi / Dana Ditolak) -->
+                                <% if (proposal.status === 'Draft' || proposal.status === 'Revisi' || proposal.status === 'Perlu Revisi' || proposal.status === 'Dana Ditolak') { %>
+                                    <div class="d-grid gap-2 mb-2">
+                                        <button type="submit" name="action" value="save" class="btn btn-outline-primary fw-bold py-2" id="btnSimpan">
+                                            <i class="fas fa-save me-1"></i> Simpan Draf
+                                        </button>
+                                    </div>
+                                <% } %>
+
+                                <!-- Tombol Kirim / Ajukan Proposal -->
+                                <% if (proposal.status === 'Draft' || proposal.status === 'Revisi' || proposal.status === 'Perlu Revisi' || proposal.status === 'Dana Ditolak') { %>
+                                    <div class="mb-3">
+                                        <button type="button" class="btn btn-success fw-bold py-2 w-100" id="btnAjukanAksi">
+                                            <i class="fas fa-paper-plane me-1"></i> Kirim / Ajukan Proposal
+                                        </button>
+                                    </div>
+                                <% } %>
+
+                                <!-- 2. AKSI UNTUK KETUA / ADMIN (Jika status 'Diajukan') -->
+                                <% if (isPimpinan && proposal.status === 'Diajukan') { %>
+                                    <div class="p-3 bg-light rounded border mb-3">
+                                        <h6 class="fw-bold text-dark small mb-2"><i class="fas fa-gavel text-danger me-1"></i> Panel Approval Ketua:</h6>
+                                        <div class="mb-2">
+                                            <label class="form-label small fw-semibold">Pilih Keputusan:</label>
+                                            <select name="aksi" class="form-select form-select-sm" required onchange="toggleCatatanRevisi(this.value)">
+                                                <option value="Disetujui">Setujui Proposal</option>
+                                                <option value="Revisi">Minta Revisi</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-2" id="opsiTtdContainer">
+                                            <label class="form-label small fw-semibold">Opsi Penandatanganan:</label>
+                                            <select name="opsi_ttd" class="form-select form-select-sm">
+                                                <option value="digital">Otomatis (Tampil Stempel & TTD Digital)</option>
+                                                <option value="manual">Kosongkan (Untuk Tanda Tangan Basah Fisik)</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-2 d-none" id="catatanRevisiContainer">
+                                            <label class="form-label small fw-semibold text-danger">Catatan Revisi untuk Pengaju:</label>
+                                            <textarea name="catatan_revisi" class="form-control form-control-sm" rows="2" placeholder="Tuliskan bagian yang harus direvisi..."></textarea>
+                                        </div>
+
+                                        <!-- TOMBOL KETUA DENGAN FORMNOCALIDATE -->
+                                        <button type="submit" formnovalidate formaction="/lembaga-admin/proker/proposal/review/<%= proposal.id %>" class="btn btn-danger btn-sm w-100 fw-bold mt-2">
+                                            <i class="fas fa-check-circle me-1"></i> Simpan Keputusan Pimpinan
+                                        </button>
+                                    </div>
+                                <% } %>
+
+                                <!-- 3. AKSI UNTUK BENDAHARA (Jika status 'Disetujui') -->
+                                <% if (proposal.status === 'Disetujui' && isBendahara) { %>
+                                    <div class="p-3 bg-warning bg-opacity-10 rounded border border-warning mb-3">
+                                        <h6 class="fw-bold text-dark small mb-2"><i class="fas fa-wallet text-warning me-1"></i> Panel Keuangan (Bendahara):</h6>
+                                        <div class="mb-2">
+                                            <label class="form-label small fw-semibold">Keputusan Dana:</label>
+                                            <select name="keputusan_bendahara" class="form-select form-select-sm" required onchange="toggleAlasanPenolakan(this.value)">
+                                                <option value="Cairkan">Cairkan Dana RAB</option>
+                                                <option value="Tolak">Tolak Pencairan Dana</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-2 d-none" id="alasanPenolakanContainer">
+                                            <label class="form-label small fw-semibold text-danger">Alasan Penolakan Bendahara:</label>
+                                            <textarea name="alasan_penolakan" class="form-control form-control-sm" rows="2" placeholder="Contoh: Kas pusat kosong / plafon terlampaui..."></textarea>
+                                        </div>
+
+                                        <!-- TOMBOL BENDAHARA DENGAN FORMNOCALIDATE -->
+                                        <button type="submit" formnovalidate formaction="/lembaga-admin/proker/proposal/pencairan/<%= proposal.id %>" class="btn btn-warning btn-sm w-100 fw-bold mt-2 text-dark">
+                                            <i class="fas fa-paper-plane me-1"></i> Eksekusi Keuangan
+                                        </button>
+                                    </div>
+                                <% } %>
+
+                                <!-- Opsi Cetak Pratinjau Dokumen -->
+                                <div class="dropdown mt-2">
+                                    <button class="btn btn-info fw-bold py-2 text-white w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-eye me-1"></i> Pratinjau Dokumen (Preview)
+                                    </button>
+                                    <ul class="dropdown-menu w-100 shadow">
+                                        <li>
+                                            <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>?mode=preview" target="_blank">
+                                                <i class="fas fa-file-signature text-primary me-2"></i> Pratinjau Dokumen Lengkap
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <!-- Tombol Cetak Resmi -->
+                                <% if (proposal.status === 'Disetujui' || proposal.status === 'Menunggu Pencairan') { %>
+                                    <div class="dropdown mt-2">
+                                        <button class="btn btn-dark fw-bold py-2 w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="fas fa-print me-1"></i> Cetak / Simpan PDF Resmi
+                                        </button>
+                                        <ul class="dropdown-menu w-100 shadow">
+                                            <li>
+                                                <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>" target="_blank">
+                                                    <i class="fas fa-file-signature text-primary me-2"></i> Cetak Resmi Dokumen
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                <% } else { %>
+                                    <button type="button" class="btn btn-secondary fw-bold py-2 w-100 mt-2" disabled title="Tombol cetak resmi aktif setelah proposal disetujui oleh Ketua Lembaga">
+                                        <i class="fas fa-lock me-1"></i> Cetak Terkunci (Menunggu Persetujuan)
+                                    </button>
+                                <% } %>
+                            </div>
+
                             <!-- Card Pengaturan Checkbox TTD & Stempel -->
                             <div class="card p-3 bg-white mb-4 border-0">
                                 <h6 class="fw-bold text-dark mb-2 small text-uppercase"><i class="fas fa-check-square me-2 text-primary"></i> Pengaturan Komponen TTD:</h6>
                                 <div class="vstack gap-2">
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_stempel" value="true" id="checkStempel" <%= (lembaga.print_stempel !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_stempel" value="true" id="checkStempel" <%= (lembaga.print_stempel !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkStempel">
                                             <i class="fas fa-stamp text-warning me-1"></i> Tampilkan Stempel Digital
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_ketua_img" value="true" id="checkTtdKetuaImg" <%= (lembaga.print_ttd_ketua_img !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_ketua_img" value="true" id="checkTtdKetuaImg" <%= (lembaga.print_ttd_ketua_img !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkTtdKetuaImg">
                                             <i class="fas fa-signature text-primary me-1"></i> Tampilkan TTD Ketua (Gambar)
                                         </label>
                                     </div>
-                                    <!-- TAMBAHAN BARU: Checkbox TTD Pengaju (Gambar) -->
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_pengaju_img" value="true" id="checkTtdPengajuImg" <%= (lembaga.print_ttd_pengaju_img !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_pengaju_img" value="true" id="checkTtdPengajuImg" <%= (lembaga.print_ttd_pengaju_img !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkTtdPengajuImg">
                                             <i class="fas fa-signature text-info me-1"></i> Tampilkan TTD Pengaju (Gambar)
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_pembina_img" value="true" id="checkTtdPembinaImg" <%= (lembaga.print_ttd_pembina_img !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ttd_pembina_img" value="true" id="checkTtdPembinaImg" <%= (lembaga.print_ttd_pembina_img !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkTtdPembinaImg">
                                             <i class="fas fa-signature text-success me-1"></i> Tampilkan TTD Pembina (Gambar)
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_ketua" value="true" id="checkKetua" <%= (lembaga.print_ketua !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_ketua" value="true" id="checkKetua" <%= (lembaga.print_ketua !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkKetua">
                                             Kolom TTD Ketua Lembaga
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_pengaju" value="true" id="checkPengaju" <%= (lembaga.print_pengaju !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_pengaju" value="true" id="checkPengaju" <%= (lembaga.print_pengaju !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkPengaju">
                                             Kolom TTD Pengaju / Bidang
                                         </label>
                                     </div>
-                                    <!-- TAMBAHAN BARU: Checkbox TTD Pembina Lembaga -->
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_pembina_lembaga" value="true" id="checkPembinaLembaga" <%= (lembaga.print_pembina_lembaga !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_pembina_lembaga" value="true" id="checkPembinaLembaga" <%= (lembaga.print_pembina_lembaga !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkPembinaLembaga">
                                             Kolom TTD Pembina Lembaga
                                         </label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input item-check" type="checkbox" name="show_pembina" value="true" id="checkPembina" <%= (lembaga.print_pembina !== false) ? 'checked' : '' %>>
+                                        <input class="form-check-input item-check" type="checkbox" name="show_pembina" value="true" id="checkPembina" <%= (lembaga.print_pembina !== false) ? 'checked' : '' %> <%= lockCheckboxAttr %>>
                                         <label class="form-check-label small fw-semibold" for="checkPembina">
                                             Kolom TTD 6 Dewan Pembina
                                         </label>
@@ -158,6 +308,7 @@
                                 </div>
                             </div>
 
+                            <!-- Card Konfigurasi Pejabat -->
                             <div class="card p-4 bg-white mb-4">
                                 <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-signature text-warning me-2"></i> Konfigurasi Pejabat</h5>
                                 <p class="text-muted small mb-3">Pengaju dan Ketua Lembaga bersifat wajib. Anda dapat menambahkan nama Pembina secara opsional.</p>
@@ -192,49 +343,6 @@
                                 </div>
                                 <div class="mb-4">
                                     <input type="text" class="form-control form-control-sm" name="pembina_6" placeholder="Pembina Muhajir Gadingmangu" value="<%= proposal.pembina_6 || '' %>">
-                                </div>
-
-                                <div class="d-grid gap-2">
-                                    <button type="submit" name="action" value="save" class="btn btn-outline-primary fw-bold py-2" id="btnSimpan">
-                                        <i class="fas fa-save me-1"></i> Simpan Draf
-                                    </button>
-                                    <button type="submit" name="action" value="submit" class="btn btn-success fw-bold py-2" id="btnAjukan">
-                                        <i class="fas fa-paper-plane me-1"></i> Ajukan Proposal
-                                    </button>
-
-                                    <!-- Opsi Cetak Pratinjau dengan Validasi Simpan Dulu -->
-                                    <div class="dropdown">
-                                        <button class="btn btn-info fw-bold py-2 text-white w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <i class="fas fa-eye me-1"></i> Pratinjau Dokumen (Preview)
-                                        </button>
-                                        <ul class="dropdown-menu w-100 shadow">
-                                            <li>
-                                                <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>" target="_blank">
-                                                    <i class="fas fa-file-signature text-primary me-2"></i> Pratinjau Dokumen Lengkap
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
-
-                                    <!-- Tombol Cetak Resmi (Hanya Aktif Jika Status 'Disetujui') -->
-                                    <% if (proposal.status === 'Disetujui') { %>
-                                        <div class="dropdown">
-                                            <button class="btn btn-dark fw-bold py-2 w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                                <i class="fas fa-print me-1"></i> Cetak / Simpan PDF Resmi
-                                            </button>
-                                            <ul class="dropdown-menu w-100 shadow">
-                                                <li>
-                                                    <a class="dropdown-item py-2 fw-semibold btnPreviewLink" href="/lembaga-admin/proker/proposal/print/<%= proposal.id %>" target="_blank">
-                                                        <i class="fas fa-file-signature text-primary me-2"></i> Cetak Resmi Dokumen
-                                                    </a>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    <% } else { %>
-                                        <button type="button" class="btn btn-secondary fw-bold py-2" disabled title="Tombol cetak resmi aktif setelah proposal disetujui oleh Ketua Lembaga">
-                                            <i class="fas fa-lock me-1"></i> Cetak Terkunci (Menunggu Persetujuan)
-                                        </button>
-                                    <% } %>
                                 </div>
                             </div>
                         </div>
@@ -276,8 +384,27 @@
             });
         }
 
-        document.getElementById('btnSimpan').addEventListener('click', () => { isDirty = false; });
-        document.getElementById('btnAjukan').addEventListener('click', () => { isDirty = false; });
+        const btnSimpan = document.getElementById('btnSimpan');
+        if (btnSimpan) {
+            btnSimpan.addEventListener('click', () => { isDirty = false; });
+        }
+
+        const btnAjukanAksi = document.getElementById('btnAjukanAksi');
+        if (btnAjukanAksi) {
+            btnAjukanAksi.addEventListener('click', () => {
+                if (isDirty) {
+                    alert('⚠️ Anda memiliki perubahan data yang belum disimpan.\n\nSilakan klik tombol "Simpan Draf" terlebih dahulu sebelum mengajukan proposal!');
+                    return;
+                }
+                if (confirm('Yakin ingin mengajukan proposal ini kepada Ketua/Pimpinan?')) {
+                    const ajukanForm = document.createElement('form');
+                    ajukanForm.method = 'POST';
+                    ajukanForm.action = '/lembaga-admin/proker/proposal/ajukan/<%= proposal.id %>';
+                    document.body.appendChild(ajukanForm);
+                    ajukanForm.submit();
+                }
+            });
+        }
 
         document.querySelectorAll('.btnPreviewLink').forEach(link => {
             link.addEventListener('click', function(e) {
@@ -287,6 +414,27 @@
                 }
             });
         });
+
+        function toggleCatatanRevisi(val) {
+            const catatanContainer = document.getElementById('catatanRevisiContainer');
+            const ttdContainer = document.getElementById('opsiTtdContainer');
+            if (val === 'Revisi') {
+                catatanContainer.classList.remove('d-none');
+                ttdContainer.classList.add('d-none');
+            } else {
+                catatanContainer.classList.add('d-none');
+                ttdContainer.classList.remove('d-none');
+            }
+        }
+
+        function toggleAlasanPenolakan(val) {
+            const alasanContainer = document.getElementById('alasanPenolakanContainer');
+            if (val === 'Tolak') {
+                alasanContainer.classList.remove('d-none');
+            } else {
+                alasanContainer.classList.add('d-none');
+            }
+        }
     </script>
 </body>
 </html>

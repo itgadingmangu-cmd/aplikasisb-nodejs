@@ -131,6 +131,103 @@
     </div>
 </div>
 
+<!-- ========================================================= -->
+<!-- 1. NOTIFIKASI KHUSUS BENDAHARA (MENUNGGU PENCAIRAN)        -->
+<!-- ========================================================= -->
+<% if (typeof totalPendingPencairan !== 'undefined') { %>
+    <% if (totalPendingPencairan > 0) { %>
+        <div class="alert alert-info d-flex align-items-center mb-4 shadow-sm border-info border-start border-4" role="alert" style="background-color: #cff4fc; color: #055160;">
+            <i class="fas fa-wallet fs-2 me-3 text-info"></i>
+            <div>
+                <h6 class="fw-bold mb-1">Perhatian Bendahara!</h6>
+                <p class="mb-1 small">Terdapat <b><%= totalPendingPencairan %></b> proposal kegiatan dari berbagai bidang yang telah disetujui Pimpinan dan <b>Menunggu Pencairan Dana</b>.</p>
+                <a href="/lembaga-admin/proposal" class="btn btn-sm btn-dark mt-1 fw-bold">
+                    <i class="fas fa-arrow-right me-1"></i> Eksekusi Pencairan Sekarang
+                </a>
+            </div>
+        </div>
+    <% } else if (typeof userSession !== 'undefined' && (userSession.hierarki === 'Bendahara' || userSession.nama_bidang === 'Bendahara')) { %>
+        <!-- Tampilkan pesan kosong hanya jika yang login adalah Bendahara -->
+        <div class="alert alert-light d-flex align-items-center mb-4 shadow-sm border-secondary border-start border-4" role="alert">
+            <i class="fas fa-check-circle fs-3 me-3 text-secondary opacity-50"></i>
+            <div>
+                <h6 class="fw-bold mb-1 text-secondary">Tugas Keuangan Selesai</h6>
+                <p class="mb-0 small text-muted">Saat ini tidak ada proposal yang menunggu pencairan dana.</p>
+            </div>
+        </div>
+    <% } %>
+<% } %>
+
+<!-- ========================================================= -->
+<!-- 2. NOTIFIKASI DANA DITOLAK OLEH BENDAHARA (UNTUK PENGAJU) -->
+<!-- ========================================================= -->
+<% if (typeof prokers !== 'undefined' && prokers.length > 0) { %>
+    <% prokers.forEach(p => { %>
+        <% if (p.Proposal && p.Proposal.status === 'Dana Ditolak') { %>
+            <div class="alert alert-danger border-start border-4 border-danger shadow-sm mb-4" role="alert" style="background-color: #f8d7da; color: #842029;">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-ban fs-2 me-3 text-danger"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1">Pencairan Dana Ditolak oleh Bendahara</h6>
+                            <p class="mb-0 small">Proposal <b><%= p.nama_program || p.nama_proker %></b> ditolak pada tahap pencairan keuangan. <b>Alasan:</b> <%= p.Proposal.catatan_revisi || 'Mohon sesuaikan kembali RAB.' %></p>
+                        </div>
+                    </div>
+                    <div>
+                        <a href="/lembaga-admin/proker/proposal/<%= p.Proposal.id %>" class="btn btn-sm btn-danger fw-bold px-3 py-2 shadow-sm text-nowrap text-white">
+                            <i class="fas fa-arrow-right me-1"></i> Periksa Detail
+                        </a>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+    <% }) %>
+<% } %>
+
+<!-- ========================================================= -->
+<!-- 3. NOTIFIKASI PROPOSAL DISETUJUI / MENUNGGU PENCAIRAN     -->
+<!-- ========================================================= -->
+<% if (typeof prokers !== 'undefined' && prokers.length > 0) { %>
+    <% prokers.forEach(p => { %>
+        <% if (p.Proposal && p.Proposal.status === 'Disetujui' && (!userSession.hierarki || userSession.hierarki !== 'Bendahara')) { %>
+            <div class="alert alert-success border-start border-4 border-success shadow-sm mb-4" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-check-circle fs-3 me-3 text-success"></i>
+                    <div>
+                        <h6 class="fw-bold mb-1">Hore! Proposal Disetujui Pimpinan</h6>
+                        <p class="mb-0 small">Proposal <b><%= p.nama_program || p.nama_proker %></b> Anda saat ini sedang dalam antrean <b>Menunggu Pencairan Dana</b> dari Bendahara.</p>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+    <% }) %>
+<% } %>
+
+                <!-- NOTIFIKASI PROPOSAL MENUNGGU PERSETUJUAN (KHUSUS KETUA/ADMIN) -->
+                <% if (typeof userSession !== 'undefined' && (userSession.role === 'ketua' || userSession.role === 'admin' || userSession.role === 'admin_lembaga')) { %>
+                    <% 
+                        // Hitung jumlah proposal berstatus 'Diajukan'
+                        let pendingApprovals = 0;
+                        if (typeof prokers !== 'undefined') {
+                            prokers.forEach(p => {
+                                if (p.Proposal && p.Proposal.status === 'Diajukan') pendingApprovals++;
+                            });
+                        }
+                    %>
+                    <% if (pendingApprovals > 0) { %>
+                        <div class="alert alert-warning d-flex align-items-center mb-4 shadow-sm border-warning border-start border-4" role="alert">
+                            <i class="fas fa-bell fs-3 me-3 text-warning"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1">Perhatian Pimpinan!</h6>
+                                <p class="mb-1 small">Terdapat <b><%= pendingApprovals %></b> proposal kegiatan baru dari bidang yang menunggu persetujuan Anda.</p>
+                                <a href="/lembaga-admin/proposal/approval" class="btn btn-sm btn-dark mt-1 fw-bold">
+                                    <i class="fas fa-arrow-right me-1"></i> Buka Halaman Persetujuan
+                                </a>
+                            </div>
+                        </div>
+                    <% } %>
+                <% } %>
+
                 <!-- NOTIFIKASI KOREKSI / REVISI UNTUK PENGAJU DI HALAMAN HOME -->
 <% if (typeof prokers !== 'undefined' && prokers.length > 0) { %>
     <% prokers.forEach(p => { %>
@@ -391,20 +488,20 @@
                                             </tr>
                                         <% } %>
                                     </tbody>
-                            </table>
+                                </table>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- TABEL PENGURUS / USER BIDANG -->
-                <div class="col-lg-6">
-                    <div class="card p-4 bg-white h-100">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-dark mb-0">
-                                <i class="fas fa-user-shield text-success me-2"></i> Pengurus / User Bidang
-                            </h5>
-                          </div>
-                          <div class="table-responsive">
+                    <!-- TABEL PENGURUS / USER BIDANG -->
+                    <div class="col-lg-6">
+                        <div class="card p-4 bg-white h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold text-dark mb-0">
+                                    <i class="fas fa-user-shield text-success me-2"></i> Pengurus / User Bidang
+                                </h5>
+                            </div>
+                            <div class="table-responsive">
                                 <table class="table table-hover align-middle mb-0">
                                     <thead class="table-light">
                                         <tr class="small text-uppercase">
@@ -431,7 +528,8 @@
                                             </tr>
                                         <% } %>
                                     </tbody>
-                            </table>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>

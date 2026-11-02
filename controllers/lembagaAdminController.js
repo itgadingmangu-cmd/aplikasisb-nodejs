@@ -1,4 +1,5 @@
-const { Bidang, User, Proker, RincianBiaya, Lembaga } = require('../models');
+// GABUNGKAN 'Proposal' ke dalam import yang sudah ada agar tidak terjadi crash
+const { Proker, Bidang, RincianBiaya, Proposal, Lembaga, User } = require('../models');
 const bcrypt = require('bcrypt');
 
 const lembagaAdminController = {
@@ -41,14 +42,40 @@ const lembagaAdminController = {
                 });
             }
 
+            // 1. ATURAN KETAT: Hitung proposal menunggu pencairan khusus Bendahara
+            let totalPendingPencairan = 0;
+            if (req.session.user && (req.session.user.hierarki === 'Bendahara' || req.session.user.nama_bidang === 'Bendahara')) {
+                totalPendingPencairan = await Proposal.count({
+                    where: {
+                        lembagaId: req.session.user.lembagaId,
+                        status: 'Disetujui' // Pastikan string ini sama persis dengan yang di database
+                    }
+                });
+            }
+
+            // 2. ATURAN KETAT: Hitung proposal yang pencairan dananya ditolak oleh Bendahara
+            let proposalDitolakCount = 0;
+            if (req.session.user) {
+                proposalDitolakCount = await Proposal.count({
+                    where: {
+                        lembagaId: req.session.user.lembagaId,
+                        status: 'Dana Ditolak'
+                    }
+                });
+            }
+
+            // 3. Render halaman dashboard dengan menyisipkan variabel totalPendingPencairan & proposalDitolakCount
             res.render('lembaga_admin/index', {
                 title: 'Panel Kontrol Admin Lembaga',
                 userSession: req.session.user,
                 lembagaData: lembaga,
                 bidangs: bidangs || [],
                 users: users || [],
-                prokers: prokers || []
+                prokers: prokers || [],
+                totalPendingPencairan: totalPendingPencairan, // Variabel pending untuk bendahara
+                proposalDitolakCount: proposalDitolakCount // Variabel notifikasi penolakan dana
             });
+            
         } catch (error) {
             console.error("ERROR LEMBAGA ADMIN:", error);
             res.status(500).send('Terjadi kesalahan pada server: ' + error.message);
