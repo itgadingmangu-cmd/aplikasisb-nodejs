@@ -146,13 +146,26 @@ const prokerController = {
         }
     },
 
-   // 2. Aksi Ketua/Admin mereview: Menyetujui atau Meminta Revisi
+   // 2. Aksi Ketua/Admin mereview: Menyetujui atau Meminta Revisi DAN MENGATUR TTD
    reviewApprovalKetua: async (req, res) => {
         try {
             const { id } = req.params;
-            const { aksi, catatan_revisi, status } = req.body; 
+            // Dapatkan SEMUA data dari body, termasuk konfigurasi TTD dan Stempel
+            const { 
+                aksi, 
+                catatan_revisi, 
+                status,
+                show_stempel,
+                show_ttd_ketua_img,
+                show_ttd_pengaju_img,
+                show_ttd_pembina_img,
+                show_ketua,
+                show_pengaju,
+                show_pembina_lembaga,
+                show_pembina 
+            } = req.body; 
 
-            // Cari proposal untuk mengambil prokerId
+            // Cari proposal untuk mengambil prokerId dan lembagaId
             const proposal = await Proposal.findByPk(id); 
             if (!proposal) {
                 req.session.error_msg = 'Proposal tidak ditemukan.';
@@ -179,7 +192,7 @@ const prokerController = {
                 catatanBaru = catatan_revisi || 'Mohon perbaiki proposal.';
             }
 
-            // Eksekusi pembaruan database secara langsung dan eksplisit
+            // A. Eksekusi pembaruan database untuk tabel PROPOSAL secara langsung
             await Proposal.update({
                 status: statusBaru,
                 catatan_revisi: catatanBaru
@@ -187,7 +200,23 @@ const prokerController = {
                 where: { id: id }
             });
 
-            req.session.success_msg = `Proposal berhasil diputuskan dengan status: ${statusBaru}`;
+            // B. Eksekusi pembaruan database untuk tabel LEMBAGA (Konfigurasi TTD/Stempel)
+            if (proposal.lembagaId) {
+                await Lembaga.update({
+                    print_stempel: show_stempel ? true : false,
+                    print_ttd_ketua_img: show_ttd_ketua_img ? true : false,
+                    print_ttd_pengaju_img: show_ttd_pengaju_img ? true : false,
+                    print_ttd_pembina_img: show_ttd_pembina_img ? true : false,
+                    print_ketua: show_ketua ? true : false,
+                    print_pengaju: show_pengaju ? true : false,
+                    print_pembina_lembaga: show_pembina_lembaga ? true : false,
+                    print_pembina: show_pembina ? true : false
+                }, { 
+                    where: { id: proposal.lembagaId } 
+                });
+            }
+
+            req.session.success_msg = `Proposal disetujui & Konfigurasi TTD disimpan!`;
             return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
         } catch (error) {
             console.error("ERROR REVIEW KETUA:", error);
@@ -273,8 +302,7 @@ const prokerController = {
             }
 
             // Ambil data lembaga untuk konfigurasi ttd/stempel
-            const LembagaModel = require('../models').Lembaga; 
-            const lembaga = await LembagaModel.findByPk(lembagaId);
+            const lembaga = await Lembaga.findByPk(lembagaId);
 
             res.render('proker/print_bidang', {
                 title: `Cetak Laporan Bidang - ${bidang.nama_bidang}`,

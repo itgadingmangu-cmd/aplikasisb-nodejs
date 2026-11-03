@@ -309,8 +309,8 @@
                 const proposalStatus = "<%= proposal.status %>";
                 const isUrlPreview = new URLSearchParams(window.location.search).get('mode') === 'preview';
 
-                // Jika status belum "Disetujui" ATAU URL mengandung mode preview, tampilkan watermark!
-                if (proposalStatus !== 'Disetujui' || isUrlPreview) {
+                // Jika status BUKAN "Disetujui" DAN BUKAN "Dana Dicairkan" ATAU URL mengandung mode preview, tampilkan watermark!
+                if ((proposalStatus !== 'Disetujui' && proposalStatus !== 'Dana Dicairkan') || isUrlPreview) {
                     container.innerHTML = '<div class="watermark-draft">DRAFT PROPOSAL</div>';
                 }
             }
