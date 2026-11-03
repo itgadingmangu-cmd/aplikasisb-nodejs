@@ -52,7 +52,7 @@
                             <i class="fas fa-check-double fs-2 me-3 text-success"></i>
                             <div>
                                 <h6 class="fw-bold mb-1">Dana Kegiatan Telah Dicairkan!</h6>
-                                <p class="mb-0">Bendahara telah memproses pencairan dana untuk proposal ini. Silakan lanjutkan program kerja Anda.</p>
+                                <p class="mb-0">Bendahara telah memproses pencairan dana untuk proposal ini. Silakan lanjutkan program kerja Anda dan susun LPJ.</p>
                             </div>
                         </div>
                     </div>
@@ -96,11 +96,11 @@
                 <% } %>
 
                 <% 
-                    // Logika penguncian standar form
+                    // Logika penguncian standar form narasi
                     let isLocked = (typeof proposal !== 'undefined' && proposal && proposal.status !== 'Draft' && proposal.status !== 'Revisi' && proposal.status !== 'Perlu Revisi' && proposal.status !== 'Dana Ditolak');
                     const lockAttr = isLocked ? 'disabled' : '';
 
-                    // Deteksi Role
+                    // Deteksi Role Pimpinan / Ketua
                     const isPimpinan = (
                         typeof userSession !== 'undefined' && (
                             userSession.role === 'admin' || 
@@ -120,7 +120,8 @@
                         )
                     );
 
-                    const lockCheckboxAttr = (isLocked && !isPimpinan) ? 'disabled' : '';
+                    // ATURAN KETAT: Jika bukan pimpinan, kotak centang TTD dikunci total agar tidak bisa diubah pengaju
+                    const lockCheckboxAttr = (!isPimpinan) ? 'disabled' : '';
                 %>
 
                 <!-- FORM UTAMA -->
@@ -162,6 +163,19 @@
                         <!-- Kolom Kanan: Konfigurasi TTD, Checkbox & Panel Aksi Workflow -->
                         <div class="col-lg-4">
                             
+                            <!-- TOMBOL AKSES LPJ (MUNCUL OTOMATIS SETELAH DANA DICAIRKAN) -->
+                            <% if (proposal.status === 'Dana Dicairkan') { %>
+                                <div class="card p-3 bg-white mb-4 border border-info shadow-sm">
+                                    <h6 class="fw-bold text-info mb-2 small text-uppercase">
+                                        <i class="fas fa-file-invoice-dollar me-2"></i> Laporan Pertanggungjawaban (LPJ)
+                                    </h6>
+                                    <p class="text-muted small mb-3">Dana kegiatan telah dicairkan oleh bendahara. Silakan unggah laporan realisasi dan nota belanja Anda di sini.</p>
+                                    <a href="/lembaga-admin/proker/proposal/lpj/<%= proposal.id %>" class="btn btn-info fw-bold py-2 text-white w-100">
+                                        <i class="fas fa-folder-open me-1"></i> Kelola / Isi Formulir LPJ
+                                    </a>
+                                </div>
+                            <% } %>
+
                             <!-- PANEL KONTROL ALUR AKSI & APPROVAL -->
                             <div class="card p-3 bg-white mb-4 border border-primary">
                                 <h6 class="fw-bold text-primary mb-3 small text-uppercase">
@@ -197,14 +211,13 @@
 
                                         <div class="mb-2" id="opsiTtdContainer">
                                             <label class="form-label small fw-semibold">Opsi Penandatanganan:</label>
-                                            <!-- DIPERBAIKI: Ditambahkan placeholder '-- Pilih Format TTD --' agar klik pertama memicu fungsi JS -->
                                             <select name="opsi_ttd" id="opsiTtdSelect" class="form-select form-select-sm" onchange="applyOpsiTtd(this.value)">
-                                              <option value="" selected disabled>-- Pilih Format TTD --</option>
-                                              <option value="digital_standar">Otomatis Standar (Ketua & 1 Pembina)</option>
-                                              <option value="digital_lengkap">Otomatis Lengkap (+ 6 Dewan Pembina)</option>
-                                              <option value="manual_standar">Kosongkan Standar (Tanda Tangan Basah)</option>
-                                              <option value="manual_lengkap">Kosongkan Lengkap (+ 6 Pembina, Basah)</option>
-                                          </select>
+                                                <option value="" selected disabled>-- Pilih Format TTD --</option>
+                                                <option value="digital_standar">Otomatis Standar (Ketua & 1 Pembina)</option>
+                                                <option value="digital_lengkap">Otomatis Lengkap (+ 6 Dewan Pembina)</option>
+                                                <option value="manual_standar">Kosongkan Standar (Tanda Tangan Basah)</option>
+                                                <option value="manual_lengkap">Kosongkan Lengkap (+ 6 Pembina, Basah)</option>
+                                            </select>
                                         </div>
 
                                         <div class="mb-2 d-none" id="catatanRevisiContainer">
@@ -346,7 +359,6 @@
     <script>
         let isDirty = false;
         
-        // Ambil elemen form yang isiannya bisa diubah user
         const narasiInputs = document.querySelectorAll('#formProposal input[type="text"]:not([disabled]), #formProposal textarea');
         narasiInputs.forEach(input => {
             input.addEventListener('input', () => { isDirty = true; });
@@ -376,7 +388,6 @@
             });
         }
 
-        // DIPERBAIKI: item-check TIDAK memblokir approval ketua
         document.querySelectorAll('.item-check').forEach(chk => {
             chk.addEventListener('change', () => {
                 const panelKetua = document.getElementById('opsiTtdSelect');
@@ -386,51 +397,43 @@
             });
         });
 
-        // Fungsi Master Switch dengan 4 Preset (Digital/Manual & Standar/Lengkap)
         function applyOpsiTtd(val) {
             if (!val) return;
             
-            // Deteksi pintar berdasarkan value dropdown
             const isDigital = val.startsWith('digital');
             const isLengkap = val.endsWith('lengkap');
             
-            // Elemen Stempel & Gambar TTD
             const checkStempel = document.getElementById('checkStempel');
             const checkTtdKetuaImg = document.getElementById('checkTtdKetuaImg');
             const checkTtdPengajuImg = document.getElementById('checkTtdPengajuImg');
             const checkTtdPembinaImg = document.getElementById('checkTtdPembinaImg');
             
-            // Elemen Kolom Dasar
             const checkKetua = document.getElementById('checkKetua');
             const checkPengaju = document.getElementById('checkPengaju');
             const checkPembinaLembaga = document.getElementById('checkPembinaLembaga');
             
-            // Elemen Kolom Tambahan (6 Pembina)
             const checkPembina6 = document.getElementById('checkPembina');
             
-            // Eksekusi centang gambar & stempel (hanya jika preset 'digital' dipilih)
             if (checkStempel) checkStempel.checked = isDigital;
             if (checkTtdKetuaImg) checkTtdKetuaImg.checked = isDigital;
             if (checkTtdPengajuImg) checkTtdPengajuImg.checked = isDigital;
             if (checkTtdPembinaImg) checkTtdPembinaImg.checked = isDigital;
             
-            // Eksekusi kolom dasar (selalu diaktifkan agar PDF tidak kehilangan struktur dasar)
             if (checkKetua) checkKetua.checked = true;
             if (checkPengaju) checkPengaju.checked = true;
             if (checkPembinaLembaga) checkPembinaLembaga.checked = true;
             
-            // Eksekusi khusus 6 Pembina
             if (checkPembina6) {
-                checkPembina6.checked = isLengkap; // Hanya dicentang jika memilih preset 'lengkap'
+                checkPembina6.checked = isLengkap; 
                 
-                // Pancing event 'change' agar input teks nama 6 pembina otomatis terisi oleh script default
                 if (isLengkap) {
                     checkPembina6.dispatchEvent(new Event('change'));
                 }
             }
             
-            isDirty = false; // Matikan status 'kotor' agar peringatan Simpan Draf tidak muncul
+            isDirty = false; 
         }
+
         const btnSimpan = document.getElementById('btnSimpan');
         if (btnSimpan) {
             btnSimpan.addEventListener('click', () => { isDirty = false; });

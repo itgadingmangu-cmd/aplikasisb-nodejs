@@ -71,6 +71,17 @@
                                         <% } %>
                                     </select>
                                 </div>
+
+                                <!-- TAMBAHAN UTAMA: Jenis Kegiatan / Anggaran (Reguler vs Insidentil) -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-primary">Jenis Kegiatan / Anggaran <span class="text-danger">*</span></label>
+                                    <select class="form-select border-primary shadow-sm" name="jenis" required>
+                                        <option value="Reguler" selected>🟢 Reguler (Sesuai RAB / Program Utama)</option>
+                                        <option value="Insidentil">🟠 Insidentil (Di Luar RAB / Tambahan / Darurat)</option>
+                                    </select>
+                                    <div class="form-text small text-muted">Pilih Insidentil jika kegiatan berada di luar Rencana Anggaran Biaya utama.</div>
+                                </div>
+
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Bulan Pelaksanaan (Centang Bulan)</label>
                                     <div class="row g-2 bg-light p-3 rounded border">
@@ -134,7 +145,14 @@
                                                 <tr>
                                                     <td class="fw-bold text-muted"><%= index + 1 %></td>
                                                     <td>
-                                                        <span class="fw-bold text-dark d-block"><%= p.nama_program %></span>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <span class="fw-bold text-dark"><%= p.nama_program %></span>
+                                                            <% if (p.jenis === 'Insidentil') { %>
+                                                                <span class="badge bg-warning text-dark px-2 py-0" style="font-size: 10px;">Insidentil</span>
+                                                            <% } else { %>
+                                                                <span class="badge bg-success text-white px-2 py-0" style="font-size: 10px;">Reguler</span>
+                                                            <% } %>
+                                                        </div>
                                                         <small class="text-muted"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
                                                     </td>
                                                     <td><span class="small text-muted"><%= p.waktu_pelaksanaan || '-' %></span></td>

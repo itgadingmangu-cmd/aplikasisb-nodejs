@@ -6,6 +6,9 @@ module.exports = (sequelize, DataTypes) => {
         static associate(models) {
             Proposal.belongsTo(models.Proker, { foreignKey: 'prokerId', as: 'Proker' });
             Proposal.belongsTo(models.Lembaga, { foreignKey: 'lembagaId', as: 'Lembaga' });
+            
+            // Relasi aman ke RealisasiLpj untuk Modul LPJ (Tahap 5)
+            Proposal.hasOne(models.RealisasiLpj, { foreignKey: 'proposalId', as: 'RealisasiLpj' });
         }
     }
 
@@ -31,11 +34,11 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: true
         },
         status: {
-            // Menambahkan 'Perlu Revisi' ke dalam ENUM agar kompatibel dengan proses form
-            type: DataTypes.ENUM('Draft', 'Diajukan', 'Disetujui', 'Direvisi', 'Perlu Revisi'),
+            // Mempertahankan seluruh status ENUM yang sudah berjalan tanpa regresi
+            type: DataTypes.ENUM('Draft', 'Diajukan', 'Disetujui', 'Direvisi', 'Perlu Revisi', 'Dana Dicairkan', 'Dana Ditolak', 'Selesai'),
             defaultValue: 'Draft'
         },
-        // Kolom baru untuk menampung riwayat catatan dari pimpinan
+        // Kolom riwayat catatan dari pimpinan
         catatan_revisi: {
             type: DataTypes.TEXT,
             allowNull: true

@@ -28,10 +28,15 @@ module.exports = (sequelize, DataTypes) => {
     bidangId: DataTypes.INTEGER,
     lembagaId: DataTypes.INTEGER, // <-- KUNCI UTAMA: Ditambahkan agar tersambung ke Lembaga
     anggaran: DataTypes.DECIMAL(12, 2), // <-- Ditambahkan untuk menyimpan nominal total RAB
+    jenis: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'Reguler' // <-- KOLOM BARU: Membedakan 'Reguler' (dalam RAB) atau 'Insidentil' (di luar RAB)
+    },
     tahun: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 2026 // <-- Kolom baru untuk isolasi data per Tahun Anggaran
+      defaultValue: 2026 // <-- Kolom untuk isolasi data per Tahun Anggaran
     }
   }, {
     sequelize,

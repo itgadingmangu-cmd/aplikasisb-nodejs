@@ -36,6 +36,7 @@
                     <div class="card-body p-4 p-md-5">
                         <form action="/proker/tambah" method="POST">
                             
+                            <!-- Baris 1: Nama Program & Bidang -->
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Nama Program / Kegiatan <span class="text-danger">*</span></label>
@@ -52,6 +53,19 @@
                                 </div>
                             </div>
 
+                            <!-- Baris Tambahan Utama: Jenis Kegiatan / Anggaran (Reguler vs Insidentil) -->
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label fw-bold">Jenis Kegiatan / Anggaran <span class="text-danger">*</span></label>
+                                    <select name="jenis" class="form-select border-primary" required>
+                                        <option value="Reguler" selected>🟢 Reguler (Sesuai RAB / Program Kerja Utama)</option>
+                                        <option value="Insidentil">🟠 Insidentil (Di Luar RAB / Kegiatan Tambahan / Darurat)</option>
+                                    </select>
+                                    <div class="form-text small text-muted">Pilih <strong>Insidentil</strong> jika kegiatan ini berada di luar Rencana Anggaran Biaya (RAB) tahunan utama agar pencatatan realisasinya terpisah.</div>
+                                </div>
+                            </div>
+
+                            <!-- Baris 2: Waktu Pelaksanaan & Status -->
                             <div class="row mb-4">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Waktu Pelaksanaan <span class="text-danger">*</span></label>
@@ -83,6 +97,7 @@
                                 </div>
                             </div>
 
+                            <!-- Deskripsi -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">Deskripsi & Target Capaian</label>
                                 <textarea name="deskripsi" class="form-control" rows="4" placeholder="Jelaskan secara singkat tujuan, sasaran, atau detail teknis dari program kerja ini..."></textarea>

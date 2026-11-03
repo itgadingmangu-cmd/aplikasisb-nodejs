@@ -34,27 +34,49 @@
                     </div>
                 </div>
 
-                <!-- Kartu Statistik Total Anggaran Lembaga -->
+                <!-- Kartu Statistik Total Anggaran Lembaga (Pemisahan Reguler & Insidentil) -->
                 <% 
-                    let grandTotalAnggaran = 0;
+                    let totalAnggaranReguler = 0;
+                    let totalAnggaranInsidentil = 0;
+
                     if (lembagaData && lembagaData.Prokers) {
                         lembagaData.Prokers.forEach(p => {
+                            let prokerTotal = 0;
                             if (p.RincianBiayas) {
-                                grandTotalAnggaran += p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+                                prokerTotal = p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+                            }
+
+                            if (!p.jenis || p.jenis === 'Reguler') {
+                                totalAnggaranReguler += prokerTotal;
+                            } else if (p.jenis === 'Insidentil') {
+                                totalAnggaranInsidentil += prokerTotal;
                             }
                         });
                     }
+                    let grandTotalAnggaran = totalAnggaranReguler + totalAnggaranInsidentil;
                 %>
-                <div class="row mb-4">
+                <div class="row mb-4 g-3">
                     <div class="col-xl-4 col-md-6">
-                        <div class="card p-3 bg-white border-start border-4 border-success shadow-sm">
-                            <span class="text-muted small fw-bold text-uppercase">Total Pagu Anggaran Lembaga (<%= pengaturan.tahun_aktif %>)</span>
+                        <div class="card p-3 bg-white border-start border-4 border-success shadow-sm h-100">
+                            <span class="text-muted small fw-bold text-uppercase">Total Pagu Keseluruhan</span>
                             <h3 class="fw-bold text-success mt-1 mb-0">Rp <%= grandTotalAnggaran.toLocaleString('id-ID') %></h3>
+                        </div>
+                    </div>
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card p-3 bg-white border-start border-4 border-primary shadow-sm h-100">
+                            <span class="text-muted small fw-bold text-uppercase">Total Anggaran Reguler (RAB)</span>
+                            <h3 class="fw-bold text-primary mt-1 mb-0">Rp <%= totalAnggaranReguler.toLocaleString('id-ID') %></h3>
+                        </div>
+                    </div>
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card p-3 bg-white border-start border-4 border-warning shadow-sm h-100">
+                            <span class="text-muted small fw-bold text-uppercase">Total Anggaran Insidentil (Di Luar RAB)</span>
+                            <h3 class="fw-bold text-warning mt-1 mb-0">Rp <%= totalAnggaranInsidentil.toLocaleString('id-ID') %></h3>
                         </div>
                     </div>
                 </div>
 
-                <!-- Tabel Master Rekapitulasi Proker & Anggaran -->
+                <!-- Tabel Master Rekapitulasi Proker & Anggaran Terkelompok -->
                 <div class="card p-4 bg-white shadow-sm">
                     <h5 class="fw-bold text-dark mb-3 border-bottom pb-2">
                         <i class="fas fa-wallet text-primary me-2"></i> Daftar Rincian Anggaran per Program Kerja (<%= pengaturan.tahun_aktif %>)
@@ -73,35 +95,98 @@
                             </thead>
                             <tbody>
                                 <% if (lembagaData && lembagaData.Prokers && lembagaData.Prokers.length > 0) { %>
-                                    <% lembagaData.Prokers.forEach((p, index) => { %>
-                                        <% 
-                                            let totalProker = 0;
-                                            if (p.RincianBiayas && p.RincianBiayas.length > 0) {
-                                                totalProker = p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-                                            }
-                                        %>
+                                    <% 
+                                        const prokerReguler = lembagaData.Prokers.filter(p => !p.jenis || p.jenis === 'Reguler');
+                                        const prokerInsidentil = lembagaData.Prokers.filter(p => p.jenis === 'Insidentil');
+                                        let nomorUrut = 1;
+                                    %>
+
+                                    <!-- KELOMPOK 1: REGULER -->
+                                    <tr class="table-secondary fw-bold">
+                                        <td colspan="6"><i class="fas fa-circle-check text-success me-1"></i> I. PROGRAM KERJA REGULER (SESUAI RAB UTAMA)</td>
+                                    </tr>
+                                    <% if (prokerReguler.length > 0) { %>
+                                        <% prokerReguler.forEach((p) => { %>
+                                            <% 
+                                                let totalProker = 0;
+                                                if (p.RincianBiayas && p.RincianBiayas.length > 0) {
+                                                    totalProker = p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+                                                }
+                                            %>
+                                            <tr>
+                                                <td class="fw-bold text-muted"><%= nomorUrut++ %></td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="fw-bold text-dark"><%= p.nama_program %></span>
+                                                        <span class="badge bg-success text-white px-2 py-0" style="font-size: 10px;">Reguler</span>
+                                                    </div>
+                                                    <small class="text-muted"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
+                                                </td>
+                                                <td><%= p.waktu_pelaksanaan || '-' %></td>
+                                                <td>
+                                                    <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
+                                                        <%= p.status %>
+                                                    </span>
+                                                </td>
+                                                <td class="text-end fw-bold text-success">
+                                                    Rp <%= totalProker.toLocaleString('id-ID') %>
+                                                </td>
+                                                <td class="text-center">
+                                                    <a href="/lembaga-admin/proker/rab/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Lihat Rincian RAB">
+                                                        <i class="fas fa-eye me-1"></i> Detail RAB
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                    <% } else { %>
                                         <tr>
-                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
-                                            <td>
-                                                <span class="fw-bold text-dark d-block"><%= p.nama_program %></span>
-                                                <small class="text-muted"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
-                                            </td>
-                                            <td><%= p.waktu_pelaksanaan || '-' %></td>
-                                            <td>
-                                                <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
-                                                    <%= p.status %>
-                                                </span>
-                                            </td>
-                                            <td class="text-end fw-bold text-success">
-                                                Rp <%= totalProker.toLocaleString('id-ID') %>
-                                            </td>
-                                            <td class="text-center">
-                                                <a href="/lembaga-admin/proker/rab/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Lihat Rincian RAB">
-                                                    <i class="fas fa-eye me-1"></i> Detail RAB
-                                                </a>
-                                            </td>
+                                            <td colspan="6" class="text-center text-muted fst-italic py-2 small">Tidak ada program kerja reguler.</td>
                                         </tr>
-                                    <% }) %>
+                                    <% } %>
+
+                                    <!-- KELOMPOK 2: INSIDENTIL -->
+                                    <tr class="table-secondary fw-bold">
+                                        <td colspan="6"><i class="fas fa-triangle-exclamation text-warning me-1"></i> II. KEGIATAN INSIDENTIL (DI LUAR RAB / TAMBAHAN)</td>
+                                    </tr>
+                                    <% if (prokerInsidentil.length > 0) { %>
+                                        <% prokerInsidentil.forEach((p) => { %>
+                                            <% 
+                                                let totalProker = 0;
+                                                if (p.RincianBiayas && p.RincianBiayas.length > 0) {
+                                                    totalProker = p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+                                                }
+                                            %>
+                                            <tr>
+                                                <td class="fw-bold text-muted"><%= nomorUrut++ %></td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="fw-bold text-dark"><%= p.nama_program %></span>
+                                                        <span class="badge bg-warning text-dark px-2 py-0" style="font-size: 10px;">Insidentil</span>
+                                                    </div>
+                                                    <small class="text-muted"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
+                                                </td>
+                                                <td><%= p.waktu_pelaksanaan || '-' %></td>
+                                                <td>
+                                                    <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
+                                                        <%= p.status %>
+                                                    </span>
+                                                </td>
+                                                <td class="text-end fw-bold text-success">
+                                                    Rp <%= totalProker.toLocaleString('id-ID') %>
+                                                </td>
+                                                <td class="text-center">
+                                                    <a href="/lembaga-admin/proker/rab/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Lihat Rincian RAB">
+                                                        <i class="fas fa-eye me-1"></i> Detail RAB
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                    <% } else { %>
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted fst-italic py-2 small">Tidak ada kegiatan insidentil.</td>
+                                        </tr>
+                                    <% } %>
+
                                 <% } else { %>
                                     <tr>
                                         <td colspan="6" class="text-center py-5 text-muted small">

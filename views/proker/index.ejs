@@ -18,16 +18,18 @@
         
         <!-- Area Konten Utama di kanan -->
         <div class="flex-grow-1" style="height: 100vh; overflow-y: auto;">
-            <div class="container mt-5 px-4 px-md-5 mb-5">
+            <div class="container-fluid py-4 px-4">
                 
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
-                        <h2 class="fw-bold text-dark mb-0">Manajemen Program Kerja</h2>
-                        <p class="text-muted small">Kelola seluruh kegiatan dan progres program kerja lembaga.</p>
+                        <h2 class="fw-bold text-dark mb-1">Manajemen Program Kerja & Anggaran</h2>
+                        <p class="text-muted small mb-0">Rencanakan program kerja tiap bidang beserta estimasi kebutuhan biayanya.</p>
                     </div>
-                    <a href="/proker/tambah" class="btn btn-primary shadow-sm rounded-3">
-                        <i class="fas fa-plus me-2"></i> Tambah Proker
-                    </a>
+                    <div>
+                        <span class="badge bg-primary px-3 py-2 fs-6">
+                            <i class="fas fa-calendar-alt me-1"></i> Tahun Anggaran: <%= tahunAktif || 2026 %>
+                        </span>
+                    </div>
                 </div>
 
                 <% if (typeof success_msg !== 'undefined' && success_msg) { %>
@@ -37,67 +39,165 @@
                     <div class="alert alert-danger shadow-sm"><i class="fas fa-exclamation-circle me-2"></i><%= error_msg %></div>
                 <% } %>
 
-                <div class="card shadow-sm border-0 rounded-4">
-                    <div class="card-body p-4">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th class="py-3">No</th>
-                                        <th class="py-3">Nama Program</th>
-                                        <th class="py-3">Bidang</th>
-                                        <th class="py-3">Waktu Pelaksanaan</th>
-                                        <th class="py-3">Status</th>
-                                        <th class="py-3 text-center">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <% if (prokers && prokers.length > 0) { %>
-                                        <% prokers.forEach((proker, index) => { %>
+                <div class="row">
+                    <!-- Kolom Kiri: Form Tambah Program Kerja -->
+                    <div class="col-md-4 mb-4">
+                        <div class="card shadow-sm border-0 rounded-4">
+                            <div class="card-body p-4">
+                                <h5 class="fw-bold text-dark mb-3">
+                                    <i class="fas fa-plus-circle text-primary me-2"></i> Tambah Program Kerja
+                                </h5>
+
+                                <form action="/proker/tambah" method="POST">
+                                    
+                                    <!-- Nama Program Kerja -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small">Nama Program Kerja</label>
+                                        <input type="text" name="nama_program" class="form-control" placeholder="Contoh: Pelatihan Jaringan LAN" required>
+                                    </div>
+
+                                    <!-- Bidang Penanggung Jawab -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small">Bidang Penanggung Jawab</label>
+                                        <select name="bidangId" class="form-select" required>
+                                            <option value="" disabled selected>-- Pilih Bidang --</option>
+                                            <% if (bidangs && bidangs.length > 0) { %>
+                                                <% bidangs.forEach(bidang => { %>
+                                                    <option value="<%= bidang.id %>"><%= bidang.nama_bidang %></option>
+                                                <% }) %>
+                                            <% } %>
+                                        </select>
+                                    </div>
+
+                                    <!-- TAMBAHAN WAJIB: Jenis Kegiatan / Anggaran (Reguler vs Insidentil) -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small">Jenis Kegiatan / Anggaran <span class="text-danger">*</span></label>
+                                        <select name="jenis" class="form-select border-primary" required>
+                                            <option value="Reguler" selected>🟢 Reguler (Sesuai RAB / Program Kerja Utama)</option>
+                                            <option value="Insidentil">🟠 Insidentil (Di Luar RAB / Kegiatan Tambahan / Darurat)</option>
+                                        </select>
+                                        <div class="form-text small text-muted">Pilih Insidentil jika kegiatan ini berada di luar Rencana Anggaran Biaya utama.</div>
+                                    </div>
+
+                                    <!-- Bulan Pelaksanaan -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small">Waktu Pelaksanaan</label>
+                                        <select name="waktu_pelaksanaan" class="form-select" required>
+                                            <option value="" disabled selected>-- Pilih Bulan Pelaksanaan --</option>
+                                            <option value="Januari">Januari</option>
+                                            <option value="Februari">Februari</option>
+                                            <option value="Maret">Maret</option>
+                                            <option value="April">April</option>
+                                            <option value="Mei">Mei</option>
+                                            <option value="Juni">Juni</option>
+                                            <option value="Juli">Juli</option>
+                                            <option value="Agustus">Agustus</option>
+                                            <option value="September">September</option>
+                                            <option value="Oktober">Oktober</option>
+                                            <option value="November">November</option>
+                                            <option value="Desember">Desember</option>
+                                            <option value="Sepanjang Tahun">Sepanjang Tahun (Rutin)</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Status Program -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small">Status Program</label>
+                                        <select name="status" class="form-select" required>
+                                            <option value="Perencanaan" selected>Direncanakan</option>
+                                            <option value="Dalam Proses">Dalam Proses</option>
+                                            <option value="Selesai">Selesai</option>
+                                            <option value="Tertunda">Tertunda / Batal</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Deskripsi -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small">Deskripsi / Sasaran</label>
+                                        <textarea name="deskripsi" class="form-control" rows="3" placeholder="Uraian singkat tujuan proker..."></textarea>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
+                                        <i class="fas fa-save me-1"></i> Simpan Program Kerja
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kolom Kanan: Tabel Daftar Program Kerja -->
+                    <div class="col-md-8">
+                        <div class="card shadow-sm border-0 rounded-4">
+                            <div class="card-body p-4">
+                                <h5 class="fw-bold text-dark mb-3">
+                                    <i class="fas fa-list text-primary me-2"></i> Daftar Program Kerja (<%= tahunAktif || 2026 %>)
+                                </h5>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
                                             <tr>
-                                                <td class="fw-bold text-muted"><%= index + 1 %></td>
-                                                <td class="fw-bold"><%= proker.nama_program %></td>
-                                                <td>
-                                                    <span class="badge bg-light text-primary border border-primary">
-                                                        <%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %>
-                                                    </span>
-                                                </td>
-                                                <td><i class="far fa-calendar-alt text-muted me-2"></i> <%= proker.waktu_pelaksanaan %></td>
-                                                <td>
-                                                    <% if(proker.status === 'Perencanaan') { %>
-                                                        <span class="badge bg-secondary rounded-pill px-3"><%= proker.status %></span>
-                                                    <% } else if(proker.status === 'Dalam Proses') { %>
-                                                        <span class="badge bg-warning text-dark rounded-pill px-3"><%= proker.status %></span>
-                                                    <% } else if(proker.status === 'Selesai') { %>
-                                                        <span class="badge bg-success rounded-pill px-3"><%= proker.status %></span>
-                                                    <% } else { %>
-                                                        <span class="badge bg-danger rounded-pill px-3"><%= proker.status %></span>
-                                                    <% } %>
-                                                </td>
-                                                <td class="text-center">
-                                                    <!-- Tombol Kelola Rincian Anggaran / Biaya -->
-                                                    <a href="/proker/<%= proker.id %>/biaya" class="btn btn-sm btn-outline-success rounded-3 me-1" title="Kelola Anggaran Biaya">
-                                                        <i class="fas fa-wallet"></i>
-                                                    </a>
-                                                    <button class="btn btn-sm btn-outline-primary rounded-3 me-1" title="Edit Proker"><i class="fas fa-edit"></i></button>
-                                                    <button class="btn btn-sm btn-outline-danger rounded-3" title="Hapus Proker"><i class="fas fa-trash"></i></button>
-                                                </td>
+                                                <th class="py-3" style="width: 5%;">No</th>
+                                                <th class="py-3" style="width: 40%;">Nama Program & Bidang</th>
+                                                <th class="py-3" style="width: 15%;">Waktu</th>
+                                                <th class="py-3" style="width: 15%;">Status</th>
+                                                <th class="py-3 text-end" style="width: 15%;">Total RAB</th>
+                                                <th class="py-3 text-center" style="width: 10%;">Aksi</th>
                                             </tr>
-                                        <% }) %>
-                                    <% } else { %>
-                                        <tr>
-                                            <td colspan="6" class="text-center py-5 text-muted">
-                                                <i class="fas fa-folder-open fs-2 mb-3 d-block opacity-50"></i>
-                                                Belum ada data Program Kerja yang ditambahkan.
-                                            </td>
-                                        </tr>
-                                    <% } %>
-                                </tbody>
-                            </table>
+                                        </thead>
+                                        <tbody>
+                                            <% if (prokers && prokers.length > 0) { %>
+                                                <% prokers.forEach((proker, index) => { %>
+                                                    <tr>
+                                                        <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                                        <td>
+                                                            <div class="fw-bold text-dark"><%= proker.nama_program %></div>
+                                                            <div class="small text-muted">
+                                                                <%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %>
+                                                                <% if (proker.jenis === 'Insidentil') { %>
+                                                                    <span class="badge bg-warning text-dark ms-1" style="font-size: 9px;">Insidentil</span>
+                                                                <% } else { %>
+                                                                    <span class="badge bg-success text-white ms-1" style="font-size: 9px;">Reguler</span>
+                                                                <% } %>
+                                                            </div>
+                                                        </td>
+                                                        <td><%= proker.waktu_pelaksanaan || '-' %></td>
+                                                        <td>
+                                                            <% if(proker.status === 'Perencanaan') { %>
+                                                                <span class="badge bg-secondary rounded-pill px-2"><%= proker.status %></span>
+                                                            <% } else if(proker.status === 'Dalam Proses') { %>
+                                                                <span class="badge bg-warning text-dark rounded-pill px-2"><%= proker.status %></span>
+                                                            <% } else if(proker.status === 'Selesai') { %>
+                                                                <span class="badge bg-success rounded-pill px-2"><%= proker.status %></span>
+                                                            <% } else { %>
+                                                                <span class="badge bg-danger rounded-pill px-2"><%= proker.status %></span>
+                                                            <% } %>
+                                                        </td>
+                                                        <td class="text-end fw-bold text-success">
+                                                            Rp <%= Number(proker.anggaran || 0).toLocaleString('id-ID') %>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <a href="/proker/<%= proker.id %>/biaya" class="btn btn-sm btn-outline-primary rounded-3" title="Kelola RAB">
+                                                                <i class="fas fa-wallet"></i> RAB
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                <% }) %>
+                                            <% } else { %>
+                                                <tr>
+                                                    <td colspan="6" class="text-center py-5 text-muted">
+                                                        <i class="fas fa-folder-open fs-2 mb-2 d-block opacity-50"></i>
+                                                        Belum ada data Program Kerja yang ditambahkan.
+                                                    </td>
+                                                </tr>
+                                            <% } %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                
+
             </div>
         </div>
         

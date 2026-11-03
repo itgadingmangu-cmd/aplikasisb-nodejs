@@ -98,7 +98,7 @@
                 <h5 class="fw-bold text-uppercase text-secondary"><%= lembaga.nama_organisasi %> TAHUN <%= (typeof tahunAktif !== 'undefined' && tahunAktif) ? tahunAktif : (typeof tahun !== 'undefined' ? tahun : '2026') %></h5>
             </div>
 
-            <!-- TABEL REKAP GLOBAL -->
+            <!-- TABEL REKAP GLOBAL TERKELOMPOK (Reguler & Insidentil) -->
             <div class="mb-4">
                 <table class="table table-bordered table-sm align-middle">
                     <thead class="table-light text-center">
@@ -118,35 +118,91 @@
                     </thead>
                     <tbody>
                         <% 
-                            let totalGlobalAnggaran = 0;
                             let listProker = (typeof prokers !== 'undefined' && prokers) ? prokers : [];
+                            const prokerReguler = listProker.filter(p => !p.jenis || p.jenis === 'Reguler');
+                            const prokerInsidentil = listProker.filter(p => p.jenis === 'Insidentil');
+
+                            let nomorUrutGlobal = 1;
+                            let totalRegulerGlobal = 0;
+                            let totalInsidentilGlobal = 0;
                         %>
 
                         <% if (listProker.length > 0) { %>
-                            <% listProker.forEach((proker, index) => { %>
-                                <% 
-                                    let anggaran = proker.anggaran || 0;
-                                    totalGlobalAnggaran += Number(anggaran);
 
-                                    // Parsing bulan pelaksanaan (misal: "1, 2, 11")
-                                    let rawBulan = String(proker.waktu_pelaksanaan || '');
-                                    let bulanArr = rawBulan.split(',').map(b => parseInt(b.trim())).filter(Boolean);
-                                %>
-                                <tr>
-                                    <td class="text-center"><%= index + 1 %></td>
-                                    <td><%= proker.nama_program %></td>
-                                    <td class="text-center"><%= (proker.Bidang && proker.Bidang.nama_bidang) ? proker.Bidang.nama_bidang : '-' %></td>
-                                    
-                                    <!-- Matriks 12 Bulan -->
-                                    <% for(let m=1; m<=12; m++) { %>
-                                        <td class="text-center fw-bold text-success">
-                                            <%= bulanArr.includes(m) ? '✓' : '' %>
-                                        </td>
-                                    <% } %>
+                            <!-- KELOMPOK 1: REGULER -->
+                            <tr class="table-secondary fw-bold">
+                                <td colspan="16"><i class="fas fa-circle-check text-success me-1"></i> I. PROGRAM KERJA REGULER (SESUAI RAB UTAMA)</td>
+                            </tr>
+                            <% if (prokerReguler.length > 0) { %>
+                                <% prokerReguler.forEach((proker) => { %>
+                                    <% 
+                                        let anggaran = proker.anggaran || 0;
+                                        totalRegulerGlobal += Number(anggaran);
 
-                                    <td class="text-end">Rp <%= Number(anggaran).toLocaleString('id-ID') %></td>
+                                        let rawBulan = String(proker.waktu_pelaksanaan || '');
+                                        let bulanArr = rawBulan.split(',').map(b => parseInt(b.trim())).filter(Boolean);
+                                    %>
+                                    <tr>
+                                        <td class="text-center"><%= nomorUrutGlobal++ %></td>
+                                        <td><%= proker.nama_program %> <span class="badge bg-success text-white" style="font-size: 8px;">Reguler</span></td>
+                                        <td class="text-center"><%= (proker.Bidang && proker.Bidang.nama_bidang) ? proker.Bidang.nama_bidang : '-' %></td>
+                                        
+                                        <% for(let m=1; m<=12; m++) { %>
+                                            <td class="text-center fw-bold text-success">
+                                                <%= bulanArr.includes(m) ? '✓' : '' %>
+                                            </td>
+                                        <% } %>
+
+                                        <td class="text-end">Rp <%= Number(anggaran).toLocaleString('id-ID') %></td>
+                                    </tr>
+                                <% }) %>
+                                <tr class="fw-bold bg-light">
+                                    <td colspan="15" class="text-end text-muted">Subtotal Anggaran Reguler:</td>
+                                    <td class="text-end">Rp <%= totalRegulerGlobal.toLocaleString('id-ID') %></td>
                                 </tr>
-                            <% }) %>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="16" class="text-center text-muted fst-italic py-2">Tidak ada program kerja reguler.</td>
+                                </tr>
+                            <% } %>
+
+                            <!-- KELOMPOK 2: INSIDENTIL -->
+                            <tr class="table-secondary fw-bold">
+                                <td colspan="16"><i class="fas fa-triangle-exclamation text-warning me-1"></i> II. KEGIATAN INSIDENTIL (DI LUAR RAB / TAMBAHAN)</td>
+                            </tr>
+                            <% if (prokerInsidentil.length > 0) { %>
+                                <% prokerInsidentil.forEach((proker) => { %>
+                                    <% 
+                                        let anggaran = proker.anggaran || 0;
+                                        totalInsidentilGlobal += Number(anggaran);
+
+                                        let rawBulan = String(proker.waktu_pelaksanaan || '');
+                                        let bulanArr = rawBulan.split(',').map(b => parseInt(b.trim())).filter(Boolean);
+                                    %>
+                                    <tr>
+                                        <td class="text-center"><%= nomorUrutGlobal++ %></td>
+                                        <td><%= proker.nama_program %> <span class="badge bg-warning text-dark" style="font-size: 8px;">Insidentil</span></td>
+                                        <td class="text-center"><%= (proker.Bidang && proker.Bidang.nama_bidang) ? proker.Bidang.nama_bidang : '-' %></td>
+                                        
+                                        <% for(let m=1; m<=12; m++) { %>
+                                            <td class="text-center fw-bold text-success">
+                                                <%= bulanArr.includes(m) ? '✓' : '' %>
+                                            </td>
+                                        <% } %>
+
+                                        <td class="text-end">Rp <%= Number(anggaran).toLocaleString('id-ID') %></td>
+                                    </tr>
+                                <% }) %>
+                                <tr class="fw-bold bg-light">
+                                    <td colspan="15" class="text-end text-muted">Subtotal Anggaran Insidentil:</td>
+                                    <td class="text-end">Rp <%= totalInsidentilGlobal.toLocaleString('id-ID') %></td>
+                                </tr>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="16" class="text-center text-muted fst-italic py-2">Tidak ada kegiatan insidentil.</td>
+                                </tr>
+                            <% } %>
+
                         <% } else { %>
                             <tr>
                                 <td colspan="16" class="text-center text-muted">Belum ada data program kerja untuk tahun ini.</td>
@@ -154,9 +210,10 @@
                         <% } %>
                     </tbody>
                     <tfoot>
-                        <tr class="table-light fw-bold">
-                            <td colspan="15" class="text-end">TOTAL KESELURUHAN ANGGARAN TAHUNAN:</td>
-                            <td class="text-end text-danger">Rp <%= Number(totalGlobalAnggaran).toLocaleString('id-ID') %></td>
+                        <% let totalGlobalAnggaran = totalRegulerGlobal + totalInsidentilGlobal; %>
+                        <tr class="table-dark fw-bold text-uppercase">
+                            <td colspan="15" class="text-end">Total Keseluruhan Anggaran Tahunan (Reguler + Insidentil):</td>
+                            <td class="text-end text-warning">Rp <%= Number(totalGlobalAnggaran).toLocaleString('id-ID') %></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -169,9 +226,8 @@
                 let showTtdPembinaImg  = Boolean(lembaga.print_ttd_pembina_img);
                 let showKetua          = Boolean(lembaga.print_ketua);
                 
-                // Variabel yang sudah diperbaiki
-                let showPembinaLembaga = Boolean(lembaga.print_pembina);         // Murni untuk 1 Pembina (H. Abu Bakar)
-                let show6Pembina       = Boolean(lembaga.print_pembina_lembaga); // Murni untuk 6 Dewan Pembina
+                let showPembinaLembaga = Boolean(lembaga.print_pembina);        
+                let show6Pembina       = Boolean(lembaga.print_pembina_lembaga); 
 
                 function toTitleCase(str) {
                     if (!str) return '';

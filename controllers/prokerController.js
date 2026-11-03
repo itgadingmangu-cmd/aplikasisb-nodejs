@@ -1,3 +1,4 @@
+'use strict';
 // GABUNGKAN 'Proposal' ke dalam import yang sudah ada agar tidak terjadi crash
 const { Proker, Bidang, RincianBiaya, Proposal, Lembaga, User } = require('../models');
 
@@ -62,13 +63,14 @@ const prokerController = {
         }
     },
 
-    // Menyimpan data proker baru ke database dengan menyertakan tahun aktif
+    // Menyimpan data proker baru ke database dengan menyertakan tahun aktif & dukungan jenis (Reguler / Insidentil)
     store: async (req, res) => {
         try {
-            const { nama_program, bidangId, status, deskripsi } = req.body;
+            const { nama_program, bidangId, status, deskripsi, jenis } = req.body;
             const tahunAktif = req.tahunAktif || 2026;
             
-            let bulanPelaksanaan = req.body.bulan;
+            // PENYEMPURNAAN ALUR: Mendukung pengambilan dari waktu_pelaksanaan ataupun checkbox bulan
+            let bulanPelaksanaan = req.body.waktu_pelaksanaan || req.body.bulan;
             if (Array.isArray(bulanPelaksanaan)) {
                 bulanPelaksanaan = bulanPelaksanaan.join(',');
             } else if (!bulanPelaksanaan) {
@@ -79,18 +81,19 @@ const prokerController = {
                 nama_program,
                 bidangId,
                 waktu_pelaksanaan: bulanPelaksanaan,
-                status,
+                status: status || 'Direncanakan',
                 deskripsi,
                 anggaran: 0, // Standar awal anggaran bersih 0
+                jenis: jenis || 'Reguler', // <-- MENANGKAP INPUT REGULER / INSIDENTIL DENGAN AMAN
                 tahun: tahunAktif // Disematkan tahun aktif agar terisolasi dengan sempurna
             });
 
-            req.session.success_msg = 'Program Kerja berhasil ditambahkan!';
+            req.session.success_msg = 'Program Kerja / Kegiatan berhasil ditambahkan!';
             res.redirect('/proker');
         } catch (error) {
-            console.error(error);
-            req.session.error_msg = 'Gagal menambahkan Program Kerja.';
-            res.redirect('/proker/tambah');
+            console.error("ERROR STORE PROKER:", error);
+            req.session.error_msg = 'Gagal menambahkan Program Kerja: ' + error.message;
+            res.redirect('/proker');
         }
     },
 
@@ -147,7 +150,7 @@ const prokerController = {
     },
 
    // 2. Aksi Ketua/Admin mereview: Menyetujui atau Meminta Revisi DAN MENGATUR TTD
-   reviewApprovalKetua: async (req, res) => {
+    reviewApprovalKetua: async (req, res) => {
         try {
             const { id } = req.params;
             // Dapatkan SEMUA data dari body, termasuk konfigurasi TTD dan Stempel

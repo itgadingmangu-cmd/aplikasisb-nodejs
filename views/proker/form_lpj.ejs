@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <%- include('../partials/sidebar') %>
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Navigasi -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <a href="/lembaga-admin/proker/proposal/<%= proposal.id %>" class="btn btn-outline-secondary btn-sm mb-2">
+                            <i class="fas fa-arrow-left me-1"></i> Kembali ke Detail Proposal
+                        </a>
+                        <h2 class="fw-bold text-dark mb-1">Laporan Pertanggungjawaban (LPJ)</h2>
+                        <p class="text-muted mb-0">Program Kerja: <span class="fw-semibold text-primary"><%= proposal.Proker.nama_program %></span></p>
+                    </div>
+                    <div>
+                        <span class="badge bg-info text-dark fs-6 px-3 py-2 shadow-sm">
+                            Status LPJ: <%= proposal.RealisasiLpj ? proposal.RealisasiLpj.status_lpj : 'Belum Dibuat' %>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Notifikasi Flash -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <!-- FORM UTAMA LPJ (ENCTYPE MULTIPART WAJIB UNTUK UPLOAD FILE) -->
+                <form action="/lembaga-admin/proker/proposal/lpj/update/<%= proposal.id %>" method="POST" enctype="multipart/form-data">
+                    <div class="row g-4">
+                        
+                        <!-- Kolom Kiri: Input Data LPJ -->
+                        <div class="col-lg-8">
+                            <div class="card p-4 bg-white mb-4">
+                                <h5 class="fw-bold text-dark mb-3"><i class="fas file-alt text-primary me-2"></i> Realisasi Pelaksanaan Kegiatan</h5>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Total Realisasi Anggaran (Rp)</label>
+                                    <input type="number" class="form-control" name="realisasi_anggaran" value="<%= proposal.RealisasiLpj ? proposal.RealisasiLpj.realisasi_anggaran : '' %>" placeholder="Contoh: 1500000" required>
+                                    <small class="text-muted">Masukkan total nominal uang yang benar-benar terpakai di lapangan.</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Deskripsi / Uraian Pelaksanaan Kegiatan</label>
+                                    <textarea class="form-control" name="deskripsi_kegiatan" rows="5" placeholder="Jelaskan secara singkat jalannya kegiatan..." required><%= proposal.RealisasiLpj ? proposal.RealisasiLpj.deskripsi_kegiatan : '' %></textarea>
+                                </div>
+                            </div>
+
+                            <div class="card p-4 bg-white">
+                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-upload text-success me-2"></i> Berkas Lampiran & Bukti Pendukung</h5>
+                                
+                                <div class="mb-3 p-3 bg-light rounded border">
+                                    <label class="form-label fw-bold small">1. Foto Dokumentasi Kegiatan</label>
+                                    <input type="file" class="form-control form-control-sm" name="foto_kegiatan" accept="image/*">
+                                    <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.foto_kegiatan) { %>
+                                        <small class="text-success d-it mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="/uploads/<%= proposal.RealisasiLpj.foto_kegiatan %>" target="_blank">Lihat Foto</a></small>
+                                    <% } %>
+                                </div>
+
+                                <div class="mb-3 p-3 bg-light rounded border">
+                                    <label class="form-label fw-bold small">2. Nota Belanja / Kuitansi</label>
+                                    <input type="file" class="form-control form-control-sm" name="nota_belanja" accept="image/*,application/pdf">
+                                    <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.nota_belanja) { %>
+                                        <small class="text-success d-it mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="/uploads/<%= proposal.RealisasiLpj.nota_belanja %>" target="_blank">Lihat Nota</a></small>
+                                    <% } %>
+                                </div>
+
+                                <div class="mb-3 p-3 bg-light rounded border">
+                                    <label class="form-label fw-bold small">3. Bukti Transfer / Pencairan (Dari Bendahara)</label>
+                                    <input type="file" class="form-control form-control-sm" name="bukti_transfer_bendahara" accept="image/*,application/pdf">
+                                    <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.bukti_transfer_bendahara) { %>
+                                        <small class="text-success d-it mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="/uploads/<%= proposal.RealisasiLpj.bukti_transfer_bendahara %>" target="_blank">Lihat Bukti Transfer</a></small>
+                                    <% } %>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary fw-bold py-2 w-100 mt-3">
+                                    <i class="fas fa-save me-1"></i> Simpan & Kirim LPJ
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Kolom Kanan: Informasi Anggaran Semula -->
+                        <div class="col-lg-4">
+                            <div class="card p-3 bg-white mb-4 border border-success">
+                                <h6 class="fw-bold text-success mb-3 small text-uppercase">
+                                    <i class="fas fa-info-circle me-2"></i> Ringkasan Anggaran Disetujui
+                                </h6>
+                                <div class="p-3 bg-light rounded border mb-2">
+                                    <span class="text-muted small d-block">Total Anggaran Utama:</span>
+                                    <h4 class="fw-bold text-danger mb-0">Rp <%= proposal.Proker.anggaran ? Number(proposal.Proker.anggaran).toLocaleString('id-ID') : '0' %></h4>
+                                </div>
+                                <p class="text-muted small mb-0">Pastikan nominal realisasi anggaran yang Anda input sesuai dengan nota belanja sah di lapangan.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

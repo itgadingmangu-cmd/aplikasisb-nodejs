@@ -30,12 +30,12 @@
             <p class="text-muted mb-0 small">Tahun Anggaran: <%= bidang.tahun %></p>
         </div>
 
-        <!-- Tabel Daftar Program Kerja -->
+        <!-- Tabel Daftar Program Kerja Terkelompok (Reguler & Insidentil) -->
         <table class="table table-bordered align-middle">
             <thead class="table-light text-center">
                 <tr>
                     <th style="width: 5%;">No</th>
-                    <th style="width: 35%;">Nama Program Kerja</th>
+                    <th style="width: 35%;">Nama Program Kerja / Kegiatan</th>
                     <th style="width: 20%;">Waktu Pelaksanaan</th>
                     <th style="width: 15%;">Status</th>
                     <th style="width: 25%;">Total Anggaran (RAB)</th>
@@ -43,21 +43,73 @@
             </thead>
             <tbody>
                 <% if (bidang.Prokers && bidang.Prokers.length > 0) { %>
-                    <% var totalSemuaRAB = 0; %>
-                    <% bidang.Prokers.forEach((proker, index) => { %>
-                        <% totalSemuaRAB += Number(proker.anggaran || 0); %>
-                        <tr>
-                            <td class="text-center"><%= index + 1 %></td>
-                            <td class="fw-semibold"><%= proker.nama_program %></td>
-                            <td class="text-center"><%= proker.waktu_pelaksanaan || '-' %></td>
-                            <td class="text-center"><span class="badge bg-secondary"><%= proker.status %></span></td>
-                            <td class="text-end">Rp <%= Number(proker.anggaran || 0).toLocaleString('id-ID') %></td>
-                        </tr>
-                    <% }) %>
-                    <tr class="table-light fw-bold">
-                        <td colspan="4" class="text-end">TOTAL KESELURUHAN ANGGARAN BIDANG:</td>
-                        <td class="text-end text-danger">Rp <%= totalSemuaRAB.toLocaleString('id-ID') %></td>
+                    <% 
+                        // Pisahkan proker menjadi Reguler dan Insidentil secara aman
+                        const prokerReguler = bidang.Prokers.filter(p => !p.jenis || p.jenis === 'Reguler');
+                        const prokerInsidentil = bidang.Prokers.filter(p => p.jenis === 'Insidentil');
+                        
+                        let nomorGlobal = 1;
+                        let totalRegulerRAB = 0;
+                        let totalInsidentilRAB = 0;
+                    %>
+
+                    <!-- KELOMPOK 1: PROKER REGULER (SESUAI RAB) -->
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="5"><i class="fas fa-circle-check text-success me-1"></i> I. PROGRAM KERJA REGULER (SESUAI RAB UTAMA)</td>
                     </tr>
+                    <% if (prokerReguler.length > 0) { %>
+                        <% prokerReguler.forEach((proker) => { %>
+                            <% totalRegulerRAB += Number(proker.anggaran || 0); %>
+                            <tr>
+                                <td class="text-center"><%= nomorGlobal++ %></td>
+                                <td class="fw-semibold"><%= proker.nama_program %></td>
+                                <td class="text-center"><%= proker.waktu_pelaksanaan || '-' %></td>
+                                <td class="text-center"><span class="badge bg-secondary"><%= proker.status %></span></td>
+                                <td class="text-end">Rp <%= Number(proker.anggaran || 0).toLocaleString('id-ID') %></td>
+                            </tr>
+                        <% }) %>
+                        <tr class="fw-bold bg-light">
+                            <td colspan="4" class="text-end text-muted">Subtotal Anggaran Reguler:</td>
+                            <td class="text-end">Rp <%= totalRegulerRAB.toLocaleString('id-ID') %></td>
+                        </tr>
+                    <% } else { %>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted fst-italic py-2">Tidak ada program kerja reguler di bidang ini.</td>
+                        </tr>
+                    <% } %>
+
+                    <!-- KELOMPOK 2: KEGIATAN INSIDENTIL (DI LUAR RAB) -->
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="5"><i class="fas fa-triangle-exclamation text-warning me-1"></i> II. KEGIATAN INSIDENTIL (DI LUAR RAB / TAMBAHAN)</td>
+                    </tr>
+                    <% if (prokerInsidentil.length > 0) { %>
+                        <% prokerInsidentil.forEach((proker) => { %>
+                            <% totalInsidentilRAB += Number(proker.anggaran || 0); %>
+                            <tr>
+                                <td class="text-center"><%= nomorGlobal++ %></td>
+                                <td class="fw-semibold"><%= proker.nama_program %> <span class="badge bg-warning text-dark ms-1" style="font-size: 10px;">Insidentil</span></td>
+                                <td class="text-center"><%= proker.waktu_pelaksanaan || '-' %></td>
+                                <td class="text-center"><span class="badge bg-secondary"><%= proker.status %></span></td>
+                                <td class="text-end">Rp <%= Number(proker.anggaran || 0).toLocaleString('id-ID') %></td>
+                            </tr>
+                        <% }) %>
+                        <tr class="fw-bold bg-light">
+                            <td colspan="4" class="text-end text-muted">Subtotal Anggaran Insidentil:</td>
+                            <td class="text-end">Rp <%= totalInsidentilRAB.toLocaleString('id-ID') %></td>
+                        </tr>
+                    <% } else { %>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted fst-italic py-2">Tidak ada kegiatan insidentil / di luar RAB.</td>
+                        </tr>
+                    <% } %>
+
+                    <!-- TOTAL KESELURUHAN KONSOLIDASI -->
+                    <% var totalSemuaRAB = totalRegulerRAB + totalInsidentilRAB; %>
+                    <tr class="table-dark fw-bold text-uppercase">
+                        <td colspan="4" class="text-end">Total Keseluruhan Anggaran Bidang (Reguler + Insidentil):</td>
+                        <td class="text-end text-warning">Rp <%= totalSemuaRAB.toLocaleString('id-ID') %></td>
+                    </tr>
+
                 <% } else { %>
                     <tr>
                         <td colspan="5" class="text-center text-muted py-3">Belum ada program kerja yang terdaftar di bidang ini.</td>
