@@ -9,11 +9,16 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { background-color: #ffffff; font-family: 'Times New Roman', Times, serif; color: #000; line-height: 1.6; }
-        .sheet { width: 210mm; min-height: 297mm; padding: 20mm; margin: 10mm auto; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); position: relative; box-sizing: border-box; }
-        table { font-size: 11pt; }
-        .table th, .table td { vertical-align: middle; padding: 6px 8px; }
-        .signature-box { min-height: 105px; position: relative; display: flex; align-items: center; justify-content: center; }
+        body { background-color: #ffffff; font-family: 'Times New Roman', Times, serif; color: #000; line-height: 1.5; }
+        .sheet { width: 210mm; min-height: 297mm; padding: 15mm 20mm; margin: 10mm auto; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); position: relative; box-sizing: border-box; }
+        
+        /* Styling Profesional untuk Tabel Keuangan */
+        .table-financial { font-size: 11pt; border-collapse: collapse; width: 100%; }
+        .table-financial th { background-color: #f8f9fa !important; color: #000; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000 !important; padding: 10px 8px; }
+        .table-financial td { vertical-align: middle; border: 1px solid #000 !important; padding: 8px 10px; }
+        
+        .signature-box { min-height: 95px; position: relative; display: flex; align-items: center; justify-content: center; }
+        
         @media print {
             body { background: none; }
             .sheet { width: 100%; margin: 0; padding: 10mm; box-shadow: none; }
@@ -36,27 +41,27 @@
 
     <div class="sheet">
         <!-- Kop Surat Lembaga -->
-        <div class="text-center mb-4 border-bottom pb-3">
+        <div class="text-center mb-3 border-bottom pb-3">
             <% if (lembaga.kop_surat) { %>
-                <img src="/uploads/logo/<%= lembaga.kop_surat %>" alt="Kop Surat" class="img-fluid" style="max-height: 170px; object-fit: contain;">
+                <img src="/uploads/logo/<%= lembaga.kop_surat %>" alt="Kop Surat" class="img-fluid" style="max-height: 150px; object-fit: contain;">
             <% } else { %>
                 <h3 class="fw-bold text-uppercase"><%= lembaga.nama_organisasi %></h3>
                 <p class="mb-0 small"><%= lembaga.alamat || 'Alamat Sekretariat Lembaga' %> | Telp: <%= lembaga.nomor_hp || '-' %></p>
             <% } %>
         </div>
 
-        <div class="text-center my-4">
-            <h4 class="fw-bold text-uppercase mb-1">Laporan Realisasi Anggaran</h4>
-            <p class="text-muted small mb-0">Tahun Anggaran: <%= tahunAktif %></p>
+        <div class="text-center my-3">
+            <h4 class="fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px;">Laporan Realisasi Anggaran</h4>
+            <p class="text-dark mb-5 fw-semibold">Tahun Anggaran: <%= tahunAktif %></p>
         </div>
 
-        <!-- Tabel Rekapitulasi -->
+        <!-- Tabel Rekapitulasi Keuangan -->
         <div class="table-responsive mb-4">
-            <table class="table table-bordered border-dark align-middle">
-                <thead class="table-light text-center">
+            <table class="table table-financial align-middle">
+                <thead>
                     <tr>
-                        <th style="width: 5%;">No</th>
-                        <th style="width: 35%;">Program Kerja & Bidang</th>
+                        <th style="width: 6%;">No</th>
+                        <th style="width: 34%;">Program Kerja & Bidang</th>
                         <th style="width: 20%;">Total RAB (Rencana)</th>
                         <th style="width: 20%;">Total Realisasi (Riil)</th>
                         <th style="width: 20%;">Sisa / Selisih</th>
@@ -80,19 +85,21 @@
                             <tr>
                                 <td class="text-center fw-bold"><%= index + 1 %></td>
                                 <td>
-                                    <strong><%= p.nama_program || p.nama_proker %></strong><br>
-                                    <small class="text-muted"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
+                                    <span class="fw-bold text-dark"><%= p.nama_program || p.nama_proker %></span><br>
+                                    <small class="text-secondary fst-italic"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
                                 </td>
                                 <td class="text-end">Rp <%= totalRAB.toLocaleString('id-ID') %></td>
                                 <td class="text-end">Rp <%= totalRealisasi.toLocaleString('id-ID') %></td>
-                                <td class="text-end">Rp <%= selisih.toLocaleString('id-ID') %></td>
+                                <td class="text-end fw-semibold <%= selisih < 0 ? 'text-danger' : 'text-dark' %>">
+                                    Rp <%= selisih.toLocaleString('id-ID') %>
+                                </td>
                             </tr>
                         <% }) %>
-                        <tr class="table-light fw-bold">
-                            <td colspan="2" class="text-end">TOTAL KESELURUHAN:</td>
-                            <td class="text-end">Rp <%= grandTotalRAB.toLocaleString('id-ID') %></td>
-                            <td class="text-end">Rp <%= grandTotalRealisasi.toLocaleString('id-ID') %></td>
-                            <td class="text-end">Rp <%= (grandTotalRAB - grandTotalRealisasi).toLocaleString('id-ID') %></td>
+                        <tr class="table-light fw-bold" style="background-color: #f1f3f5 !important;">
+                            <td colspan="2" class="text-end py-2">TOTAL KESELURUHAN:</td>
+                            <td class="text-end py-2">Rp <%= grandTotalRAB.toLocaleString('id-ID') %></td>
+                            <td class="text-end py-2">Rp <%= grandTotalRealisasi.toLocaleString('id-ID') %></td>
+                            <td class="text-end py-2">Rp <%= (grandTotalRAB - grandTotalRealisasi).toLocaleString('id-ID') %></td>
                         </tr>
                     <% } else { %>
                         <tr>
@@ -105,14 +112,24 @@
 
         <!-- LEMBAR TANDA TANGAN & TANGGAL PENGAJUAN -->
         <% 
-            let showStempel         = (query.show_stempel === 'true');
-            let showTtdKetuaImg     = Boolean(lembaga.print_ttd_ketua_img);
-            let showTtdPengajuImg   = Boolean(lembaga.print_ttd_pengaju_img);
-            let showTtdPembinaImg   = Boolean(lembaga.print_ttd_pembina_img);
-            let showKetua           = (query.show_ketua === 'true');
-            let showPengaju         = (query.show_pengaju === 'true');
-            let showPembinaLembaga  = Boolean(lembaga.print_pembina_lembaga);
-            let showPembina         = (query.show_pembina === 'true');
+            let showStempel       = (query.show_stempel === 'true');
+            let showTtdKetuaImg   = (query.show_ttd_ketua_img === 'true');
+            let showTtdPengajuImg = (query.show_ttd_pengaju_img === 'true');
+            let showKolomKetua    = (query.show_ketua === 'true');
+            let showKolomPengaju  = (query.show_pengaju === 'true');
+            let showPembina       = (query.show_pembina === 'true');
+
+            let rLogin = (userSession.role || '').toLowerCase();
+            let jLogin = (userSession.jabatan || '').toLowerCase();
+            let isPusat = (
+                rLogin === 'admin_lembaga' || 
+                rLogin === 'superadmin' || 
+                rLogin === 'bendahara_utama' || 
+                jLogin === 'bendahara' || 
+                jLogin === 'ketua' || 
+                jLogin === 'sekretaris' ||
+                rLogin === 'admin'
+            );
 
             function toTitleCase(str) {
                 if (!str) return '';
@@ -136,101 +153,123 @@
                 </div>
             </div>
 
+            <!-- Baris Tanda Tangan Utama -->
             <div class="row text-center">
-                <!-- 1. Kolom Pengaju / Bidang / Bendahara -->
-                <% if (showPengaju) { %>
-                    <div class="col-6 mb-4">
-                        <p class="mb-1">Dibuat Oleh,</p>
-                        <p class="fw-bold mb-2">
-                            <% if (userSession.role === 'admin_lembaga' || userSession.jabatan === 'Bendahara' || userSession.role === 'bendahara_utama') { %>
-                                Bendahara Utama / Pimpinan
-                            <% } else if (userSession.jabatan && userSession.jabatan.trim() !== '') { %>
-                                <%= userSession.jabatan %>
-                            <% } else { %>
-                                Pengaju / Wakil Bendahara
-                            <% } %>
-                        </p>
-                        
-                        <div class="signature-box mb-2" style="min-height: 100px;">
-                            <% if (showTtdPengajuImg && lembaga.ttd_pengaju) { %>
-                                <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 100px; width: auto; object-fit: contain;">
-                            <% } %>
+                <% if (isPusat) { %>
+                    <!-- JIKA LOGIN PIMPINAN / KETUA / ADMIN -->
+                    <% if (showKolomPengaju) { %>
+                        <div class="col-6 mb-4 position-relative">
+                            <p class="mb-1">Mengetahui,</p>
+                            <p class="fw-bold mb-2">Ketua <%= toTitleCase(lembaga.nama_organisasi) %></p>
+                            
+                            <div class="signature-box mb-2">
+                                <!-- Stempel Digital Diperbesar -->
+                                <% if (showStempel && lembaga.stempel) { %>
+                                    <div style="position: absolute; left: 20%; transform: translateX(-50%); top: -15px; opacity: 0.85; pointer-events: none; z-index: 2;">
+                                        <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 180px; height: 150px; object-fit: contain;">
+                                    </div>
+                                <% } %>
+
+                                <% if (showTtdKetuaImg && lembaga.ttd_ketua) { %>
+                                    <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 85px; width: auto; object-fit: contain; position: relative; z-index: 1;">
+                                <% } %>
+                            </div>
+
+                            <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || '-' %></p>
                         </div>
+                    <% } else { %>
+                        <div class="col-6 mb-4"></div>
+                    <% } %>
 
-                        <p class="fw-bold mb-0 text-decoration-underline"><%= (typeof userSession !== 'undefined' && userSession.nama_lengkap) ? userSession.nama_lengkap : 'Pengurus' %></p>
-                    </div>
-                <% } else { %>
-                    <div class="col-6 mb-4"></div>
-                <% } %>
-
-                <!-- 2. Kolom Ketua Lembaga & Stempel -->
-                <% if (showKetua) { %>
-                    <div class="col-6 mb-4 position-relative">
-                        <p class="mb-1">Mengetahui,</p>
-                        <p class="fw-bold mb-2">Ketua <%= toTitleCase(lembaga.nama_organisasi) %></p>
-                        
-                        <div class="signature-box mb-2" style="min-height: 100px;">
-                            <% if (showStempel && lembaga.stempel) { %>
-                                <div style="position: absolute; left: 15%; transform: translateX(-50%); top: 15px; opacity: 0.85; pointer-events: none; z-index: 2;">
-                                    <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 200px; height: 100px; object-fit: contain;">
-                                </div>
-                            <% } %>
-
-                            <% if (showTtdKetuaImg && lembaga.ttd_ketua) { %>
-                                <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 100px; width: auto; object-fit: contain; position: relative; z-index: 1;">
-                            <% } %>
-                        </div>
-
-                        <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || '-' %></p>
-                    </div>
-                <% } else { %>
-                    <div class="col-6 mb-4"></div>
-                <% } %>
-
-                <!-- 3. Kolom Pembina Lembaga -->
-                <% if (showPembinaLembaga && lembaga.pembina_senkom) { %>
-                    <div class="col-12 d-flex justify-content-center mb-4">
-                        <div style="width: 50%;">
+                    <% if (showKolomKetua) { %>
+                        <div class="col-6 mb-4">
                             <p class="mb-1">Mengesahkan / Menyetujui,</p>
                             <p class="fw-bold mb-2">Pembina <%= toTitleCase(lembaga.nama_organisasi) %></p>
                             
-                            <div class="signature-box mb-2" style="min-height: 90px;">
-                                <% if (showTtdPembinaImg && lembaga.ttd_pembina_senkom) { %>
-                                    <img src="/uploads/logo/<%= lembaga.ttd_pembina_senkom %>" alt="TTD Pembina Senkom" style="max-height: 90px; object-fit: contain;">
+                            <div class="signature-box mb-2">
+                                <% if (showTtdPengajuImg && lembaga.ttd_pembina_senkom) { %>
+                                    <img src="/uploads/logo/<%= lembaga.ttd_pembina_senkom %>" alt="TTD Pembina" style="max-height: 85px; width: auto; object-fit: contain;">
                                 <% } %>
                             </div>
-                            <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.pembina_senkom %></p>
+
+                            <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.pembina_senkom || '-' %></p>
                         </div>
-                    </div>
-                <% } %>
+                    <% } else { %>
+                        <div class="col-6 mb-4"></div>
+                    <% } %>
 
-                <!-- 4. Slot 6 Pembina Wilayah / Dewan Penasihat (Full-width mengalir rapi ke bawah) -->
-                <% if (showPembina) { %>
-                    <% 
-                        let pembinaList = [
-                            { nama: lembaga.pembina_1, wilayah: 'Pembina Jombang Kota' },
-                            { nama: lembaga.pembina_2, wilayah: 'Pembina Jombang Barat' },
-                            { nama: lembaga.pembina_3, wilayah: 'Pembina Jombang Timur' },
-                            { nama: lembaga.pembina_4, wilayah: 'Pembina Jombang Utara' },
-                            { nama: lembaga.pembina_5, wilayah: 'Pembina Jombang Selatan' },
-                            { nama: lembaga.pembina_6, wilayah: 'Pembina Muhajir Gadingmangu' }
-                        ].filter(p => p.nama && p.nama.trim() !== '');
-                    %>
-
-                    <% if (pembinaList.length > 0) { %>
-                        <div class="col-12 mt-4 mb-2 page-break-safe"><hr><p class="fw-bold big mb-2 text-uppercase text-center">Dewan Pembina</p></div>
-                        <% pembinaList.forEach((pembina) => { %>
-                            <div class="col-4 mb-4 text-center page-break-safe">
-                                <div style="min-height: 48px; display: flex; align-items: flex-end; justify-content: center;" class="mb-2">
-                                    <p class="mb-0 big"><%= pembina.wilayah %></p>
-                                </div>
-                                <div class="signature-box mb-2" style="min-height: 95px;"></div>
-                                <p class="fw-bold big mb-2 text-decoration-underline"><%= pembina.nama %></p>
+                <% } else { %>
+                    <!-- JIKA LOGIN BIDANG -->
+                    <% if (showKolomPengaju) { %>
+                        <div class="col-6 mb-4">
+                            <p class="mb-1">Dibuat Oleh,</p>
+                            <p class="fw-bold mb-2">Pengaju / Bidang</p>
+                            
+                            <div class="signature-box mb-2">
+                                <% if (showTtdPengajuImg && lembaga.ttd_pengaju) { %>
+                                    <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 85px; width: auto; object-fit: contain;">
+                                <% } %>
                             </div>
-                        <% }) %>
+
+                            <p class="fw-bold mb-0 text-decoration-underline"><%= userSession.nama_lengkap || '-' %></p>
+                        </div>
+                    <% } else { %>
+                        <div class="col-6 mb-4"></div>
+                    <% } %>
+
+                    <% if (showKolomKetua) { %>
+                        <div class="col-6 mb-4 position-relative">
+                            <p class="mb-1">Mengetahui,</p>
+                            <p class="fw-bold mb-2">Ketua <%= toTitleCase(lembaga.nama_organisasi) %></p>
+                            
+                            <div class="signature-box mb-2">
+                                <% if (showStempel && lembaga.stempel) { %>
+                                    <div style="position: absolute; left: 20%; transform: translateX(-50%); top: -15px; opacity: 0.85; pointer-events: none; z-index: 2;">
+                                        <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 180px; height: 150px; object-fit: contain;">
+                                    </div>
+                                <% } %>
+
+                                <% if (showTtdKetuaImg && lembaga.ttd_ketua) { %>
+                                    <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 85px; width: auto; object-fit: contain; position: relative; z-index: 1;">
+                                <% } %>
+                            </div>
+
+                            <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || '-' %></p>
+                        </div>
+                    <% } else { %>
+                        <div class="col-6 mb-4"></div>
                     <% } %>
                 <% } %>
             </div>
+
+            <!-- Slot 6 Pembina Wilayah / Dewan Penasihat -->
+            <% if (showPembina) { %>
+                <% 
+                    let pembinaList = [
+                        { nama: lembaga.pembina_1, wilayah: 'Pembina Jombang Kota' },
+                        { nama: lembaga.pembina_2, wilayah: 'Pembina Jombang Barat' },
+                        { nama: lembaga.pembina_3, wilayah: 'Pembina Jombang Timur' },
+                        { nama: lembaga.pembina_4, wilayah: 'Pembina Jombang Utara' },
+                        { nama: lembaga.pembina_5, wilayah: 'Pembina Jombang Selatan' },
+                        { nama: lembaga.pembina_6, wilayah: 'Pembina Muhajir Gadingmangu' }
+                    ].filter(p => p.nama && p.nama.trim() !== '');
+                %>
+
+                <% if (pembinaList.length > 0) { %>
+                    <div class="row text-center mt-3">
+                        <div class="col-12 mb-2"><hr><p class="fw-bold mb-2 text-uppercase">Dewan Pembina</p></div>
+                        <% pembinaList.forEach((pembina) => { %>
+                            <div class="col-4 mb-4 text-center">
+                                <div style="min-height: 40px; display: flex; align-items: flex-end; justify-content: center;" class="mb-2">
+                                    <p class="mb-0 small"><%= pembina.wilayah %></p>
+                                </div>
+                                <div class="signature-box mb-2" style="min-height: 75px;"></div>
+                                <p class="fw-bold small mb-0 text-decoration-underline"><%= pembina.nama %></p>
+                            </div>
+                        <% }) %>
+                    </div>
+                <% } %>
+            <% } %>
         </div>
     </div>
 
