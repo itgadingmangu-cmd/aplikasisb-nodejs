@@ -80,8 +80,8 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Role Sistem</label>
                                     <select class="form-select" name="role" required>
-                                        <option value="admin_lembaga">Admin Lembaga (Akses Penuh)</option>
-                                        <option value="pengurus_bidang">Pengurus Bidang (Akses Terbatas)</option>
+                                        <option value="admin_lembaga">Admin Lembaga (Akses Penuh / Bendahara Utama)</option>
+                                        <option value="pengurus_bidang">Pengurus Bidang (Akses Pengaju / Wakil Bendahara)</option>
                                     </select>
                                 </div>
                                 <div class="mb-4">
@@ -117,6 +117,7 @@
                                             <th>Jabatan</th>
                                             <th>Bidang Tugas</th>
                                             <th>Role</th>
+                                            <th class="text-center">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -141,11 +142,21 @@
                                                             <%= usr.role %>
                                                         </span>
                                                     </td>
+                                                    <td class="text-center">
+                                                        <!-- TOMBOL EDIT PENGURUS / ROLE -->
+                                                        <a href="/lembaga-admin/pengurus/edit/<%= usr.id %>" class="btn btn-outline-primary btn-sm" title="Edit Akun & Role">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <!-- TOMBOL HAPUS -->
+                                                        <a href="/lembaga-admin/utilitas/users/hapus/<%= usr.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Pengurus" onclick="return confirm('Yakin ingin menghapus pengurus ini dari sistem?');">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </a>
+                                                    </td>
                                                 </tr>
                                             <% }) %>
                                         <% } else { %>
                                             <tr>
-                                                <td colspan="5" class="text-center py-4 text-muted">Belum ada data pengurus terdaftar.</td>
+                                                <td colspan="6" class="text-center py-4 text-muted">Belum ada data pengurus terdaftar.</td>
                                             </tr>
                                         <% } %>
                                     </tbody>

@@ -3,10 +3,12 @@ const router = express.Router();
 const { User, Lembaga, Bidang, Proker, Proposal, RincianBiaya, RealisasiBiaya, Pengaturan } = require('../models');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcrypt');
+const ExcelJS = require('exceljs');
 const prokerController = require('../controllers/prokerController'); 
-const realisasiLpjController = require('../controllers/realisasiLpjController'); // <-- CONTROLLER LPJ BARU
-const uploadLpjFiles = require('../config/multerLpj'); // <-- CONFIG MULTER LPJ BARU
+const realisasiLpjController = require('../controllers/realisasiLpjController');
+const uploadLpjFiles = require('../config/multerLpj');
 
 // --- KONFIGURASI MULTER UNTUK UPLOAD LOGO & TTD ---
 const storage = multer.diskStorage({
@@ -19,7 +21,254 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// --- KONFIGURASI MULTER KHUSUS UNTUK UPLOAD BUKTI NOTA REALISASI (Maks. 1 MB) ---
+const uploadRealizDir = path.join(__dirname, '../public/uploads/realisasi');
+if (!fs.existsSync(uploadRealizDir)) {
+    fs.mkdirSync(uploadRealizDir, { recursive: true });
+}
+
+const storageRealisasi = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadRealizDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'realisasi-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const uploadRealisasi = multer({
+    storage: storageRealisasi,
+    limits: { fileSize: 1 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const filetypes = /jpeg|jpg|png|pdf/;
+        const mimetype = filetypes.test(file.mimetype);
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('Hanya mengizinkan file gambar (JPG/PNG) atau PDF dengan ukuran maksimal 1 MB!'));
+    }
+}).single('bukti_nota');
+
 const { isLoggedIn, isAdminLembaga } = require('../middleware/auth');
+
+// --- MIDDLEWARE KHUSUS BENDAHARA UTAMA ---
+function ensureBendaharaUtama(req, res, next) {
+    const user = req.session.user;
+    if (user && (user.role === 'admin_lembaga' || user.role === 'superadmin' || user.jabatan === 'Bendahara' || user.role === 'bendahara_utama')) {
+        return next();
+    }
+    req.session.error_msg = "Akses ditolak. Halaman ini khusus untuk Bendahara Utama (Akses Utama).";
+    return res.redirect('/lembaga-admin');
+}
+
+// ==========================================
+// MODUL EKSPOR LAPORAN
+// ==========================================
+router.get('/ekspor/excel', isLoggedIn, async (req, res) => {
+    try {
+        const lembagaId = req.session.user.activeLembagaId || req.session.user.lembagaId;
+        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        const prokers = await Proker.findAll({
+            where: { lembagaId: lembagaId, tahun: tahunAktifInt },
+            include: [
+                { model: Bidang, as: 'Bidang' },
+                { model: RincianBiaya, as: 'RincianBiayas' },
+                { model: RealisasiBiaya, as: 'Realisasis' }
+            ]
+        });
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Rekapitulasi Keuangan');
+
+        worksheet.addRow([ lembaga ? lembaga.nama_organisasi.toUpperCase() : 'LAPORAN KEUANGAN' ]);
+        worksheet.addRow([ `REKAPITULASI PROGRAM KERJA & REALISASI TAHUN ${tahunAktifInt}` ]);
+        worksheet.addRow([]);
+
+        worksheet.getCell('A1').font = { bold: true, size: 13 };
+        worksheet.getCell('A2').font = { bold: true, size: 11 };
+
+        const headerRow = worksheet.addRow(['No', 'Nama Program Kerja', 'Bidang', 'Jenis', 'Pagu RAB (Rp)', 'Realisasi Riil (Rp)', 'Selisih / Sisa (Rp)', 'Status']);
+        
+        headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
+        headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        headerRow.eachCell((cell) => {
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: '1F4E78' }
+            };
+            cell.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+            };
+        });
+
+        let sumRAB = 0;
+        let sumRealisasi = 0;
+        let sumSelisih = 0;
+
+        prokers.forEach((p, index) => {
+            const totalRAB = p.RincianBiayas ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
+            const totalRealisasi = p.Realisasis ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0) : 0;
+            const selisih = totalRAB - totalRealisasi;
+
+            sumRAB += totalRAB;
+            sumRealisasi += totalRealisasi;
+            sumSelisih += selisih;
+
+            const row = worksheet.addRow([
+                index + 1,
+                p.nama_program || p.nama_proker,
+                p.Bidang ? p.Bidang.nama_bidang : '-',
+                p.jenis || 'Reguler',
+                totalRAB,
+                totalRealisasi,
+                selisih,
+                p.status || 'Aktif'
+            ]);
+
+            row.alignment = { vertical: 'middle' };
+            row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell(8).alignment = { horizontal: 'center', vertical: 'middle' };
+
+            row.getCell(5).numFmt = '"Rp" #,##0';
+            row.getCell(6).numFmt = '"Rp" #,##0';
+            row.getCell(7).numFmt = '"Rp" #,##0';
+
+            row.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'D3D3D3' } },
+                    left: { style: 'thin', color: { argb: 'D3D3D3' } },
+                    bottom: { style: 'thin', color: { argb: 'D3D3D3' } },
+                    right: { style: 'thin', color: { argb: 'D3D3D3' } }
+                };
+            });
+        });
+
+        const totalRow = worksheet.addRow([
+            '', 'TOTAL KESELURUHAN', '', '', sumRAB, sumRealisasi, sumSelisih, ''
+        ]);
+
+        totalRow.font = { bold: true };
+        totalRow.alignment = { vertical: 'middle' };
+        totalRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+        totalRow.getCell(5).numFmt = '"Rp" #,##0';
+        totalRow.getCell(6).numFmt = '"Rp" #,##0';
+        totalRow.getCell(7).numFmt = '"Rp" #,##0';
+
+        totalRow.eachCell((cell) => {
+            cell.border = {
+                top: { style: 'thin', color: { argb: '000000' } },
+                bottom: { style: 'double', color: { argb: '000000' } },
+                left: { style: 'thin', color: { argb: 'D3D3D3' } },
+                right: { style: 'thin', color: { argb: 'D3D3D3' } }
+            };
+        });
+
+        worksheet.getColumn(1).width = 6;
+        worksheet.getColumn(2).width = 35;
+        worksheet.getColumn(3).width = 20;
+        worksheet.getColumn(4).width = 12;
+        worksheet.getColumn(5).width = 20;
+        worksheet.getColumn(6).width = 20;
+        worksheet.getColumn(7).width = 20;
+        worksheet.getColumn(8).width = 15;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Rekap-Keuangan-${tahunAktifInt}.xlsx`);
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error("ERROR EKSPOR EXCEL:", error);
+        req.session.error_msg = 'Gagal mengekspor data ke Excel: ' + error.message;
+        return res.redirect('back');
+    }
+});
+
+router.get('/ekspor/pdf', isLoggedIn, async (req, res) => {
+    return res.redirect('/lembaga-admin/rekap-global/print');
+});
+
+// ==========================================
+// MODUL KHUSUS BENDAHARA UTAMA
+// ==========================================
+router.get('/bendahara/rekapitulasi', isLoggedIn, ensureBendaharaUtama, async (req, res) => {
+    try {
+        const user = req.session.user;
+        const lembagaId = user.activeLembagaId || user.lembagaId;
+        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+
+        const lembagaData = await Lembaga.findByPk(lembagaId, {
+            include: [
+                { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
+                { 
+                    model: Proker, 
+                    as: 'Prokers', 
+                    where: { tahun: tahunAktifInt }, 
+                    include: [
+                        { model: Bidang, as: 'Bidang' },
+                        { model: Proposal, as: 'Proposal' },
+                        { model: RincianBiaya, as: 'RincianBiayas' },
+                        { model: RealisasiBiaya, as: 'Realisasis' }
+                    ], 
+                    required: false 
+                }
+            ]
+        });
+
+        if (!lembagaData) {
+            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            return res.redirect('/lembaga-admin');
+        }
+
+        const prokers = lembagaData.Prokers || [];
+
+        let totalPaguLembaga = 0;
+        let totalRealisasiLembaga = 0;
+
+        prokers.forEach(p => {
+            const paguP = p.RincianBiayas ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
+            const realP = p.Realisasis ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0) : 0;
+            totalPaguLembaga += paguP;
+            totalRealisasiLembaga += realP;
+        });
+
+        const sisaAnggaranLembaga = totalPaguLembaga - totalRealisasiLembaga;
+        const persentaseSerapan = totalPaguLembaga > 0 ? ((totalRealisasiLembaga / totalPaguLembaga) * 100).toFixed(1) : 0;
+
+        const success_msg = req.session.success_msg || null;
+        const error_msg = req.session.error_msg || null;
+        delete req.session.success_msg;
+        delete req.session.error_msg;
+
+        return res.render('bendahara_rekapitulasi', {
+            title: 'Rekapitulasi Keuangan Bendahara Utama',
+            pengaturan,
+            userSession: user,
+            lembagaData,
+            prokers,
+            totalPaguLembaga,
+            totalRealisasiLembaga,
+            sisaAnggaranLembaga,
+            persentaseSerapan,
+            success_msg,
+            error_msg
+        });
+    } catch (err) {
+        console.error("Gagal memuat rekapitulasi bendahara utama:", err);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
 
 // --- RUTE HALAMAN UTAMA / DASHBOARD DINAMIS (/lembaga-admin) ---
 router.get('/', isLoggedIn, async (req, res) => {
@@ -31,7 +280,7 @@ router.get('/', isLoggedIn, async (req, res) => {
         const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026, nama_aplikasi: 'Aplikasi Program Kerja' };
         const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
 
-        if (user.role === 'admin_lembaga' || user.role === 'superadmin') {
+        if (user.role === 'admin_lembaga' || user.role === 'superadmin' || user.jabatan === 'Bendahara') {
             lembagaData = await Lembaga.findByPk(lembagaId, {
                 include: [
                     { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false, include: [{ model: Proker, as: 'Prokers' }] },
@@ -42,7 +291,9 @@ router.get('/', isLoggedIn, async (req, res) => {
                         where: { tahun: tahunAktifInt }, 
                         include: [
                             { model: Bidang, as: 'Bidang' },
-                            { model: Proposal, as: 'Proposal' }
+                            { model: Proposal, as: 'Proposal' },
+                            { model: RincianBiaya, as: 'RincianBiayas' },
+                            { model: RealisasiBiaya, as: 'Realisasis' }
                         ], 
                         required: false 
                     }
@@ -59,7 +310,9 @@ router.get('/', isLoggedIn, async (req, res) => {
                         where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, 
                         include: [
                             { model: Bidang, as: 'Bidang' },
-                            { model: Proposal, as: 'Proposal' }
+                            { model: Proposal, as: 'Proposal' },
+                            { model: RincianBiaya, as: 'RincianBiayas' },
+                            { model: RealisasiBiaya, as: 'Realisasis' }
                         ], 
                         required: false 
                     }
@@ -79,11 +332,21 @@ router.get('/', isLoggedIn, async (req, res) => {
         const prokers = lembagaData.Prokers || [];
 
         let totalAnggaranLembaga = 0;
+        let totalRealisasiLembaga = 0;
+
         if (prokers.length > 0) {
-            totalAnggaranLembaga = prokers.reduce((sum, proker) => {
-                return sum + (parseFloat(proker.anggaran) || 0);
-            }, 0);
+            prokers.forEach(proker => {
+                const paguProker = proker.RincianBiayas ? proker.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0) : (parseFloat(proker.anggaran) || 0);
+                totalAnggaranLembaga += paguProker;
+
+                if (proker.Realisasis && proker.Realisasis.length > 0) {
+                    const realisasiProker = proker.Realisasis.reduce((sum, r) => sum + (parseFloat(r.nominal_realisasi) || 0), 0);
+                    totalRealisasiLembaga += realisasiProker;
+                }
+            });
         }
+
+        const persentaseSerapan = totalAnggaranLembaga > 0 ? ((totalRealisasiLembaga / totalAnggaranLembaga) * 100).toFixed(1) : 0;
 
         const success_msg = req.session.success_msg || null;
         const error_msg = req.session.error_msg || null;
@@ -91,7 +354,7 @@ router.get('/', isLoggedIn, async (req, res) => {
         delete req.session.error_msg;
 
         let totalPendingPencairan = 0;
-        if (user.hierarki === 'Bendahara' || user.nama_bidang === 'Bendahara' || user.role === 'admin_lembaga') {
+        if (user.hierarki === 'Bendahara' || user.jabatan === 'Bendahara' || user.role === 'admin_lembaga') {
             try {
                 totalPendingPencairan = await Proposal.count({
                     where: {
@@ -101,6 +364,16 @@ router.get('/', isLoggedIn, async (req, res) => {
                 });
             } catch (errCount) {
                 console.error("DEBUG: Gagal menghitung notifikasi pencairan Bendahara:", errCount);
+            }
+        }
+
+        // Tentukan label judul panel secara dinamis
+        let titlePanel = 'Panel Bidang: ' + (user.jabatan || 'Pengurus');
+        if (user.role === 'admin_lembaga' || user.role === 'superadmin') {
+            if (user.jabatan === 'Bendahara' || user.role === 'bendahara_utama') {
+                titlePanel = 'Panel Bendahara Utama (Pusat Keuangan)';
+            } else {
+                titlePanel = 'Panel Pimpinan Lembaga / Admin';
             }
         }
 
@@ -114,9 +387,12 @@ router.get('/', isLoggedIn, async (req, res) => {
             prokers,
             listLembaga,
             totalAnggaranLembaga,
+            totalRealisasiLembaga,
+            persentaseSerapan,
             success_msg,
             error_msg,
-            totalPendingPencairan
+            totalPendingPencairan,
+            titlePanel
         });
 
     } catch (err) {
@@ -302,8 +578,69 @@ router.post('/pengurus/tambah', isLoggedIn, isAdminLembaga, async (req, res) => 
     }
 });
 
+router.get('/pengurus/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const lembagaId = req.session.user.lembagaId;
+        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+
+        const targetUser = await User.findOne({ where: { id: userId, lembagaId: lembagaId } });
+        if (!targetUser) {
+            req.session.error_msg = "Data pengurus tidak ditemukan!";
+            return res.redirect('/lembaga-admin/pengurus');
+        }
+
+        const lembagaData = await Lembaga.findByPk(lembagaId, {
+            include: [{ model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false }]
+        });
+
+        return res.render('edit_pengurus', {
+            pengaturan,
+            userSession: req.session.user,
+            targetUser,
+            lembagaData
+        });
+    } catch (err) {
+        console.error("Error halaman edit pengurus:", err);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
+router.post('/pengurus/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const lembagaId = req.session.user.lembagaId;
+        const { nama_lengkap, username, password, role, jabatan, id_bidang } = req.body;
+
+        const targetUser = await User.findOne({ where: { id: userId, lembagaId: lembagaId } });
+        if (!targetUser) {
+            req.session.error_msg = "Data pengurus tidak ditemukan!";
+            return res.redirect('/lembaga-admin/pengurus');
+        }
+
+        targetUser.nama_lengkap = nama_lengkap ? nama_lengkap.trim() : targetUser.nama_lengkap;
+        targetUser.username = username ? username.trim() : targetUser.username;
+        targetUser.role = role || targetUser.role;
+        targetUser.jabatan = jabatan || targetUser.jabatan;
+        targetUser.id_bidang = id_bidang ? id_bidang : null;
+
+        if (password && password.trim() !== '') {
+            targetUser.password = bcrypt.hashSync(password.trim(), 10);
+        }
+
+        await targetUser.save();
+
+        req.session.success_msg = `Data pengurus [${targetUser.username}] dan Role berhasil diperbarui!`;
+        return res.redirect('/lembaga-admin/pengurus');
+    } catch (err) {
+        console.error("Gagal mengupdate pengurus:", err);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
 // ==========================================
-// MODUL PROGRAM KERJA (PROKER) & RAB
+// MODUL PROGRAM KERJA & RAB
 // ==========================================
 router.get('/proker', isLoggedIn, async (req, res) => {
     try {
@@ -638,15 +975,26 @@ router.get('/anggaran', isLoggedIn, async (req, res) => {
         const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
         const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
 
-        const lembagaData = await Lembaga.findByPk(lembagaId, {
-            include: [
-                { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
-                { model: Proker, as: 'Prokers', where: { tahun: tahunAktifInt }, include: [
+        let includeCondition = [
+            { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
+            { 
+                model: Proker, 
+                as: 'Prokers', 
+                where: { tahun: tahunAktifInt }, 
+                include: [
                     { model: Bidang, as: 'Bidang' },
                     { model: RincianBiaya, as: 'RincianBiayas' }
-                ], required: false }
-            ]
-        });
+                ], 
+                required: false 
+            }
+        ];
+
+        if (user.role !== 'admin_lembaga' && user.role !== 'superadmin' && user.jabatan !== 'Bendahara' && user.id_bidang) {
+            includeCondition[1].where = { bidangId: user.id_bidang, tahun: tahunAktifInt };
+            includeCondition[0].where = { id: user.id_bidang, tahun: tahunAktifInt };
+        }
+
+        const lembagaData = await Lembaga.findByPk(lembagaId, { include: includeCondition });
 
         return res.render('rekap_anggaran', {
             pengaturan,
@@ -735,15 +1083,34 @@ router.get('/proker/realisasi/:id', isLoggedIn, async (req, res) => {
     }
 });
 
-router.post('/proker/realisasi/tambah/:id', isLoggedIn, async (req, res) => {
+// RUTE TAMBAH REALISASI DENGAN DUKUNGAN UPLOAD BUKTI NOTA (Maks. 1 MB)
+router.post('/proker/realisasi/tambah/:id', isLoggedIn, (req, res, next) => {
+    uploadRealisasi(req, res, function (err) {
+        if (err instanceof multer.MulterError) {
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                req.session.error_msg = "Gagal menambah realisasi: Ukuran file bukti nota melebihi batas maksimal 1 MB!";
+            } else {
+                req.session.error_msg = "Gagal mengunggah file: " + err.message;
+            }
+            return res.redirect('back');
+        } else if (err) {
+            req.session.error_msg = err.message;
+            return res.redirect('back');
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
         const prokerId = req.params.id;
         const userId = req.session.user.id;
         const { uraian_pengeluaran, nominal_realisasi, tanggal_transaksi, keterangan } = req.body;
 
         if (!uraian_pengeluaran || !nominal_realisasi || !tanggal_transaksi) {
-            return res.status(400).send("Uraian pengeluaran, nominal, dan tanggal transaksi wajib diisi!");
+            req.session.error_msg = "Uraian pengeluaran, nominal, dan tanggal transaksi wajib diisi!";
+            return res.redirect('back');
         }
+
+        const buktiNotaFilename = req.file ? req.file.filename : null;
 
         await RealisasiBiaya.create({
             prokerId,
@@ -751,13 +1118,16 @@ router.post('/proker/realisasi/tambah/:id', isLoggedIn, async (req, res) => {
             uraian_pengeluaran: uraian_pengeluaran.trim(),
             nominal_realisasi: parseFloat(nominal_realisasi) || 0,
             tanggal_transaksi,
-            keterangan: keterangan ? keterangan.trim() : null
+            keterangan: keterangan ? keterangan.trim() : null,
+            bukti_nota: buktiNotaFilename
         });
 
+        req.session.success_msg = "Realisasi biaya dan bukti nota berhasil disimpan!";
         return res.redirect(`/lembaga-admin/proker/realisasi/${prokerId}`);
     } catch (err) {
         console.error("Gagal menambah realisasi biaya:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        req.session.error_msg = "Terjadi kesalahan pada server: " + err.message;
+        return res.redirect('back');
     }
 });
 
@@ -890,6 +1260,125 @@ router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
     }
 });
 
+// --- RUTE HALAMAN PRATINJAU / KONFIGURASI CETAK LAPORAN REALISASI ---
+router.get('/realisasi/print-config', isLoggedIn, async (req, res) => {
+    try {
+        const user = req.session.user;
+        const lembagaId = user.activeLembagaId || user.lembagaId;
+        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+        
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        if (!lembaga) {
+            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            return res.redirect('/lembaga-admin/realisasi');
+        }
+
+        const success_msg = req.session.success_msg || null;
+        delete req.session.success_msg;
+
+        return res.render('realisasi_print_form', {
+            pengaturan,
+            userSession: user,
+            lembaga,
+            success_msg
+        });
+    } catch (err) {
+        console.error("Gagal membuka konfigurasi cetak realisasi:", err);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
+// --- RUTE SIMPAN KONFIGURASI CETAK LAPORAN REALISASI ---
+router.post('/realisasi/print-config/simpan', isLoggedIn, async (req, res) => {
+    try {
+        const user = req.session.user;
+        const lembagaId = user.activeLembagaId || user.lembagaId;
+        const { 
+            nama_ketua, pembina_senkom, 
+            pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
+            show_stempel, show_ketua, show_pengaju, show_pembina,
+            show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, show_pembina_lembaga 
+        } = req.body;
+        
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        if (!lembaga) {
+            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            return res.redirect('/lembaga-admin/realisasi');
+        }
+
+        lembaga.nama_ketua = nama_ketua ? nama_ketua.trim() : lembaga.nama_ketua;
+        lembaga.pembina_senkom = pembina_senkom ? pembina_senkom.trim() : null;
+        lembaga.pembina_1 = pembina_1 ? pembina_1.trim() : null;
+        lembaga.pembina_2 = pembina_2 ? pembina_2.trim() : null;
+        lembaga.pembina_3 = pembina_3 ? pembina_3.trim() : null;
+        lembaga.pembina_4 = pembina_4 ? pembina_4.trim() : null;
+        lembaga.pembina_5 = pembina_5 ? pembina_5.trim() : null;
+        lembaga.pembina_6 = pembina_6 ? pembina_6.trim() : null;
+
+        lembaga.print_stempel = (show_stempel === 'true' || show_stempel === 'on');
+        lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true' || show_ttd_ketua_img === 'on');
+        lembaga.print_ttd_pengaju_img = (show_ttd_pengaju_img === 'true' || show_ttd_pengaju_img === 'on');
+        lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true' || show_ttd_pembina_img === 'on');
+        lembaga.print_ketua = (show_ketua === 'true' || show_ketua === 'on');
+        lembaga.print_pengaju = (show_pengaju === 'true' || show_pengaju === 'on');
+        lembaga.print_pembina_lembaga = (show_pembina_lembaga === 'true' || show_pembina_lembaga === 'on');
+        lembaga.print_pembina = (show_pembina === 'true' || show_pembina === 'on');
+        
+        await lembaga.save();
+
+        req.session.success_msg = "Pengaturan cetak realisasi berhasil disimpan!";
+        return res.redirect('/lembaga-admin/realisasi/print');
+    } catch (err) {
+        console.error("Gagal menyimpan pengaturan cetak realisasi:", err);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
+// --- RUTE EKSEKUSI CETAK LAPORAN REALISASI ---
+router.get('/realisasi/print', isLoggedIn, async (req, res) => {
+    try {
+        const user = req.session.user;
+        const lembagaId = user.activeLembagaId || user.lembagaId; 
+        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        if (!lembaga) {
+            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            return res.redirect('/lembaga-admin');
+        }
+
+        let includeCondition = [
+            { model: Bidang, as: 'Bidang' },
+            { model: RincianBiaya, as: 'RincianBiayas' },
+            { model: RealisasiBiaya, as: 'Realisasis' }
+        ];
+
+        let prokerWhere = { lembagaId: lembagaId, tahun: tahunAktifInt };
+        if (user.role !== 'admin_lembaga' && user.role !== 'superadmin' && user.jabatan !== 'Bendahara' && user.id_bidang) {
+            prokerWhere.bidangId = user.id_bidang;
+        }
+
+        const listProker = await Proker.findAll({
+            where: prokerWhere,
+            include: includeCondition
+        });
+
+        return res.render('print_realisasi', {
+            lembaga,
+            listProker,
+            prokers: listProker,
+            pengaturan,
+            tahunAktif: tahunAktifInt,
+            userSession: user,
+            query: req.query // Kirim objek query ke EJS
+        });
+    } catch (err) {
+        console.error("Gagal mencetak laporan realisasi:", err);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
 // ==========================================
 // MODUL PROPOSAL & APPROVAL
 // ==========================================
@@ -999,17 +1488,15 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
     }
 });
 
-// --- RUTE MODUL LPJ (TAHAP 5) ---
+// --- RUTE MODUL LPJ ---
 router.get('/proker/proposal/lpj/:id', isLoggedIn, realisasiLpjController.formLpj);
 router.post('/proker/proposal/lpj/update/:id', isLoggedIn, uploadLpjFiles, realisasiLpjController.storeOrUpdateLpj);
-// ---------------------------------
 
-// --- TAMBAHAN RUTE LAMA UNTUK ALUR APPROVAL & PENCAIRAN ---
+// --- RUTE APPROVAL & PENCAIRAN ---
 router.post('/proker/proposal/ajukan/:id', isLoggedIn, prokerController.ajukanProposal);
 router.post('/proker/proposal/review/:id', isLoggedIn, prokerController.reviewApprovalKetua);
 router.post('/proker/proposal/pencairan/:id', isLoggedIn, prokerController.prosesPencairanBendahara);
 router.get('/proker/bidang/:bidangId/print', isLoggedIn, prokerController.cetakPerBidang);
-// ----------------------------------------------------------
 
 router.get('/proposal', isLoggedIn, async (req, res) => {
     try {
@@ -1018,7 +1505,6 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
         const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
         const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
 
-        // ATURAN KETAT: Filter prokers berdasarkan role (Admin Lembaga melihat semua, Bidang hanya melihat miliknya sendiri)
         let whereCondition = { 
             lembagaId: lembagaId, 
             tahun: tahunAktifInt 
@@ -1256,7 +1742,7 @@ router.post('/setting/update', isLoggedIn, upload.fields([
 });
 
 // ==========================================
-// MODUL UTILITAS: MANAJEMEN AKUN & KEAMANAN
+// MODUL UTILITAS
 // ==========================================
 router.get('/utilitas/users', isLoggedIn, async (req, res) => {
     try {
@@ -1334,7 +1820,6 @@ router.get('/utilitas/users/hapus/:id', isLoggedIn, isAdminLembaga, async (req, 
     }
 });
 
-// --- RUTE DIAGNOSTIK / CEK SISTEM ---
 router.get('/diagnostik/cek', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
@@ -1361,7 +1846,7 @@ router.get('/diagnostik/cek', isLoggedIn, async (req, res) => {
                     stempel: lembaga ? lembaga.print_stempel : null,
                     ketua: lembaga ? lembaga.print_ketua : null,
                     pengaju: lembaga ? lembaga.print_pengaju : null,
-                    pembina: lembaga ? lembaga.print_pembina : null
+                    pembina: lembaga ? lembaga.print_pembina : null,
                 }
             }
         });

@@ -43,6 +43,20 @@
                     </div>
                 </div>
 
+                <!-- Flash Messages -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 mb-4" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 mb-4" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
                 <!-- Tabel Laporan Monitoring -->
                 <div class="card p-4 bg-white shadow-sm">
                     <h5 class="fw-bold text-dark mb-3 border-bottom pb-2">
@@ -131,30 +145,61 @@
                     <p class="text-muted small mb-3">Pilih komponen tanda tangan dan stempel yang ingin ditampilkan pada lembar cetak laporan realisasi anggaran:</p>
                     
                     <div class="vstack gap-2 bg-light p-3 rounded-3 border">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="modalStempel" <%= (lembagaData.print_stempel !== false) ? 'checked' : '' %>>
-                            <label class="form-check-label small fw-semibold text-secondary" for="modalStempel">
-                                <i class="fas fa-stamp text-warning me-1"></i> Tampilkan Stempel Digital Lembaga
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="modalKetua" <%= (lembagaData.print_ketua !== false) ? 'checked' : '' %>>
-                            <label class="form-check-label small fw-semibold text-secondary" for="modalKetua">
-                                TTD Ketua Lembaga
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="modalPengaju" <%= (lembagaData.print_pengaju !== false) ? 'checked' : '' %>>
-                            <label class="form-check-label small fw-semibold" for="modalPengaju">
-                                TTD Pengaju / Bidang
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="modalPembina" <%= (lembagaData.print_pembina !== false) ? 'checked' : '' %>>
-                            <label class="form-check-label small fw-semibold text-secondary" for="modalPembina">
-                                TTD 6 Pembina Wilayah
-                            </label>
-                        </div>
+                        <% 
+                            let rLogin = (userSession.role || '').toLowerCase();
+                            let jLogin = (userSession.jabatan || '').toLowerCase();
+                            let isPusat = (rLogin === 'admin_lembaga' || rLogin === 'superadmin' || rLogin === 'bendahara_utama' || jLogin === 'bendahara');
+                        %>
+
+                        <% if (isPusat) { %>
+                            <!-- Opsi Lengkap Khusus Admin / Ketua / Bendahara Utama -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalStempel" checked>
+                                <label class="form-check-label small fw-semibold text-secondary" for="modalStempel">
+                                    <i class="fas fa-stamp text-warning me-1"></i> Tampilkan Stempel Digital Lembaga
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalKetua" checked>
+                                <label class="form-check-label small fw-semibold text-secondary" for="modalKetua">
+                                    TTD Ketua Lembaga
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalPengaju" checked>
+                                <label class="form-check-label small fw-semibold" for="modalPengaju">
+                                    TTD Pengaju / Bidang
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalPembina">
+                                <label class="form-check-label small fw-semibold text-secondary" for="modalPembina">
+                                    TTD 6 Pembina Wilayah
+                                </label>
+                            </div>
+                        <% } else { %>
+                            <!-- Opsi Terbatas Khusus Akun Bidang (Hanya TTD Pengaju, Ketua, dan Pembina) -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalPengaju" checked>
+                                <label class="form-check-label small fw-semibold" for="modalPengaju">
+                                    TTD Pengaju / Bidang
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalKetua" checked>
+                                <label class="form-check-label small fw-semibold text-secondary" for="modalKetua">
+                                    TTD Ketua Lembaga
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalPembina">
+                                <label class="form-check-label small fw-semibold text-secondary" for="modalPembina">
+                                    TTD 6 Pembina Wilayah
+                                </label>
+                            </div>
+                            <!-- Nilai default tersembunyi untuk stempel pada level bidang agar backend aman -->
+                            <input type="hidden" id="modalStempel" value="true">
+                        <% } %>
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
@@ -170,12 +215,18 @@
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Skrip untuk mengarahkan ke halaman cetak laporan realisasi dengan membawa status checkbox
         document.getElementById('btnProsesCetak').addEventListener('click', function() {
-            const stempel = document.getElementById('modalStempel').checked;
-            const ketua = document.getElementById('modalKetua').checked;
-            const pengaju = document.getElementById('modalPengaju').checked;
-            const pembina = document.getElementById('modalPembina').checked;
+            const stempelEl = document.getElementById('modalStempel');
+            const stempel = stempelEl ? (stempelEl.type === 'hidden' ? stempelEl.value === 'true' : stempelEl.checked) : true;
+            
+            const ketuaEl = document.getElementById('modalKetua');
+            const ketua = ketuaEl ? ketuaEl.checked : true;
+
+            const pengajuEl = document.getElementById('modalPengaju');
+            const pengaju = pengajuEl ? pengajuEl.checked : true;
+
+            const pembinaEl = document.getElementById('modalPembina');
+            const pembina = pembinaEl ? pembinaEl.checked : false;
 
             const queryParams = new URLSearchParams({
                 show_stempel: stempel,

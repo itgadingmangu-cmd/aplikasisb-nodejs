@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title || 'Rekapitulasi Keuangan Bendahara Utama' %></title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Title -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Rekapitulasi Keuangan Lembaga</h2>
+                        <p class="text-muted mb-0">Monitor Anggaran, RAB, dan Realisasi Riil Lintas Bidang Tahun <strong class="text-primary"><%= pengaturan.tahun_aktif %></strong></p>
+                    </div>
+                    <div>
+                        <a href="/lembaga-admin/ekspor/excel" class="btn btn-success fw-bold shadow-sm">
+                            <i class="fas fa-file-excel me-2"></i> Ekspor Excel
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Notifikasi Flash Message -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <!-- Info Ringkas Eksekutif Keuangan -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-4 border-primary">
+                            <span class="text-muted small fw-bold">TOTAL PAGU RAB LEMBAGA</span>
+                            <h4 class="fw-bold text-primary mb-0 mt-1">Rp <%= totalPaguLembaga.toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-4 border-success">
+                            <span class="text-muted small fw-bold">TOTAL REALISASI RIIL</span>
+                            <h4 class="fw-bold text-success mb-0 mt-1">Rp <%= totalRealisasiLembaga.toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-4 <%= sisaAnggaranLembaga < 0 ? 'border-danger' : 'border-secondary' %>">
+                            <span class="text-muted small fw-bold">SISA / SELISIH ANGGARAN</span>
+                            <h4 class="fw-bold <%= sisaAnggaranLembaga < 0 ? 'text-danger' : 'text-secondary' %> mb-0 mt-1">Rp <%= sisaAnggaranLembaga.toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 bg-white border-start border-4 border-info">
+                            <span class="text-muted small fw-bold">PERSENTASE SERAPAN</span>
+                            <h4 class="fw-bold text-info mb-0 mt-1"><%= persentaseSerapan %>%</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabel Rekapitulasi Lintas Bidang -->
+                <div class="card p-4 bg-white">
+                    <h5 class="fw-bold text-dark mb-3">
+                        <i class="fas fa-table text-primary me-2"></i> Rincian Program Kerja & Realisasi Seluruh Bidang
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small text-uppercase">
+                                    <th>No</th>
+                                    <th>Program Kerja</th>
+                                    <th>Bidang</th>
+                                    <th class="text-end">Pagu RAB (Rp)</th>
+                                    <th class="text-end">Realisasi (Rp)</th>
+                                    <th class="text-end">Selisih (Rp)</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (prokers && prokers.length > 0) { %>
+                                    <% 
+                                        let grandRAB = 0;
+                                        let grandRealisasi = 0;
+                                    %>
+                                    <% prokers.forEach((p, index) => { 
+                                        let paguProker = p.RincianBiayas ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
+                                        let realProker = p.Realisasis ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0) : 0;
+                                        let selisihProker = paguProker - realProker;
+
+                                        grandRAB += paguProker;
+                                        grandRealisasi += realProker;
+                                    %>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                            <td>
+                                                <span class="fw-bold text-dark"><%= p.nama_program %></span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></span>
+                                            </td>
+                                            <td class="text-end fw-semibold text-primary">
+                                                Rp <%= paguProker.toLocaleString('id-ID') %>
+                                            </td>
+                                            <td class="text-end fw-semibold text-success">
+                                                Rp <%= realProker.toLocaleString('id-ID') %>
+                                            </td>
+                                            <td class="text-end fw-bold <%= selisihProker < 0 ? 'text-danger' : 'text-secondary' %>">
+                                                Rp <%= selisihProker.toLocaleString('id-ID') %>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-<%= p.status === 'Selesai' ? 'success' : 'warning text-dark' %>"><%= p.status %></span>
+                                            </td>
+                                            <td class="text-center">
+                                                <a href="/lembaga-admin/proker/realisasi/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Periksa Realisasi">
+                                                    <i class="fas fa-search-dollar"></i> Cek Detail
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="8" class="text-center py-4 text-muted small">Belum ada data program kerja yang terdaftar.</td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

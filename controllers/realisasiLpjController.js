@@ -1,8 +1,49 @@
+'use strict';
 const { Proposal, RealisasiLpj, Proker, Bidang, Lembaga } = require('../models');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
+
+// Pastikan folder khusus upload realisasi tersedia
+const uploadDir = path.join(__dirname, '../public/uploads/realisasi');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Konfigurasi Penyimpanan Multer dengan Batasan Maksimal 1 MB
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'realisasi-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 1 * 1024 * 1024 }, // Batasan ukuran maksimal 1 MB
+    fileFilter: (req, file, cb) => {
+        const filetypes = /jpeg|jpg|png|pdf/;
+        const mimetype = filetypes.test(file.mimetype);
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('Hanya mengizinkan file gambar (JPG/PNG) atau PDF dengan ukuran maksimal 1 MB!'));
+    }
+});
 
 const realisasiLpjController = {
+    // Middleware Upload untuk digunakan pada router (Mendukung beberapa field file sekaligus)
+    uploadMiddleware: upload.fields([
+        { name: 'foto_kegiatan', maxCount: 1 },
+        { name: 'nota_belanja', maxCount: 1 },
+        { name: 'bukti_transfer_bendahara', maxCount: 1 },
+        { name: 'bukti_nota', maxCount: 1 } // Menjaga kompatibilitas jika ada form yang menggunakan nama field ini
+    ]),
+
     // 1. Menampilkan Form / Detail LPJ untuk Proposal yang sudah dicairkan
     formLpj: async (req, res) => {
         try {
@@ -47,7 +88,7 @@ const realisasiLpjController = {
 
             // Tangkap file yang diunggah via multer (jika ada)
             const foto_kegiatan = req.files && req.files['foto_kegiatan'] ? req.files['foto_kegiatan'][0].filename : null;
-            const nota_belanja = req.files && req.files['nota_belanja'] ? req.files['nota_belanja'][0].filename : null;
+            const nota_belanja = req.files && (req.files['nota_belanja'] || req.files['bukti_nota']) ? (req.files['nota_belanja'] ? req.files['nota_belanja'][0].filename : req.files['bukti_nota'][0].filename) : null;
             const bukti_transfer_bendahara = req.files && req.files['bukti_transfer_bendahara'] ? req.files['bukti_transfer_bendahara'][0].filename : null;
 
             // Cek apakah data LPJ sudah pernah dibuat sebelumnya
@@ -80,7 +121,12 @@ const realisasiLpjController = {
             return res.redirect(`/lembaga-admin/proker/proposal/lpj/${id}`);
         } catch (error) {
             console.error("ERROR STORE/UPDATE LPJ:", error);
-            req.session.error_msg = 'Gagal menyimpan LPJ: ' + error.message;
+            // Tangkap pesan error khusus multer jika melebihi 1 MB
+            if (error.code === 'LIMIT_FILE_SIZE') {
+                req.session.error_msg = 'Gagal menyimpan LPJ: Ukuran file melebihi batas maksimal 1 MB!';
+            } else {
+                req.session.error_msg = 'Gagal menyimpan LPJ: ' + error.message;
+            }
             return res.redirect('back');
         }
     }

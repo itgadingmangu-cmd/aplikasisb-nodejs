@@ -27,18 +27,17 @@ router.get('/:prokerId/biaya', biayaController.index);
 router.post('/:prokerId/biaya/tambah', biayaController.store);
 router.get('/:prokerId/biaya/hapus/:id', biayaController.destroy);
 
-// Tambahkan rute aksi alur proposal & pencairan berikut:
-
+// Rute Aksi Alur Proposal & Pencairan (Disesuaikan dengan awalan path yang bersih)
 // 1. Pengaju mengajukan proposal dari Draft ke Status "Diajukan"
-router.post('/proker/ajukan/:id', prokerController.ajukanProposal);
+router.post('/proposal/ajukan/:id', prokerController.ajukanProposal);
 
 // 2. Ketua/Admin mereview proposal (Disetujui / Revisi + Opsi TTD)
-router.post('/proker/review/:id', prokerController.reviewApprovalKetua);
+router.post('/proposal/review/:id', prokerController.reviewApprovalKetua);
 
 // 3. Bendahara memproses pencairan atau menolak pencairan (Disertai Alasan)
-router.post('/proker/pencairan/:id', prokerController.prosesPencairanBendahara);
+router.post('/proposal/pencairan/:id', prokerController.prosesPencairanBendahara);
 
 // Rute Cetak Laporan / Dokumen Berdasarkan Bidang
-router.get('/proker/bidang/:bidangId/print', prokerController.cetakPerBidang);
+router.get('/bidang/:bidangId/print', prokerController.cetakPerBidang);
 
 module.exports = router;
