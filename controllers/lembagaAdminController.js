@@ -1,6 +1,7 @@
 'use strict';
 
-const { Proker, Bidang, RincianBiaya, Proposal, Lembaga, User } = require('../models');
+const { Proker, Bidang, RincianBiaya, RealisasiBiaya, Proposal, Lembaga, User, Pengaturan } = require('../models');
+const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 const path = require('path');
@@ -118,16 +119,9 @@ const lembagaAdminController = {
         }
     },
 
-    // Menyimpan data proker baru (Menangkap parameter 'jenis' untuk Reguler / Insidentil)
     storeProker: async (req, res) => {
         try {
-            // Tangkap semua kemungkinan nama parameter dari form (jenis / jenis_kegiatan)
-            const jenisInput = req.body.jenis || req.body.jenis_kegiatan || 'Reguler';
-            const { nama_program, deskripsi, bidangId, status } = req.body;
-            
-            const lembagaId = req.session.user.lembagaId;
-            const pengaturan = await Proker.sequelize.models.Pengaturan.findOne() || { tahun_aktif: 2026 };
-            const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+            const { nama_program, deskripsi, bidangId, jenis, status } = req.body;
             
             let bulanPelaksanaan = req.body.bulan;
             if (Array.isArray(bulanPelaksanaan)) {
@@ -136,8 +130,7 @@ const lembagaAdminController = {
                 bulanPelaksanaan = ''; 
             }
 
-            // Pastikan deteksi kata Insidentil bersifat case-insensitive dan akurat
-            const jenisKegiatan = (String(jenisInput).toLowerCase().includes('insidentil')) ? 'Insidentil' : 'Reguler';
+            const jenisKegiatan = (jenis === 'Insidentil') ? 'Insidentil' : 'Reguler';
 
             await Proker.create({
                 nama_program,
@@ -145,9 +138,7 @@ const lembagaAdminController = {
                 waktu_pelaksanaan: bulanPelaksanaan,
                 status: status || 'Direncanakan',
                 bidangId,
-                lembagaId: lembagaId,
-                tahun: tahunAktifInt,
-                jenis: jenisKegiatan // Disimpan akurat ke database
+                jenis: jenisKegiatan
             });
 
             req.session.success_msg = 'Program Kerja berhasil ditambahkan!';
@@ -159,7 +150,6 @@ const lembagaAdminController = {
         }
     },
 
-    // Aksi menyimpan upload tanda tangan user dengan pembersihan file lama
     updateTtdProfile: async (req, res) => {
         try {
             const userId = req.session.user.id;
@@ -201,6 +191,7 @@ const lembagaAdminController = {
     storeRAB: async (req, res) => {
         try {
             const { prokerId, nama_item, satuan } = req.body;
+            
             const volume = parseInt(req.body.volume || req.body.jumlah) || 0;
             const harga_satuan = parseInt(req.body.harga_satuan) || 0;
             const total = volume * harga_satuan;
@@ -215,11 +206,146 @@ const lembagaAdminController = {
             });
 
             req.session.success_msg = 'Rincian biaya (RAB) berhasil ditambahkan!';
-            res.redirect('/lembaga-admin');
+            return res.redirect('/lembaga-admin');
         } catch (error) {
             console.error("ERROR STORE RAB:", error);
             req.session.error_msg = 'Gagal menambahkan rincian biaya: ' + error.message;
-            res.redirect('/lembaga-admin');
+            return res.redirect('/lembaga-admin');
+        }
+    },
+
+    // Filter Laporan Realisasi Anggaran Berdasarkan Rentang Tanggal
+    getLaporanRealisasi: async (req, res) => {
+        try {
+            const { tanggal_mulai, tanggal_selesai } = req.query;
+            let whereClause = {};
+
+            if (tanggal_mulai && tanggal_selesai) {
+                whereClause.tanggal_transaksi = {
+                    [Op.between]: [tanggal_mulai, tanggal_selesai]
+                };
+            }
+
+            // Ambil data realisasi sesuai rentang tanggal transaksi
+            const realisasiList = await RealisasiBiaya.findAll({
+                where: whereClause,
+                include: [
+                    {
+                        model: Proker,
+                        include: [Bidang]
+                    }
+                ],
+                order: [['tanggal_transaksi', 'ASC']]
+            });
+
+            res.render('laporan_realisasi', {
+                title: 'Laporan Realisasi Anggaran',
+                userSession: req.session.user,
+                realisasiList,
+                tanggal_mulai: tanggal_mulai || '',
+                tanggal_selesai: tanggal_selesai || ''
+            });
+        } catch (error) {
+            console.error("ERROR LAPORAN REALISASI:", error);
+            res.status(500).send('Terjadi kesalahan memuat laporan: ' + error.message);
+        }
+    },
+
+    // Konsolidasi Rekapitulasi Proposal & RAB Bulanan untuk Bendahara Utama
+    getRekapProposalBulanan: async (req, res) => {
+        try {
+            const user = req.session.user;
+            const lembagaId = user.activeLembagaId || user.lembagaId;
+            const { bulan, tahun } = req.query;
+
+            const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+            const tahunAktif = tahun || pengaturan.tahun_aktif;
+
+            const lembaga = await Lembaga.findByPk(lembagaId);
+            if (!lembaga) {
+                req.session.error_msg = "Data lembaga tidak ditemukan!";
+                return res.redirect('/lembaga-admin');
+            }
+
+            let prokers = await Proker.findAll({
+                where: { lembagaId: lembagaId, tahun: tahunAktif },
+                include: [
+                    { model: Bidang, as: 'Bidang' },
+                    { model: Proposal, as: 'Proposal' },
+                    { model: RincianBiaya, as: 'RincianBiayas' }
+                ],
+                order: [['createdAt', 'ASC']]
+            });
+
+            if (bulan) {
+                prokers = prokers.filter(p => {
+                    if (!p.waktu_pelaksanaan) return false;
+                    const bulanArr = p.waktu_pelaksanaan.split(',').map(b => b.trim());
+                    return bulanArr.includes(String(bulan));
+                });
+            }
+
+            return res.render('bendahara_proposal_bulanan', {
+                title: 'Konsolidasi Proposal & RAB Bulanan',
+                userSession: user,
+                lembaga,
+                prokers,
+                pengaturan,
+                selectedBulan: bulan || '',
+                selectedTahun: tahunAktif,
+                query: req.query
+            });
+        } catch (error) {
+            console.error("ERROR REKAP PROPOSAL BULANAN:", error);
+            res.status(500).send('Terjadi kesalahan pada server: ' + error.message);
+        }
+    },
+
+    // Cetak Rekapitulasi Proposal & RAB Bulanan
+    printRekapProposalBulanan: async (req, res) => {
+        try {
+            const user = req.session.user;
+            const lembagaId = user.activeLembagaId || user.lembagaId;
+            const { bulan, tahun } = req.query;
+
+            const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+            const tahunAktif = tahun || pengaturan.tahun_aktif;
+
+            const lembaga = await Lembaga.findByPk(lembagaId);
+            if (!lembaga) {
+                req.session.error_msg = "Data lembaga tidak ditemukan!";
+                return res.redirect('/lembaga-admin');
+            }
+
+            let prokers = await Proker.findAll({
+                where: { lembagaId: lembagaId, tahun: tahunAktif },
+                include: [
+                    { model: Bidang, as: 'Bidang' },
+                    { model: Proposal, as: 'Proposal' },
+                    { model: RincianBiaya, as: 'RincianBiayas' }
+                ],
+                order: [['createdAt', 'ASC']]
+            });
+
+            if (bulan) {
+                prokers = prokers.filter(p => {
+                    if (!p.waktu_pelaksanaan) return false;
+                    const bulanArr = p.waktu_pelaksanaan.split(',').map(b => b.trim());
+                    return bulanArr.includes(String(bulan));
+                });
+            }
+
+            return res.render('print_bendahara_bulanan', {
+                userSession: user,
+                lembaga,
+                prokers,
+                pengaturan,
+                selectedBulan: bulan || '',
+                selectedTahun: tahunAktif
+            });
+        } catch (error) {
+            console.error("ERROR CETAK REKAP BULANAN:", error);
+            res.status(500).send('Terjadi kesalahan pada server: ' + error.message);
         }
     }
 };

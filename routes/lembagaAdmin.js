@@ -1,6 +1,9 @@
+'use strict';
+
 const express = require('express');
 const router = express.Router();
 const { User, Lembaga, Bidang, Proker, Proposal, RincianBiaya, RealisasiBiaya, Pengaturan } = require('../models');
+const { Op } = require('sequelize');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -299,6 +302,12 @@ router.get('/bendahara/rekapitulasi', isLoggedIn, ensureBendaharaUtama, async (r
         return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
+
+// --- RUTE KONSOLIDASI PROPOSAL & RAB BULANAN BENDAHARA UTAMA ---
+router.get('/bendahara/proposal-bulanan', isLoggedIn, ensureBendaharaUtama, lembagaAdminController.getRekapProposalBulanan);
+
+// --- RUTE CETAK KONSOLIDASI PROPOSAL & RAB BULANAN ---
+router.get('/bendahara/proposal-bulanan/print', isLoggedIn, ensureBendaharaUtama, lembagaAdminController.printRekapProposalBulanan);
 
 // --- RUTE HALAMAN UTAMA / DASHBOARD DINAMIS (/lembaga-admin) ---
 router.get('/', isLoggedIn, async (req, res) => {
@@ -1363,7 +1372,7 @@ router.post('/realisasi/print-config/simpan', isLoggedIn, async (req, res) => {
     }
 });
 
-// --- RUTE EKSEKUSI CETAK LAPORAN REALISASI ---
+// --- RUTE EKSEKUSI CETAK LAPORAN REALISASI (DENGAN DUKUNGAN FILTER TANGGAL) ---
 router.get('/realisasi/print', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
@@ -1377,10 +1386,26 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
             return res.redirect('/lembaga-admin');
         }
 
+        // Tangkap parameter tanggal dari query (mendukung start_date / tanggal_mulai)
+        const startDate = req.query.start_date || req.query.tanggal_mulai;
+        const endDate = req.query.end_date || req.query.tanggal_selesai;
+
+        let realisasiWhere = {};
+        if (startDate && endDate) {
+            realisasiWhere.tanggal_transaksi = {
+                [Op.between]: [startDate, endDate]
+            };
+        }
+
         let includeCondition = [
             { model: Bidang, as: 'Bidang' },
             { model: RincianBiaya, as: 'RincianBiayas' },
-            { model: RealisasiBiaya, as: 'Realisasis' }
+            { 
+                model: RealisasiBiaya, 
+                as: 'Realisasis',
+                where: Object.keys(realisasiWhere).length > 0 ? realisasiWhere : undefined,
+                required: false // Tetap tampilkan proker meskipun tidak ada transaksi di rentang tanggal tersebut, atau ubah ke true jika ingin disembunyikan
+            }
         ];
 
         let prokerWhere = { lembagaId: lembagaId, tahun: tahunAktifInt };
@@ -1388,10 +1413,22 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
             prokerWhere.bidangId = user.id_bidang;
         }
 
-        const listProker = await Proker.findAll({
+        let listProker = await Proker.findAll({
             where: prokerWhere,
             include: includeCondition
         });
+
+        // Jika filter aktif, kita saring realisasi di dalam memori agar hanya realisasi dalam rentang tanggal tersebut yang menjumlahkan nominalnya
+        if (startDate && endDate) {
+            listProker = listProker.map(proker => {
+                if (proker.Realisasis) {
+                    proker.Realisasis = proker.Realisasis.filter(r => {
+                        return r.tanggal_transaksi >= startDate && r.tanggal_transaksi <= endDate;
+                    });
+                }
+                return proker;
+            });
+        }
 
         return res.render('print_realisasi', {
             lembaga,

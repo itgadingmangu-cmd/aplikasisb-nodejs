@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cetak Rekapitulasi Proposal Bulanan - <%= lembaga.nama_organisasi %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #ffffff; font-family: 'Times New Roman', Times, serif; color: #000; line-height: 1.4; }
+        .sheet { width: 210mm; min-height: 297mm; padding: 15mm 20mm; margin: 10mm auto; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); position: relative; box-sizing: border-box; }
+        .table-financial { font-size: 11pt; border-collapse: collapse; width: 100%; }
+        .table-financial th { background-color: #f8f9fa !important; color: #000; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000 !important; padding: 8px 6px; }
+        .table-financial td { vertical-align: middle; border: 1px solid #000 !important; padding: 6px 8px; }
+        .signature-box { min-height: 85px; position: relative; display: flex; align-items: center; justify-content: center; }
+        @media print {
+            @page { size: A4; margin: 10mm; }
+            body { background: none; margin: 0; }
+            .sheet { width: 100%; margin: 0; padding: 5mm; box-shadow: none; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body onload="window.print()">
+
+    <!-- Tombol Navigasi (Hilang saat diprint) -->
+    <div class="container text-center my-3 no-print">
+        <button onclick="window.print()" class="btn btn-primary fw-bold px-4 me-2">
+            <i class="fas fa-print me-1"></i> Cetak / Simpan PDF
+        </button>
+        <a href="/lembaga-admin/bendahara/proposal-bulanan" class="btn btn-outline-secondary fw-bold px-4">
+            Kembali
+        </a>
+    </div>
+
+    <div class="sheet">
+        <!-- Kop Surat -->
+        <div class="text-center mb-3 border-bottom pb-3">
+            <% if (lembaga.kop_surat) { %>
+                <img src="/uploads/logo/<%= lembaga.kop_surat %>" alt="Kop Surat" class="img-fluid" style="max-height: 130px; object-fit: contain;">
+            <% } else { %>
+                <h3 class="fw-bold text-uppercase"><%= lembaga.nama_organisasi %></h3>
+                <p class="mb-0 small"><%= lembaga.alamat || '-' %> | Telp: <%= lembaga.nomor_hp || '-' %></p>
+            <% } %>
+        </div>
+
+        <!-- Judul Laporan -->
+        <div class="text-center my-3">
+            <h4 class="fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px;">REKAPITULASI <br> PROPOSAL & RAB BULANAN</h4>
+            <p class="text-dark small mb-0 fw-semibold">Tahun Anggaran: <%= selectedTahun %></p>
+            <% 
+                const listBulanName = [
+                    { val: '1', name: 'Januari' }, { val: '2', name: 'Februari' },
+                    { val: '3', name: 'Maret' }, { val: '4', name: 'April' },
+                    { val: '5', name: 'Mei' }, { val: '6', name: 'Juni' },
+                    { val: '7', name: 'Juli' }, { val: '8', name: 'Agustus' },
+                    { val: '9', name: 'September' }, { val: '10', name: 'Oktober' },
+                    { val: '11', name: 'November' }, { val: '12', name: 'Desember' }
+                ];
+                let namaBulanAktif = "Seluruh Bulan (1 Tahun)";
+                if (selectedBulan) {
+                    let bObj = listBulanName.find(x => x.val == selectedBulan);
+                    if (bObj) namaBulanAktif = bObj.name;
+                }
+            %>
+            <p class="text-dark small mb-0 mt-1 fw-semibold">Periode Bulan: <%= namaBulanAktif %></p>
+        </div>
+
+        <!-- Tabel Data -->
+        <div class="table-responsive mb-4">
+            <table class="table table-financial">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">No</th>
+                        <th style="width: 32%;">Nama Program Kerja</th>
+                        <th style="width: 23%;">Bidang</th>
+                        <th style="width: 15%;" class="text-center">Jadwal</th>
+                        <th style="width: 25%;" class="text-end">Total RAB (Rp)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% let totalAkumulasiRAB = 0; %>
+                    <% if (prokers && prokers.length > 0) { %>
+                        <% prokers.forEach((p, index) => { %>
+                            <% 
+                                let totalRAB = p.RincianBiayas ? p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0) : 0;
+                                totalAkumulasiRAB += totalRAB;
+                            %>
+                            <tr>
+                                <td class="text-center fw-bold"><%= index + 1 %></td>
+                                <td>
+                                    <span class="fw-bold text-dark"><%= p.nama_program %></span><br>
+                                    <small class="text-secondary fst-italic"><%= p.jenis || 'Reguler' %></small>
+                                </td>
+                                <td><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></td>
+                                <td class="text-center small"><%= p.waktu_pelaksanaan || '-' %></td>
+                                <td class="text-end fw-semibold" style="white-space: nowrap;">Rp <%= totalRAB.toLocaleString('id-ID') %></td>
+                            </tr>
+                        <% }) %>
+                        <tr class="table-light fw-bold" style="background-color: #f1f3f5 !important;">
+                            <td colspan="4" class="text-end py-2">TOTAL KEBUTUHAN DANA KESELURUHAN:</td>
+                            <td class="text-end py-2 text-dark" style="white-space: nowrap;">Rp <%= totalAkumulasiRAB.toLocaleString('id-ID') %></td>
+                        </tr>
+                    <% } else { %>
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted fst-italic">
+                                Tidak ada data program kerja pada periode bulan ini.
+                            </td>
+                        </tr>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Tanda Tangan Pengesahan Sesuai Aturan Lengkap -->
+        <div class="mt-4 pt-2" style="page-break-inside: avoid;">
+            <div class="row text-center mb-1">
+                <div class="col-6"></div>
+                <div class="col-6">
+                    <% 
+                        const bulanIndo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                        let tglSkrg = new Date();
+                        let tanggalCetak = tglSkrg.getDate() + " " + bulanIndo[tglSkrg.getMonth()] + " " + tglSkrg.getFullYear();
+                    %>
+                    <p class="mb-0">Jombang, <%= tanggalCetak %></p>
+                </div>
+            </div>
+
+            <!-- Baris Pertama: Bendahara Utama (Kiri) & Ketua Lembaga + Stempel (Kanan) -->
+            <div class="row text-center">
+                <div class="col-6 mb-4">
+                    <p class="mb-1">Diajukan Oleh,</p>
+                    <p class="fw-bold mb-2">Bendahara Utama</p>
+                    <div class="signature-box mb-2">
+                        <% if (userSession && userSession.ttd) { %>
+                            <img src="/uploads/logo/<%= userSession.ttd %>" alt="TTD Bendahara" style="max-height: 85px; width: auto; object-fit: contain;">
+                        <% } %>
+                    </div>
+                    <p class="fw-bold mb-0 text-decoration-underline"><%= userSession.nama_lengkap || '-' %></p>
+                </div>
+                <div class="col-6 mb-4 position-relative">
+                    <p class="mb-1">Mengetahui,</p>
+                    <p class="fw-bold mb-2">Ketua <%= lembaga.nama_organisasi %></p>
+                    <div class="signature-box mb-2">
+                        <% if (lembaga.stempel) { %>
+                            <div style="position: absolute; left: 20%; transform: translateX(-50%); top: -25px; opacity: 0.85; pointer-events: none; z-index: 2;">
+                                <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 180px; height: 150px; object-fit: contain;">
+                            </div>
+                        <% } %>
+                        <% if (lembaga.ttd_ketua) { %>
+                            <img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" style="max-height: 85px; width: auto; object-fit: contain; position: relative; z-index: 1;">
+                        <% } %>
+                    </div>
+                    <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.nama_ketua || '-' %></p>
+                </div>
+            </div>
+
+            <!-- Baris Kedua: Dewan Pembina (Tengah Bawah) -->
+            <div class="row text-center justify-content-center">
+                <div class="col-6 mb-2">
+                    <p class="mb-1">Menyetujui,</p>
+                    <p class="fw-bold mb-2">Pembina <%= lembaga.nama_organisasi %></p>
+                    <div class="signature-box mb-2">
+                        <% if (lembaga.ttd_pembina_senkom) { %>
+                            <img src="/uploads/logo/<%= lembaga.ttd_pembina_senkom %>" alt="TTD Pembina" style="max-height: 85px; width: auto; object-fit: contain;">
+                        <% } %>
+                    </div>
+                    <p class="fw-bold mb-0 text-decoration-underline"><%= lembaga.pembina_senkom || '-' %></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

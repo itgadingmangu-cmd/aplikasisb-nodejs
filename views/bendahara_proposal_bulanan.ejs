@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - <%= lembaga.nama_organisasi %></title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: #fff; }
+            .card { box-shadow: none; border: none; padding: 0 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Title & Filter Bulan -->
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Konsolidasi Proposal & RAB Bulanan</h2>
+                        <p class="text-muted mb-0">Pusat Rekapitulasi Rencana Anggaran Kegiatan Seluruh Bidang untuk Periode Bulanan.</p>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 no-print">
+                        <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm">
+                            <i class="fas fa-calendar-alt me-1"></i> Tahun: <%= selectedTahun %>
+                        </span>
+                        <a href="/lembaga-admin/bendahara/proposal-bulanan/print?bulan=<%= selectedBulan %>&tahun=<%= selectedTahun %>" target="_blank" class="btn btn-dark shadow-sm">
+                        <i class="fas fa-print me-1"></i> Cetak Rekap Bulanan
+                    </a>
+                    </div>
+                </div>
+
+                <!-- Form Filter Bulan -->
+                <div class="card p-3 mb-4 bg-white shadow-sm no-print">
+                    <form action="/lembaga-admin/bendahara/proposal-bulanan" method="GET" class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-secondary">Pilih Bulan Pelaksanaan:</label>
+                            <select name="bulan" class="form-select form-select-sm">
+                                <option value="">-- Semua Bulan (1 Tahun) --</option>
+                                <% 
+                                    const listBulan = [
+                                        { val: '1', name: 'Januari' }, { val: '2', name: 'Februari' },
+                                        { val: '3', name: 'Maret' }, { val: '4', name: 'April' },
+                                        { val: '5', name: 'Mei' }, { val: '6', name: 'Juni' },
+                                        { val: '7', name: 'Juli' }, { val: '8', name: 'Agustus' },
+                                        { val: '9', name: 'September' }, { val: '10', name: 'Oktober' },
+                                        { val: '11', name: 'November' }, { val: '12', name: 'Desember' }
+                                    ];
+                                %>
+                                <% listBulan.forEach(b => { %>
+                                    <option value="<%= b.val %>" <%= selectedBulan == b.val ? 'selected' : '' %>><%= b.name %></option>
+                                <% }) %>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary btn-sm fw-semibold w-100">
+                                <i class="fas fa-filter me-1"></i> Terapkan Filter
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tabel Rekapitulasi Program & RAB Kolektif -->
+                <div class="card p-4 bg-white shadow-sm">
+                    <h5 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                        <i class="fas fa-file-invoice-dollar text-success me-2"></i> Akumulasi Kebutuhan Dana Bidang
+                        <% if (selectedBulan) { %>
+                            <% const foundBulan = listBulan.find(b => b.val == selectedBulan); %>
+                            (Bulan: <%= foundBulan ? foundBulan.name : selectedBulan %> <%= selectedTahun %>)
+                        <% } else { %>
+                            (Seluruh Periode Tahun <%= selectedTahun %>)
+                        <% } %>
+                    </h5>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small text-uppercase">
+                                    <th>No</th>
+                                    <th>Nama Program Kerja</th>
+                                    <th>Bidang Penanggung Jawab</th>
+                                    <th class="text-center">Jadwal Bulan</th>
+                                    <th class="text-end">Total RAB (Rp)</th>
+                                    <th class="text-center">Status Proposal</th>
+                                    <th class="text-center no-print">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% 
+                                    let totalAkumulasiRAB = 0;
+                                %>
+                                <% if (prokers && prokers.length > 0) { %>
+                                    <% prokers.forEach((p, index) => { %>
+                                        <% 
+                                            let totalRAB = p.RincianBiayas ? p.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0) : 0;
+                                            totalAkumulasiRAB += totalRAB;
+
+                                            let statusProposal = p.Proposal ? p.Proposal.status : 'Belum Ada Draf';
+                                            let badgeColor = 'bg-secondary';
+                                            if (statusProposal === 'Disetujui' || statusProposal === 'Selesai') badgeColor = 'bg-success';
+                                            else if (statusProposal === 'Diajukan') badgeColor = 'bg-primary';
+                                            else if (statusProposal === 'Perlu Revisi') badgeColor = 'bg-warning text-dark';
+                                        %>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                            <td>
+                                                <span class="fw-bold text-dark"><%= p.nama_program %></span>
+                                                <small class="text-muted d-block"><%= p.jenis || 'Reguler' %></small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light text-dark border"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></span>
+                                            </td>
+                                            <td class="text-center small"><%= p.waktu_pelaksanaan || '-' %></td>
+                                            <td class="text-end fw-bold text-primary">Rp <%= totalRAB.toLocaleString('id-ID') %></td>
+                                            <td class="text-center">
+                                                <span class="badge <%= badgeColor %> px-2 py-1"><%= statusProposal %></span>
+                                            </td>
+                                            <td class="text-center no-print">
+                                                <% if (p.Proposal) { %>
+                                                    <a href="/lembaga-admin/proker/proposal/print/<%= p.Proposal.id %>" target="_blank" class="btn btn-outline-dark btn-sm shadow-sm" title="Cetak Proposal">
+                                                        <i class="fas fa-print"></i>
+                                                    </a>
+                                                <% } else { %>
+                                                    <span class="text-muted small">-</span>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                    <tr class="table-light fw-bold">
+                                        <td colspan="4" class="text-end py-3">TOTAL KEBUTUHAN DANA KESELURUHAN:</td>
+                                        <td class="text-end py-3 text-success fs-5">Rp <%= totalAkumulasiRAB.toLocaleString('id-ID') %></td>
+                                        <td colspan="2"></td>
+                                    </tr>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="7" class="text-center py-5 text-muted small">
+                                            <i class="fas fa-folder-open fa-2x mb-2 d-block text-secondary opacity-50"></i>
+                                            Tidak ada program kerja atau proposal terdaftar pada filter periode bulanan ini.
+                                        </td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

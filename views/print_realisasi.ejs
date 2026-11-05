@@ -55,47 +55,52 @@
         </div>
 
         <!-- Header Judul & Periode di Atas -->
-        <div class="text-center my-3">
-            <h4 class="fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px;">Laporan Realisasi Anggaran</h4>
-            <p class="text-dark small mb-0 fw-semibold">Tahun Anggaran: <%= tahunAktif %></p>
-            <% if (typeof query !== 'undefined' && query.start_date && query.end_date) { %>
-                <% 
-                    // Fungsi helper untuk format tanggal Indonesia
-                    function formatTglIndo(dateStr) {
-                        if (!dateStr) return '';
-                        const d = new Date(dateStr);
-                        if (isNaN(d)) return dateStr;
-                        const bulanArr = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-                        return d.getDate() + " " + bulanArr[d.getMonth()] + " " + d.getFullYear();
-                    }
+<div class="text-center my-3">
+    <h4 class="fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px;">Laporan Realisasi Anggaran</h4>
+    <p class="text-dark small mb-0 fw-semibold">Tahun Anggaran: <%= tahunAktif %></p>
+    <% 
+        // Tangkap parameter dari berbagai kemungkinan nama variabel query yang dikirim
+        let tglMulai = (typeof query !== 'undefined') ? (query.start_date || query.tanggal_mulai) : null;
+        let tglSelesai = (typeof query !== 'undefined') ? (query.end_date || query.tanggal_selesai) : null;
+    %>
+    <% if (tglMulai && tglMulai.trim() !== '' && tglSelesai && tglSelesai.trim() !== '') { %>
+        <%  
+            // Fungsi helper untuk format tanggal Indonesia
+            function formatTglIndo(dateStr) {
+                if (!dateStr) return '';
+                const d = new Date(dateStr);
+                if (isNaN(d)) return dateStr;
+                const bulanArr = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                return d.getDate() + " " + bulanArr[d.getMonth()] + " " + d.getFullYear();
+            }
 
-                    // Hitung estimasi durasi bulan secara otomatis
-                    let dStart = new Date(query.start_date);
-                    let dEnd = new Date(query.end_date);
-                    let diffTime = Math.abs(dEnd - dStart);
-                    let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                    let labelDurasi = '';
-                    
-                    if (diffDays >= 340 && diffDays <= 380) {
-                        labelDurasi = ' (Laporan Tahunan)';
-                    } else if (diffDays >= 80 && diffDays <= 100) {
-                        labelDurasi = ' (Laporan Triwulanan / 3 Bulan)';
-                    } else if (diffDays >= 170 && diffDays <= 190) {
-                        labelDurasi = ' (Laporan Semesteran / 6 Bulan)';
-                    } else if (diffDays >= 25 && diffDays <= 32) {
-                        labelDurasi = ' (Laporan Bulanan)';
-                    } else {
-                        let estimasiBulan = Math.round(diffDays / 30);
-                        if (estimasiBulan > 1) {
-                            labelDurasi = ' (Periode ' + estimasiBulan + ' Bulan)';
-                        }
-                    }
-                %>
-                <p class="text-dark small mb-0 mt-1 fw-semibold">
-                    Periode: <%= formatTglIndo(query.start_date) %> s.d. <%= formatTglIndo(query.end_date) %> <%= labelDurasi %>
-                </p>
-            <% } %>
-        </div>
+            // Hitung estimasi durasi bulan secara otomatis
+            let dStart = new Date(tglMulai);
+            let dEnd = new Date(tglSelesai);
+            let diffTime = Math.abs(dEnd - dStart);
+            let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            let labelDurasi = '';
+            
+            if (diffDays >= 340 && diffDays <= 380) {
+                labelDurasi = ' (Laporan Tahunan)';
+            } else if (diffDays >= 80 && diffDays <= 100) {
+                labelDurasi = ' (Laporan Triwulanan / 3 Bulan)';
+            } else if (diffDays >= 170 && diffDays <= 190) {
+                labelDurasi = ' (Laporan Semesteran / 6 Bulan)';
+            } else if (diffDays >= 25 && diffDays <= 32) {
+                labelDurasi = ' (Laporan Bulanan)';
+            } else {
+                let estimasiBulan = Math.round(diffDays / 30);
+                if (estimasiBulan > 1) {
+                    labelDurasi = ' (Periode ' + estimasiBulan + ' Bulan)';
+                }
+            }
+        %>
+        <p class="text-dark small mb-0 mt-1 fw-semibold">
+            Periode: <%= formatTglIndo(tglMulai) %> s.d. <%= formatTglIndo(tglSelesai) %> <%= labelDurasi %>
+        </p>
+    <% } %>
+</div>
 
         <!-- Tabel Rekapitulasi Keuangan -->
         <div class="table-responsive mb-4">
@@ -103,10 +108,11 @@
                 <thead>
                     <tr>
                         <th style="width: 5%;">No</th>
-                        <th style="width: 29%;">Program Kerja & Bidang</th>
-                        <th style="width: 14%;">Tgl Realisasi</th>
-                        <th style="width: 17%;">Total RAB (Rencana)</th>
-                        <th style="width: 17%;">Total Realisasi (Riil)</th>
+                        <th style="width: 25%;">Program Kerja & Bidang</th>
+                        <th style="width: 12%;">Tgl Realisasi</th>
+                        <th style="width: 15%;">Total RAB (Rencana)</th>
+                        <th style="width: 15%;">Total Realisasi (Riil)</th>
+                        <th style="width: 10%;">Serapan (%)</th>
                         <th style="width: 18%;">Sisa / Selisih</th>
                     </tr>
                 </thead>
@@ -121,6 +127,9 @@
                                 let totalRAB = p.RincianBiayas ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
                                 let totalRealisasi = p.Realisasis ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0) : 0;
                                 let selisih = totalRAB - totalRealisasi;
+                                
+                                // Hitung Persentase Serapan (%)
+                                let persentaseSerapan = totalRAB > 0 ? ((totalRealisasi / totalRAB) * 100).toFixed(1) : 0;
 
                                 // Mengambil Tanggal Realisasi secara aman
                                 let tanggalRealisasiStr = '-';
@@ -148,22 +157,33 @@
                                     <small class="text-secondary fst-italic"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
                                 </td>
                                 <td class="text-center small"><%= tanggalRealisasiStr %></td>
-                                <td class="text-end" style="white-space: nowrap;">Rp <%= totalRAB.toLocaleString('id-ID') %></td>
-                                <td class="text-end" style="white-space: nowrap;">Rp <%= totalRealisasi.toLocaleString('id-ID') %></td>
-                                <td class="text-end fw-semibold <%= selisih < 0 ? 'text-danger' : 'text-dark' %>" style="white-space: nowrap;">
+                                <!-- RAB: Warna Biru Gelap Profesional / Netral -->
+                                <td class="text-end fw-semibold text-primary" style="white-space: nowrap;">Rp <%= totalRAB.toLocaleString('id-ID') %></td>
+                                <!-- Realisasi: Warna Hijau Penyerapan -->
+                                <td class="text-end fw-semibold text-success" style="white-space: nowrap;">Rp <%= totalRealisasi.toLocaleString('id-ID') %></td>
+                                <td class="text-center fw-bold <%= persentaseSerapan > 100 ? 'text-danger' : 'text-success' %>">
+                                    <%= persentaseSerapan %>%
+                                </td>
+                                <!-- Selisih: Merah jika defisit/minus, Gelap normal jika surplus/sisa -->
+                                <td class="text-end fw-bold <%= selisih < 0 ? 'text-danger' : 'text-dark' %>" style="white-space: nowrap;">
                                     Rp <%= selisih.toLocaleString('id-ID') %>
                                 </td>
                             </tr>
                         <% }) %>
+                        <% 
+                            let grandTotalPersen = grandTotalRAB > 0 ? ((grandTotalRealisasi / grandTotalRAB) * 100).toFixed(1) : 0;
+                            let grandTotalSelisih = grandTotalRAB - grandTotalRealisasi;
+                        %>
                         <tr class="table-light fw-bold" style="background-color: #f1f3f5 !important;">
                             <td colspan="3" class="text-end py-2">TOTAL KESELURUHAN:</td>
-                            <td class="text-end py-2" style="white-space: nowrap;">Rp <%= grandTotalRAB.toLocaleString('id-ID') %></td>
-                            <td class="text-end py-2" style="white-space: nowrap;">Rp <%= grandTotalRealisasi.toLocaleString('id-ID') %></td>
-                            <td class="text-end py-2" style="white-space: nowrap;">Rp <%= (grandTotalRAB - grandTotalRealisasi).toLocaleString('id-ID') %></td>
+                            <td class="text-end py-2 text-primary" style="white-space: nowrap;">Rp <%= grandTotalRAB.toLocaleString('id-ID') %></td>
+                            <td class="text-end py-2 text-success" style="white-space: nowrap;">Rp <%= grandTotalRealisasi.toLocaleString('id-ID') %></td>
+                            <td class="text-center py-2 text-dark"><%= grandTotalPersen %>%</td>
+                            <td class="text-end py-2 <%= grandTotalSelisih < 0 ? 'text-danger' : 'text-dark' %>" style="white-space: nowrap;">Rp <%= grandTotalSelisih.toLocaleString('id-ID') %></td>
                         </tr>
                     <% } else { %>
                         <tr>
-                            <td colspan="6" class="text-center py-4 text-muted fst-italic">
+                            <td colspan="7" class="text-center py-4 text-muted fst-italic">
                                 Belum ada data program kerja atau realisasi 
                                 <% if (typeof query !== 'undefined' && query.start_date && query.end_date) { %>
                                     pada rentang tanggal <%= query.start_date %> s.d. <%= query.end_date %>
@@ -273,7 +293,6 @@
                             
                             <div class="signature-box mb-2">
                                 <% 
-                                    // Mengambil file TTD khusus milik user/pengaju yang sedang login dari kolom 'ttd' tabel Users
                                     let ttdPengajuFile = (typeof userSession !== 'undefined' && userSession.ttd) ? userSession.ttd : lembaga.ttd_pengaju; 
                                 %>
                                 <% if (showTtdPengajuImg && ttdPengajuFile) { %>

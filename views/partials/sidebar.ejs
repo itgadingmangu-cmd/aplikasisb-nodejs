@@ -116,10 +116,14 @@
                         <li class="nav-item mb-1">
                             <a href="/lembaga-admin/realisasi" class="nav-link text-white small py-1 sub-menu-link"><i class="fas fa-angle-right me-1"></i> Laporan Realisasi</a>
                         </li>
+                        <!-- Menu Konsolidasi Bulanan yang Disempurnakan -->
+                        <li class="nav-item mb-1">
+                            <a href="/lembaga-admin/bendahara/proposal-bulanan" class="nav-link text-white small py-1 sub-menu-link"><i class="fas fa-angle-right me-1"></i> Cetak Rekap Bulanan</a>
+                        </li>
                         <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>
                             <li class="nav-item mb-1">
                                 <a href="/lembaga-admin/rekap-global" class="nav-link text-white small py-1 sub-menu-link">
-                                    <i class="fas fa-file-invoice-dollar me-1"></i> Rekap Global & RAB
+                                    <i class="fas fa-file-invoice-dollar me-1"></i> Cetak Rekap Global & RAB
                                 </a>
                             </li>
                         <% } %>
