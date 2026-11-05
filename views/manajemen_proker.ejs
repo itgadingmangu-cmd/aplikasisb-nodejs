@@ -35,13 +35,13 @@
                 </div>
 
                 <!-- Notifikasi Flash Message -->
-                <% if (locals.success_msg && success_msg) { %>
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
                     <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
                         <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 <% } %>
-                <% if (locals.error_msg && error_msg) { %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
                     <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
                         <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -72,7 +72,7 @@
                                     </select>
                                 </div>
 
-                                <!-- TAMBAHAN UTAMA: Jenis Kegiatan / Anggaran (Reguler vs Insidentil) -->
+                                <!-- Jenis Kegiatan / Anggaran (Reguler vs Insidentil) -->
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small text-primary">Jenis Kegiatan / Anggaran <span class="text-danger">*</span></label>
                                     <select class="form-select border-primary shadow-sm" name="jenis" required>
@@ -166,11 +166,9 @@
                                                     </td>
                                                     <td class="text-center">
                                                         <div class="d-flex justify-content-center gap-1">
-                                                            <!-- Tombol Kelola RAB -->
                                                             <a href="/lembaga-admin/proker/rab/<%= p.id %>" class="btn btn-outline-primary btn-sm" title="Kelola RAB / Rincian Biaya">
                                                                 <i class="fas fa-calculator me-1"></i> RAB
                                                             </a>
-                                                            <!-- Tombol Edit Program Kerja -->
                                                             <% if (userSession.role === 'admin_lembaga' || p.bidangId === userSession.id_bidang) { %>
                                                                 <a href="/lembaga-admin/proker/edit/<%= p.id %>" class="btn btn-outline-warning btn-sm" title="Edit Program Kerja">
                                                                     <i class="fas fa-edit"></i>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title || 'Profil & Tanda Tangan Saya' %></title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+    </style>
+</head>
+<body>
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <!-- Memanggil Sidebar Global -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Title & Tombol Kembali -->
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Profil Pengguna & Tanda Tangan</h2>
+                        <p class="text-muted mb-0">Kelola informasi akun Anda dan unggah tanda tangan digital (TTD) pribadi untuk keperluan dokumen.</p>
+                    </div>
+                    <div>
+                        <a href="/lembaga-admin" class="btn btn-outline-primary btn-sm fw-bold shadow-sm px-3 py-2">
+                            <i class="fas fa-home me-1"></i> Kembali ke Dashboard
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Notifikasi Flash Message -->
+                <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <% 
+                    // Ambil data TTD dari currentUser atau fallback ke userSession
+                    let userTtdFile = (typeof currentUser !== 'undefined' && currentUser && currentUser.ttd) ? currentUser.ttd : ((typeof userSession !== 'undefined' && userSession && userSession.ttd) ? userSession.ttd : null);
+                %>
+
+                <div class="row g-4">
+                    <!-- Form Upload TTD -->
+                    <div class="col-lg-6">
+                        <div class="card p-4 bg-white h-100">
+                            <h5 class="fw-bold mb-3 text-dark"><i class="fas fa-file-signature text-primary me-2"></i> Pengaturan Tanda Tangan Digital</h5>
+                            
+                            <% if (userTtdFile) { %>
+                                <div class="mb-3 text-center p-3 bg-light border rounded">
+                                    <p class="text-muted small mb-1">Tanda Tangan Anda Saat Ini:</p>
+                                    <img src="/uploads/logo/<%= userTtdFile %>" alt="TTD Pribadi" style="max-height: 90px; object-fit: contain; background: #fff; padding: 5px; border: 1px dashed #ccc;">
+                                </div>
+                            <% } else { %>
+                                <div class="alert alert-warning small">
+                                    <i class="fas fa-exclamation-triangle me-1"></i> Anda belum mengunggah tanda tangan digital pribadi. Dokumen cetak akan menggunakan default lembaga.
+                                </div>
+                            <% } %>
+
+                            <form action="/lembaga-admin/profile/update-ttd" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Upload File Tanda Tangan (Format PNG/JPG Transparan, Maks. 1 MB)</label>
+                                    <input type="file" class="form-control" name="ttd" accept="image/*" required>
+                                </div>
+                                <button type="submit" class="btn btn-success fw-bold w-100 py-2">
+                                    <i class="fas fa-upload me-1"></i> Simpan Tanda Tangan
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Informasi Akun & Pratinjau TTD -->
+                    <div class="col-lg-6">
+                        <div class="card p-4 bg-white h-100">
+                            <h5 class="fw-bold mb-3 text-dark"><i class="fas fa-id-card text-primary me-2"></i> Informasi Akun</h5>
+                            <ul class="list-group list-group-flush mb-3">
+                                <li class="list-group-item d-flex justify-content-between py-2.5">
+                                    <span class="text-muted">Nama Lengkap:</span>
+                                    <span class="fw-bold text-dark"><%= currentUser ? currentUser.nama_lengkap : '-' %></span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between py-2.5">
+                                    <span class="text-muted">Username:</span>
+                                    <span class="fw-bold text-dark">@<%= currentUser ? currentUser.username : '-' %></span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between py-2.5">
+                                    <span class="text-muted">Bidang / Jabatan:</span>
+                                    <span class="fw-bold text-dark"><%= (currentUser && currentUser.Bidang) ? currentUser.Bidang.nama_bidang : (currentUser.jabatan || 'Pengurus') %></span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-2.5">
+                                    <span class="text-muted">Status TTD:</span>
+                                    <span>
+                                        <% if (userTtdFile) { %>
+                                            <span class="badge bg-success bg-opacity-10 text-success border border-success px-2 py-1">
+                                                <i class="fas fa-check-circle me-1"></i> Terunggah
+                                            </span>
+                                        <% } else { %>
+                                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1">
+                                                <i class="fas fa-times-circle me-1"></i> Belum Ada
+                                            </span>
+                                        <% } %>
+                                    </span>
+                                </li>
+                            </ul>
+
+                            <!-- Pratinjau Gambar TTD Kecil di Sini -->
+                            <% if (userTtdFile) { %>
+                                <div class="mb-3 text-center border p-2 rounded bg-light">
+                                    <span class="text-muted small d-block mb-1">Pratinjau TTD Aktif:</span>
+                                    <img src="/uploads/logo/<%= userTtdFile %>" alt="Pratinjau TTD" style="max-height: 50px; object-fit: contain;">
+                                </div>
+                            <% } %>
+                            
+                            <div class="mt-auto">
+                                <div class="alert alert-info small mb-0">
+                                    <i class="fas fa-info-circle me-1"></i> Tanda tangan yang Anda unggah di sini akan langsung terhubung secara otomatis ke setiap dokumen proposal yang Anda cetak atau ajukan.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

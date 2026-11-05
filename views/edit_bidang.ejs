@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Bidang & Tugas</title>
+    <title><%= title || 'Edit Bidang & Tanda Tangan' %></title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome Icons -->
@@ -14,52 +14,88 @@
     </style>
 </head>
 <body>
-    <div class="container py-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card p-4 bg-white">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="fw-bold text-dark mb-0">
-                            <i class="fas fa-edit text-warning me-2"></i> Edit Bidang & Uraian Tugas
-                        </h4>
-                        <a href="/lembaga-admin" class="btn btn-outline-secondary btn-sm">
-                            <i class="fas fa-arrow-left me-1"></i> Kembali
-                        </a>
+    <div class="d-flex flex-column flex-lg-row min-vh-100">
+        <!-- Memanggil Sidebar -->
+        <%- include('partials/sidebar') %>
+
+        <div class="flex-grow-1 p-3 p-md-4">
+            <div class="container-fluid px-0">
+                
+                <!-- Header Title -->
+                <div class="mb-4">
+                    <h2 class="fw-bold text-dark mb-1">Edit Bidang & Tanda Tangan</h2>
+                    <p class="text-muted mb-0">Kelola informasi penanggung jawab dan unggah tanda tangan digital (TTD) khusus untuk bidang ini.</p>
+                </div>
+
+                <!-- Notifikasi Flash Message -->
+                <% if (locals.success_msg && success_msg) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+                <% if (locals.error_msg && error_msg) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i> <%= error_msg %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
+                <!-- Form Edit Bidang & Upload TTD -->
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card p-4 bg-white">
+                            <form action="/lembaga-admin/bidang/edit/<%= bidang.id %>" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Nama Bidang</label>
+                                    <input type="text" class="form-control" name="nama_bidang" value="<%= bidang.nama_bidang %>" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Deskripsi / Tugas Bidang</label>
+                                    <textarea class="form-control" name="deskripsi_tugas" rows="3"><%= bidang.deskripsi_tugas || '' %></textarea>
+                                </div>
+
+                                <!-- Upload TTD Khusus Bidang -->
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold small">Tanda Tangan (TTD) Pengaju / Bidang</label>
+                                    <% if (bidang.ttd_bidang) { %>
+                                        <div class="mb-2 p-2 bg-light border rounded text-center" style="max-width: 200px;">
+                                            <img src="/uploads/logo/<%= bidang.ttd_bidang %>" alt="TTD Bidang" class="img-fluid" style="max-height: 65px; object-fit: contain;">
+                                        </div>
+                                    <% } %>
+                                    <input type="file" class="form-control" name="ttd_bidang" accept="image/*">
+                                    <small class="text-muted">Format: PNG/JPG transparan disarankan. Maksimal 1 MB.</small>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center mt-4">
+                                    <a href="/lembaga-admin/bidang" class="btn btn-outline-secondary fw-bold px-4">
+                                        <i class="fas fa-arrow-left me-1"></i> Kembali
+                                    </a>
+                                    <button type="submit" class="btn btn-primary fw-bold px-4 py-2">
+                                        <i class="fas fa-save me-1"></i> Simpan Perubahan
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
 
-                    <!-- Tambahkan enctype="multipart/form-data" untuk mendukung upload file -->
-                    <form action="/lembaga-admin/bidang/edit/<%= bidang.id %>" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label for="nama_bidang" class="form-label fw-bold">Nama Bidang / Bagian</label>
-                            <input type="text" class="form-control" id="nama_bidang" name="nama_bidang" value="<%= bidang.nama_bidang %>" required>
+                    <!-- Panel Informasi (Kanan) -->
+                    <div class="col-lg-4">
+                        <div class="card p-4 bg-white h-100">
+                            <h5 class="fw-bold text-dark mb-3">Informasi Bidang</h5>
+                            <p class="text-muted small">
+                                Tanda tangan yang diunggah di sini akan otomatis diterapkan pada dokumen proposal dan laporan realisasi yang diajukan oleh bidang <strong><%= bidang.nama_bidang %></strong>.
+                            </p>
+                            <div class="mt-auto pt-3 border-top">
+                                <span class="badge bg-primary bg-opacity-10 text-primary py-2 px-3 fw-bold">
+                                    ID Bidang: #<%= bidang.id %>
+                                </span>
+                            </div>
                         </div>
-
-                        <div class="mb-3">
-                            <label for="deskripsi_tugas" class="form-label fw-bold">Uraian Tugas / Jobdesk</label>
-                            <textarea class="form-control" id="deskripsi_tugas" name="deskripsi_tugas" rows="5"><%= bidang.deskripsi_tugas ? bidang.deskripsi_tugas : '' %></textarea>
-                            <div class="form-text">Sesuaikan kembali poin-poin tugas pokok dan fungsi (tupoksi) untuk bidang ini.</div>
-                        </div>
-
-                        <!-- TAMBAHAN: Upload Tanda Tangan Khusus Bidang -->
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Tanda Tangan (TTD) Penanggung Jawab Bidang (Opsional)</label>
-                            <% if (bidang.ttd_bidang) { %>
-                                <div class="mb-2">
-                                    <img src="/uploads/logo/<%= bidang.ttd_bidang %>" alt="TTD Bidang" class="img-thumbnail border bg-light p-1" style="max-height: 50px;">
-                                </div>
-                            <% } %>
-                            <input type="file" class="form-control" name="ttd_bidang" accept="image/*">
-                            <small class="text-muted">Format: PNG/JPG transparan. Digunakan untuk opsi TTD pengaju/bidang saat cetak dokumen. Maksimal 1 MB.</small>
-                        </div>
-
-                        <div class="d-flex justify-content-end gap-2">
-                            <a href="/lembaga-admin" class="btn btn-secondary">Batal</a>
-                            <button type="submit" class="btn btn-warning fw-bold px-4 text-dark">
-                                <i class="fas fa-save me-1"></i> Simpan Perubahan
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
+
             </div>
         </div>
     </div>

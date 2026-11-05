@@ -102,7 +102,7 @@
                 </div>
             </li>
 
-            <!-- MENU KEUANGAN & LAPORAN (Direlokasi Rekap Global & RAB ke sini) -->
+            <!-- MENU KEUANGAN & LAPORAN -->
             <li class="nav-item mb-1">
                 <a href="#keuanganSubmenu" data-bs-toggle="collapse" class="nav-link text-white d-flex justify-content-between align-items-center text-decoration-none">
                     <span><i class="fas fa-wallet me-2"></i> Keuangan & Laporan</span>
@@ -116,7 +116,6 @@
                         <li class="nav-item mb-1">
                             <a href="/lembaga-admin/realisasi" class="nav-link text-white small py-1 sub-menu-link"><i class="fas fa-angle-right me-1"></i> Laporan Realisasi</a>
                         </li>
-                        <!-- Menu Rekapitulasi Global Tahunan dipindah ke sini agar sesuai fungsinya -->
                         <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>
                             <li class="nav-item mb-1">
                                 <a href="/lembaga-admin/rekap-global" class="nav-link text-white small py-1 sub-menu-link">
@@ -126,6 +125,13 @@
                         <% } %>
                     </ul>
                 </div>
+            </li>
+
+            <!-- MENU PROFIL & TANDA TANGAN (Dapat diakses SEMUA Akun/Pengguna secara mandiri) -->
+            <li class="nav-item mb-1">
+                <a href="/lembaga-admin/profile" class="nav-link text-white sub-menu-link">
+                    <i class="fas fa-file-signature me-2"></i> Tanda Tangan & Profil Saya
+                </a>
             </li>
 
             <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>

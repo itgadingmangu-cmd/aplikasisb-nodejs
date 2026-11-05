@@ -20,8 +20,12 @@
         .signature-box { min-height: 95px; position: relative; display: flex; align-items: center; justify-content: center; }
         
         @media print {
-            body { background: none; }
-            .sheet { width: 100%; margin: 0; padding: 10mm; box-shadow: none; }
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+            body { background: none; margin: 0; }
+            .sheet { width: 100%; margin: 0; padding: 5mm; box-shadow: none; }
             .no-print { display: none !important; }
             .page-break-safe { page-break-inside: avoid; }
         }
@@ -50,9 +54,47 @@
             <% } %>
         </div>
 
+        <!-- Header Judul & Periode di Atas -->
         <div class="text-center my-3">
             <h4 class="fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px;">Laporan Realisasi Anggaran</h4>
-            <p class="text-dark mb-5 fw-semibold">Tahun Anggaran: <%= tahunAktif %></p>
+            <p class="text-dark small mb-0 fw-semibold">Tahun Anggaran: <%= tahunAktif %></p>
+            <% if (typeof query !== 'undefined' && query.start_date && query.end_date) { %>
+                <% 
+                    // Fungsi helper untuk format tanggal Indonesia
+                    function formatTglIndo(dateStr) {
+                        if (!dateStr) return '';
+                        const d = new Date(dateStr);
+                        if (isNaN(d)) return dateStr;
+                        const bulanArr = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                        return d.getDate() + " " + bulanArr[d.getMonth()] + " " + d.getFullYear();
+                    }
+
+                    // Hitung estimasi durasi bulan secara otomatis
+                    let dStart = new Date(query.start_date);
+                    let dEnd = new Date(query.end_date);
+                    let diffTime = Math.abs(dEnd - dStart);
+                    let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    let labelDurasi = '';
+                    
+                    if (diffDays >= 340 && diffDays <= 380) {
+                        labelDurasi = ' (Laporan Tahunan)';
+                    } else if (diffDays >= 80 && diffDays <= 100) {
+                        labelDurasi = ' (Laporan Triwulanan / 3 Bulan)';
+                    } else if (diffDays >= 170 && diffDays <= 190) {
+                        labelDurasi = ' (Laporan Semesteran / 6 Bulan)';
+                    } else if (diffDays >= 25 && diffDays <= 32) {
+                        labelDurasi = ' (Laporan Bulanan)';
+                    } else {
+                        let estimasiBulan = Math.round(diffDays / 30);
+                        if (estimasiBulan > 1) {
+                            labelDurasi = ' (Periode ' + estimasiBulan + ' Bulan)';
+                        }
+                    }
+                %>
+                <p class="text-dark small mb-0 mt-1 fw-semibold">
+                    Periode: <%= formatTglIndo(query.start_date) %> s.d. <%= formatTglIndo(query.end_date) %> <%= labelDurasi %>
+                </p>
+            <% } %>
         </div>
 
         <!-- Tabel Rekapitulasi Keuangan -->
@@ -60,11 +102,12 @@
             <table class="table table-financial align-middle">
                 <thead>
                     <tr>
-                        <th style="width: 6%;">No</th>
-                        <th style="width: 34%;">Program Kerja & Bidang</th>
-                        <th style="width: 20%;">Total RAB (Rencana)</th>
-                        <th style="width: 20%;">Total Realisasi (Riil)</th>
-                        <th style="width: 20%;">Sisa / Selisih</th>
+                        <th style="width: 5%;">No</th>
+                        <th style="width: 29%;">Program Kerja & Bidang</th>
+                        <th style="width: 14%;">Tgl Realisasi</th>
+                        <th style="width: 17%;">Total RAB (Rencana)</th>
+                        <th style="width: 17%;">Total Realisasi (Riil)</th>
+                        <th style="width: 18%;">Sisa / Selisih</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -79,6 +122,22 @@
                                 let totalRealisasi = p.Realisasis ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0) : 0;
                                 let selisih = totalRAB - totalRealisasi;
 
+                                // Mengambil Tanggal Realisasi secara aman
+                                let tanggalRealisasiStr = '-';
+                                if (p.Realisasis && p.Realisasis.length > 0) {
+                                    let tgls = p.Realisasis.map(r => {
+                                        let rawTgl = r.tanggal || r.tanggal_realisasi || r.createdAt;
+                                        if (rawTgl) {
+                                            let d = new Date(rawTgl);
+                                            return d.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'});
+                                        }
+                                        return null;
+                                    }).filter(Boolean);
+                                    if (tgls.length > 0) {
+                                        tanggalRealisasiStr = [...new Set(tgls)].join(', ');
+                                    }
+                                }
+
                                 grandTotalRAB += totalRAB;
                                 grandTotalRealisasi += totalRealisasi;
                             %>
@@ -88,22 +147,30 @@
                                     <span class="fw-bold text-dark"><%= p.nama_program || p.nama_proker %></span><br>
                                     <small class="text-secondary fst-italic"><%= p.Bidang ? p.Bidang.nama_bidang : 'Umum' %></small>
                                 </td>
-                                <td class="text-end">Rp <%= totalRAB.toLocaleString('id-ID') %></td>
-                                <td class="text-end">Rp <%= totalRealisasi.toLocaleString('id-ID') %></td>
-                                <td class="text-end fw-semibold <%= selisih < 0 ? 'text-danger' : 'text-dark' %>">
+                                <td class="text-center small"><%= tanggalRealisasiStr %></td>
+                                <td class="text-end" style="white-space: nowrap;">Rp <%= totalRAB.toLocaleString('id-ID') %></td>
+                                <td class="text-end" style="white-space: nowrap;">Rp <%= totalRealisasi.toLocaleString('id-ID') %></td>
+                                <td class="text-end fw-semibold <%= selisih < 0 ? 'text-danger' : 'text-dark' %>" style="white-space: nowrap;">
                                     Rp <%= selisih.toLocaleString('id-ID') %>
                                 </td>
                             </tr>
                         <% }) %>
                         <tr class="table-light fw-bold" style="background-color: #f1f3f5 !important;">
-                            <td colspan="2" class="text-end py-2">TOTAL KESELURUHAN:</td>
-                            <td class="text-end py-2">Rp <%= grandTotalRAB.toLocaleString('id-ID') %></td>
-                            <td class="text-end py-2">Rp <%= grandTotalRealisasi.toLocaleString('id-ID') %></td>
-                            <td class="text-end py-2">Rp <%= (grandTotalRAB - grandTotalRealisasi).toLocaleString('id-ID') %></td>
+                            <td colspan="3" class="text-end py-2">TOTAL KESELURUHAN:</td>
+                            <td class="text-end py-2" style="white-space: nowrap;">Rp <%= grandTotalRAB.toLocaleString('id-ID') %></td>
+                            <td class="text-end py-2" style="white-space: nowrap;">Rp <%= grandTotalRealisasi.toLocaleString('id-ID') %></td>
+                            <td class="text-end py-2" style="white-space: nowrap;">Rp <%= (grandTotalRAB - grandTotalRealisasi).toLocaleString('id-ID') %></td>
                         </tr>
                     <% } else { %>
                         <tr>
-                            <td colspan="5" class="text-center py-4 text-muted fst-italic">Belum ada data program kerja atau realisasi pada tahun anggaran ini.</td>
+                            <td colspan="6" class="text-center py-4 text-muted fst-italic">
+                                Belum ada data program kerja atau realisasi 
+                                <% if (typeof query !== 'undefined' && query.start_date && query.end_date) { %>
+                                    pada rentang tanggal <%= query.start_date %> s.d. <%= query.end_date %>
+                                <% } else { %>
+                                    pada Tahun Anggaran <%= tahunAktif %>
+                                <% } %>.
+                            </td>
                         </tr>
                     <% } %>
                 </tbody>
@@ -140,7 +207,7 @@
         %>
 
         <div class="mt-4 pt-2 page-break-safe">
-            <!-- Baris Tanggal Pengajuan -->
+            <!-- Baris Tanggal Tanda Tangan di Bawah -->
             <div class="row text-center mb-1">
                 <div class="col-6"></div>
                 <div class="col-6">
@@ -159,11 +226,10 @@
                     <!-- JIKA LOGIN PIMPINAN / KETUA / ADMIN -->
                     <% if (showKolomPengaju) { %>
                         <div class="col-6 mb-4 position-relative">
-                            <p class="mb-1">Mengetahui,</p>
+                            <p class="mb-1">Dibuat Oleh,</p>
                             <p class="fw-bold mb-2">Ketua <%= toTitleCase(lembaga.nama_organisasi) %></p>
                             
                             <div class="signature-box mb-2">
-                                <!-- Stempel Digital Diperbesar -->
                                 <% if (showStempel && lembaga.stempel) { %>
                                     <div style="position: absolute; left: 20%; transform: translateX(-50%); top: -15px; opacity: 0.85; pointer-events: none; z-index: 2;">
                                         <img src="/uploads/logo/<%= lembaga.stempel %>" alt="Stempel Lembaga" style="width: 180px; height: 150px; object-fit: contain;">
@@ -183,7 +249,7 @@
 
                     <% if (showKolomKetua) { %>
                         <div class="col-6 mb-4">
-                            <p class="mb-1">Mengesahkan / Menyetujui,</p>
+                            <p class="mb-1">Mengetahui / Menyetujui,</p>
                             <p class="fw-bold mb-2">Pembina <%= toTitleCase(lembaga.nama_organisasi) %></p>
                             
                             <div class="signature-box mb-2">
@@ -199,15 +265,19 @@
                     <% } %>
 
                 <% } else { %>
-                    <!-- JIKA LOGIN BIDANG -->
+                    <!-- JIKA LOGIN BIDANG / PENGAJU -->
                     <% if (showKolomPengaju) { %>
                         <div class="col-6 mb-4">
                             <p class="mb-1">Dibuat Oleh,</p>
                             <p class="fw-bold mb-2">Pengaju / Bidang</p>
                             
                             <div class="signature-box mb-2">
-                                <% if (showTtdPengajuImg && lembaga.ttd_pengaju) { %>
-                                    <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 85px; width: auto; object-fit: contain;">
+                                <% 
+                                    // Mengambil file TTD khusus milik user/pengaju yang sedang login dari kolom 'ttd' tabel Users
+                                    let ttdPengajuFile = (typeof userSession !== 'undefined' && userSession.ttd) ? userSession.ttd : lembaga.ttd_pengaju; 
+                                %>
+                                <% if (showTtdPengajuImg && ttdPengajuFile) { %>
+                                    <img src="/uploads/logo/<%= ttdPengajuFile %>" alt="TTD Pengaju" style="max-height: 85px; width: auto; object-fit: contain;">
                                 <% } %>
                             </div>
 

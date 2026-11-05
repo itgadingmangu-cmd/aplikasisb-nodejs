@@ -1,14 +1,13 @@
 'use strict';
-// GABUNGKAN 'Proposal' ke dalam import yang sudah ada agar tidak terjadi crash
-const { Proker, Bidang, RincianBiaya, Proposal, Lembaga, User } = require('../models');
+const { Proker, Bidang, RincianBiaya, Proposal, Lembaga, User, Realisasi } = require('../models');
+const { Op } = require('sequelize');
 
 const prokerController = {
     index: async (req, res) => {
         try {
             const lembagaId = req.session.user.lembagaId;
-            const tahunAktif = req.tahunAktif || 2026; // Mengambil tahun aktif dari router
+            const tahunAktif = req.tahunAktif || 2026;
 
-            // Ambil bidang berdasarkan lembaga dan tahun aktif
             const bidangLembaga = await Bidang.findAll({ 
                 where: { 
                     lembagaId: lembagaId, 
@@ -17,11 +16,10 @@ const prokerController = {
             });
             const bidangIds = bidangLembaga.map(b => b.id);
 
-            // Ambil proker difilter berdasarkan bidang tahun aktif tersebut
             const prokers = await Proker.findAll({
                 where: { 
                     bidangId: bidangIds,
-                    tahun: tahunAktif // Isolasi data proker per tahun
+                    tahun: tahunAktif 
                 },
                 include: [{ model: Bidang, as: 'Bidang', attributes: ['nama_bidang'] }],
                 order: [['createdAt', 'DESC']]
@@ -39,7 +37,6 @@ const prokerController = {
         }
     },
 
-    // Menampilkan form tambah proker (difilter berdasarkan tahun aktif)
     create: async (req, res) => {
         try {
             const lembagaId = req.session.user.lembagaId;
@@ -63,13 +60,11 @@ const prokerController = {
         }
     },
 
-    // Menyimpan data proker baru ke database dengan menyertakan tahun aktif & dukungan jenis (Reguler / Insidentil)
     store: async (req, res) => {
         try {
             const { nama_program, bidangId, status, deskripsi, jenis } = req.body;
             const tahunAktif = req.tahunAktif || 2026;
             
-            // PENYEMPURNAAN ALUR: Mendukung pengambilan dari waktu_pelaksanaan ataupun checkbox bulan
             let bulanPelaksanaan = req.body.waktu_pelaksanaan || req.body.bulan;
             if (Array.isArray(bulanPelaksanaan)) {
                 bulanPelaksanaan = bulanPelaksanaan.join(',');
@@ -83,9 +78,9 @@ const prokerController = {
                 waktu_pelaksanaan: bulanPelaksanaan,
                 status: status || 'Direncanakan',
                 deskripsi,
-                anggaran: 0, // Standar awal anggaran bersih 0
-                jenis: jenis || 'Reguler', // <-- MENANGKAP INPUT REGULER / INSIDENTIL DENGAN AMAN
-                tahun: tahunAktif // Disematkan tahun aktif agar terisolasi dengan sempurna
+                anggaran: 0,
+                jenis: jenis || 'Reguler',
+                tahun: tahunAktif
             });
 
             req.session.success_msg = 'Program Kerja / Kegiatan berhasil ditambahkan!';
@@ -97,12 +92,10 @@ const prokerController = {
         }
     },
 
-    // Menyimpan rincian RAB dengan validasi aman dari error tipe data integer/strip ("-")
     storeRAB: async (req, res) => {
         try {
             const { prokerId, nama_item, satuan } = req.body;
             
-            // Validasi & konversi aman ke angka (mencegah string/strip "-" masuk ke kolom integer)
             const volume = parseInt(req.body.volume || req.body.jumlah) || 0;
             const harga_satuan = parseInt(req.body.harga_satuan) || 0;
             const total = volume * harga_satuan;
@@ -125,10 +118,9 @@ const prokerController = {
         }
     },
 
-   // 1. Aksi Pengaju mengirim/mengajukan proposal dari Draft ke Status "Diajukan"
    ajukanProposal: async (req, res) => {
         try {
-            const { id } = req.params; // ID Proposal
+            const { id } = req.params; 
             const proposal = await Proposal.findByPk(id); 
 
             if (!proposal) {
@@ -136,7 +128,6 @@ const prokerController = {
                 return res.redirect('/lembaga-admin/proker');
             }
 
-            // Ubah status menjadi Diajukan
             proposal.status = 'Diajukan';
             await proposal.save();
 
@@ -149,11 +140,9 @@ const prokerController = {
         }
     },
 
-   // 2. Aksi Ketua/Admin mereview: Menyetujui atau Meminta Revisi DAN MENGATUR TTD
     reviewApprovalKetua: async (req, res) => {
         try {
             const { id } = req.params;
-            // Dapatkan SEMUA data dari body, termasuk konfigurasi TTD dan Stempel
             const { 
                 aksi, 
                 catatan_revisi, 
@@ -168,14 +157,12 @@ const prokerController = {
                 show_pembina 
             } = req.body; 
 
-            // Cari proposal untuk mengambil prokerId dan lembagaId
             const proposal = await Proposal.findByPk(id); 
             if (!proposal) {
                 req.session.error_msg = 'Proposal tidak ditemukan.';
                 return res.redirect('/lembaga-admin/proposal');
             }
 
-            // Tentukan keputusan final dengan pembersihan string (trim) & pengecilan huruf (toLowerCase)
             const rawKeputusan = aksi || status || '';
             const keputusan = rawKeputusan.trim().toLowerCase();
             
@@ -195,7 +182,6 @@ const prokerController = {
                 catatanBaru = catatan_revisi || 'Mohon perbaiki proposal.';
             }
 
-            // A. Eksekusi pembaruan database untuk tabel PROPOSAL secara langsung
             await Proposal.update({
                 status: statusBaru,
                 catatan_revisi: catatanBaru
@@ -203,7 +189,6 @@ const prokerController = {
                 where: { id: id }
             });
 
-            // B. Eksekusi pembaruan database untuk tabel LEMBAGA (Konfigurasi TTD/Stempel)
             if (proposal.lembagaId) {
                 await Lembaga.update({
                     print_stempel: show_stempel ? true : false,
@@ -228,10 +213,8 @@ const prokerController = {
         }
     },
 
-    // 3. Aksi Bendahara: Menyetujui Pencairan atau Menolak dengan Alasan (Menggunakan ENUM asli database)
     prosesPencairanBendahara: async (req, res) => {
         try {
-            // 1. Validasi Keamanan Hak Akses Bendahara
             const user = req.session.user;
             if (!user || (user.hierarki !== 'Bendahara' && user.nama_bidang !== 'Bendahara')) {
                 req.session.error_msg = 'Akses ditolak! Hanya Bendahara yang berhak memproses eksekusi keuangan.';
@@ -241,14 +224,12 @@ const prokerController = {
             const { id } = req.params;
             const { keputusan_bendahara, alasan_penolakan } = req.body; 
 
-            // 2. Cari proposal untuk memastikan keberadaan data
             const proposal = await Proposal.findByPk(id); 
             if (!proposal) {
                 req.session.error_msg = 'Proposal tidak ditemukan di dalam database.';
                 return res.redirect('/lembaga-admin/proposal');
             }
 
-            // 3. Pembersihan input keputusan
             const keputusan = (keputusan_bendahara || '').trim().toLowerCase();
             let statusBaru = 'Disetujui';
             let catatanBaru = null;
@@ -266,7 +247,6 @@ const prokerController = {
                 return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
             }
 
-            // 4. Eksekusi UPDATE eksplisit ke database dengan status ENUM baru
             await Proposal.update({
                 status: statusBaru,
                 catatan_revisi: catatanBaru
@@ -283,13 +263,55 @@ const prokerController = {
         }
     },
 
-    // Cetak Rekap / Dokumen Berdasarkan Bidang
+    // Cetak Dokumen Proposal (Disempurnakan agar mengambil TTD Pengaju/User secara akurat)
+    printProposal: async (req, res) => {
+        try {
+            const { id } = req.params; 
+            const proposal = await Proposal.findByPk(id, {
+                include: [
+                    { 
+                        model: Proker, 
+                        as: 'Proker', 
+                        include: [{ model: Bidang, as: 'Bidang' }] 
+                    },
+                    { model: User, as: 'User' }, 
+                    { model: Lembaga, as: 'Lembaga' }
+                ]
+            });
+
+            if (!proposal) {
+                req.session.error_msg = 'Dokumen proposal tidak ditemukan.';
+                return res.redirect('/lembaga-admin/proker');
+            }
+
+            // Fallback pengaman jika relasi proposal.User belum tersimpan di database, ambil dari session login aktif
+            if (!proposal.User && req.session.user) {
+                proposal.User = {
+                    nama_lengkap: req.session.user.nama_lengkap,
+                    jabatan: req.session.user.jabatan,
+                    ttd: req.session.user.ttd
+                };
+            }
+
+            const lembaga = await Lembaga.findByPk(proposal.lembagaId || req.session.user.lembagaId);
+
+            return res.render('proker/print_proposal', {
+                title: 'Cetak Proposal Kegiatan',
+                proposal,
+                lembaga: lembaga || {},
+                userSession: req.session.user
+            });
+        } catch (error) {
+            console.error("ERROR PRINT PROPOSAL:", error);
+            return res.status(500).send('Terjadi kesalahan saat memuat cetak proposal: ' + error.message);
+        }
+    },
+
     cetakPerBidang: async (req, res) => {
         try {
             const { bidangId } = req.params;
             const lembagaId = req.session.user.lembagaId;
 
-            // Ambil data bidang beserta daftar proker dan rincian biayanya
             const bidang = await Bidang.findOne({
                 where: { id: bidangId, lembagaId: lembagaId },
                 include: [{
@@ -304,7 +326,6 @@ const prokerController = {
                 return res.redirect('/proker');
             }
 
-            // Ambil data lembaga untuk konfigurasi ttd/stempel
             const lembaga = await Lembaga.findByPk(lembagaId);
 
             res.render('proker/print_bidang', {
@@ -316,6 +337,58 @@ const prokerController = {
         } catch (error) {
             console.error("ERROR CETAK PER BIDANG:", error);
             res.status(500).send('Terjadi kesalahan saat memuat cetak bidang: ' + error.message);
+        }
+    },
+
+    printRealisasi: async (req, res) => {
+        try {
+            const lembagaId = req.session.user.lembagaId;
+            const tahunAktif = req.tahunAktif || 2026;
+            const { start_date, end_date } = req.query;
+
+            let realisasiWhere = {};
+            if (start_date && end_date) {
+                realisasiWhere.tanggal = {
+                    [Op.between]: [start_date, end_date]
+                };
+            }
+
+            const bidangLembaga = await Bidang.findAll({ 
+                where: { lembagaId: lembagaId, tahun: tahunAktif } 
+            });
+            const bidangIds = bidangLembaga.map(b => b.id);
+
+            const listProker = await Proker.findAll({
+                where: { 
+                    bidangId: bidangIds,
+                    tahun: tahunAktif 
+                },
+                include: [
+                    { model: RincianBiaya, as: 'RincianBiayas' },
+                    { 
+                        model: Realisasi, 
+                        as: 'Realisasis',
+                        where: realisasiWhere,
+                        required: false 
+                    },
+                    { model: Bidang, as: 'Bidang', attributes: ['nama_bidang'] }
+                ],
+                order: [['createdAt', 'DESC']]
+            });
+
+            const lembaga = await Lembaga.findByPk(lembagaId);
+
+            return res.render('print_realisasi', {
+                title: 'Cetak Laporan Realisasi Anggaran',
+                tahunAktif,
+                listProker,
+                lembaga: lembaga || {},
+                userSession: req.session.user,
+                query: req.query
+            });
+        } catch (error) {
+            console.error("ERROR PRINT REALISASI:", error);
+            return res.status(500).send('Terjadi kesalahan saat memuat pratinjau cetak: ' + error.message);
         }
     }
 };

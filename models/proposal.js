@@ -7,6 +7,9 @@ module.exports = (sequelize, DataTypes) => {
             Proposal.belongsTo(models.Proker, { foreignKey: 'prokerId', as: 'Proker' });
             Proposal.belongsTo(models.Lembaga, { foreignKey: 'lembagaId', as: 'Lembaga' });
             
+            // DITAMBAHKAN: Relasi aman ke User (Pengaju Proposal) agar TTD dinamis terbaca
+            Proposal.belongsTo(models.User, { foreignKey: 'userId', as: 'User' });
+            
             // Relasi aman ke RealisasiLpj untuk Modul LPJ (Tahap 5)
             Proposal.hasOne(models.RealisasiLpj, { foreignKey: 'proposalId', as: 'RealisasiLpj' });
         }
@@ -20,6 +23,10 @@ module.exports = (sequelize, DataTypes) => {
         lembagaId: {
             type: DataTypes.INTEGER,
             allowNull: false
+        },
+        userId: {
+            type: DataTypes.INTEGER,
+            allowNull: true // Menyimpan ID user/pengaju yang membuat proposal
         },
         latar_belakang: {
             type: DataTypes.TEXT,

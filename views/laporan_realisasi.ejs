@@ -142,7 +142,26 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-muted small mb-3">Pilih format instan tanda tangan atau sesuaikan komponen di bawah ini:</p>
+                    
+                    <!-- FILTER RENTANG WAKTU / PERIODE -->
+                    <div class="mb-3 p-3 bg-light rounded-3 border">
+                        <label class="form-label small fw-bold text-dark mb-2">
+                            <i class="fas fa-calendar-range text-primary me-1"></i> Periode Laporan (Opsional):
+                        </label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted" style="font-size: 11px;">Dari Tanggal</label>
+                                <input type="date" class="form-control form-control-sm" id="modalStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted" style="font-size: 11px;">Sampai Tanggal</label>
+                                <input type="date" class="form-control form-control-sm" id="modalEndDate">
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-1" style="font-size: 11px;">*Kosongkan jika ingin mencetak rekap penuh satu tahun anggaran.</small>
+                    </div>
+
+                    <p class="text-muted small mb-2">Pilih format instan tanda tangan atau sesuaikan komponen di bawah ini:</p>
                     
                     <!-- DROPDOWN PRESET PILIHAN CEPAT -->
                     <div class="mb-3">
@@ -262,6 +281,9 @@
         });
 
         document.getElementById('btnProsesCetak').addEventListener('click', function() {
+            const startDate = document.getElementById('modalStartDate').value;
+            const endDate = document.getElementById('modalEndDate').value;
+            
             const stempel = document.getElementById('modalStempel') ? document.getElementById('modalStempel').checked : true;
             const ttdKetuaImg = document.getElementById('modalTtdKetuaImg') ? document.getElementById('modalTtdKetuaImg').checked : true;
             const ttdPengajuImg = document.getElementById('modalTtdPengajuImg') ? document.getElementById('modalTtdPengajuImg').checked : true;
@@ -270,6 +292,8 @@
             const kolom6Pembina = document.getElementById('modalKolom6Pembina') ? document.getElementById('modalKolom6Pembina').checked : false;
 
             const queryParams = new URLSearchParams({
+                start_date: startDate,
+                end_date: endDate,
                 show_stempel: stempel,
                 show_ttd_ketua_img: ttdKetuaImg,
                 show_ttd_pengaju_img: ttdPengajuImg,

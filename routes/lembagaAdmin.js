@@ -8,7 +8,11 @@ const bcrypt = require('bcrypt');
 const ExcelJS = require('exceljs');
 const prokerController = require('../controllers/prokerController'); 
 const realisasiLpjController = require('../controllers/realisasiLpjController');
+const lembagaAdminController = require('../controllers/lembagaAdminController');
 const uploadLpjFiles = require('../config/multerLpj');
+
+// --- PANGGIL MIDDLEWARE DI ATAS SEBELUM DIGUNAKAN PADA RUTE ---
+const { isLoggedIn, isAdminLembaga } = require('../middleware/auth');
 
 // --- KONFIGURASI MULTER UNTUK UPLOAD LOGO & TTD ---
 const storage = multer.diskStorage({
@@ -20,6 +24,34 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage });
+
+// --- MODUL PROFIL & UPLOAD TTD PRIBADI ---
+router.get('/profile', isLoggedIn, async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const currentUser = await User.findByPk(userId, {
+            include: [{ model: Bidang, as: 'Bidang' }]
+        });
+
+        const success_msg = req.session.success_msg || null;
+        const error_msg = req.session.error_msg || null;
+        delete req.session.success_msg;
+        delete req.session.error_msg;
+
+        return res.render('profile', {
+            title: 'Profil & Tanda Tangan Saya',
+            userSession: req.session.user,
+            currentUser,
+            success_msg,
+            error_msg
+        });
+    } catch (err) {
+        console.error("Gagal memuat halaman profil:", err);
+        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
+router.post('/profile/update-ttd', isLoggedIn, upload.single('ttd'), lembagaAdminController.updateTtdProfile);
 
 // --- KONFIGURASI MULTER KHUSUS UNTUK UPLOAD BUKTI NOTA REALISASI (Maks. 1 MB) ---
 const uploadRealizDir = path.join(__dirname, '../public/uploads/realisasi');
@@ -50,8 +82,6 @@ const uploadRealisasi = multer({
         cb(new Error('Hanya mengizinkan file gambar (JPG/PNG) atau PDF dengan ukuran maksimal 1 MB!'));
     }
 }).single('bukti_nota');
-
-const { isLoggedIn, isAdminLembaga } = require('../middleware/auth');
 
 // --- MIDDLEWARE KHUSUS BENDAHARA UTAMA ---
 function ensureBendaharaUtama(req, res, next) {
@@ -367,7 +397,6 @@ router.get('/', isLoggedIn, async (req, res) => {
             }
         }
 
-        // Tentukan label judul panel secara dinamis
         let titlePanel = 'Panel Bidang: ' + (user.jabatan || 'Pengurus');
         if (user.role === 'admin_lembaga' || user.role === 'superadmin') {
             if (user.jabatan === 'Bendahara' || user.role === 'bendahara_utama') {
@@ -683,7 +712,7 @@ router.get('/proker', isLoggedIn, async (req, res) => {
     }
 });
 
-router.post('/proker/tambah', isLoggedIn, async (req, res) => {
+router.post('/proker/tambah', isLoggedIn, lembagaAdminController.storeProker, async (req, res) => {
     try {
         const { nama_program, bidangId, deskripsi, status } = req.body;
         const lembagaId = req.session.user.lembagaId;
@@ -1371,7 +1400,7 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
             pengaturan,
             tahunAktif: tahunAktifInt,
             userSession: user,
-            query: req.query // Kirim objek query ke EJS
+            query: req.query 
         });
     } catch (err) {
         console.error("Gagal mencetak laporan realisasi:", err);
@@ -1553,7 +1582,8 @@ router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
                         { model: Bidang, as: 'Bidang' },
                         { model: RincianBiaya, as: 'RincianBiayas' }
                     ]
-                }
+                },
+                { model: User, as: 'User' }
             ]
         });
 
@@ -1675,7 +1705,6 @@ router.post('/setting/update', isLoggedIn, upload.fields([
     { name: 'kop_surat', maxCount: 1 },
     { name: 'stempel', maxCount: 1 },
     { name: 'ttd_ketua', maxCount: 1 },
-    { name: 'ttd_pengaju', maxCount: 1 },
     { name: 'ttd_pembina_senkom', maxCount: 1 }
 ]), async (req, res) => {
     try {
@@ -1724,9 +1753,6 @@ router.post('/setting/update', isLoggedIn, upload.fields([
         }
         if (req.files && req.files.ttd_ketua) {
             lembaga.ttd_ketua = req.files.ttd_ketua[0].filename;
-        }
-        if (req.files && req.files.ttd_pengaju) {
-            lembaga.ttd_pengaju = req.files.ttd_pengaju[0].filename;
         }
         if (req.files && req.files.ttd_pembina_senkom) {
             lembaga.ttd_pembina_senkom = req.files.ttd_pembina_senkom[0].filename;

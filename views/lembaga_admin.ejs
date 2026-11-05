@@ -149,6 +149,34 @@
 </div>
 
 <!-- ========================================================= -->
+<!-- WIDGET STATUS TANDA TANGAN PRIBADI (UNTUK AKUN BIDANG/USER) -->
+<!-- ========================================================= -->
+<div class="card bg-white border-start border-primary border-4 p-3 mb-4 shadow-sm">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div class="d-flex align-items-center">
+            <div class="icon-box bg-primary bg-opacity-10 text-primary fs-4 me-3">
+                <i class="fas fa-file-signature"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold text-dark mb-1">Tanda Tangan Digital (TTD) Pribadi Anda</h6>
+                <p class="text-muted small mb-0">
+                    <% if (typeof userSession !== 'undefined' && userSession.ttd) { %>
+                        <span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Tanda tangan sudah diunggah dan otomatis diterapkan pada dokumen cetak proposal Anda.</span>
+                    <% } else { %>
+                        <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> Anda belum mengunggah tanda tangan digital pribadi. Segera unggah agar proposal Anda menampilkan TTD yang benar.</span>
+                    <% } %>
+                </p>
+            </div>
+        </div>
+        <div>
+            <a href="/lembaga-admin/profile" class="btn btn-primary btn-sm fw-bold px-3 py-2 shadow-sm text-nowrap">
+                <i class="fas fa-upload me-1"></i> Kelola / Upload TTD
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================= -->
 <!-- WIDGET NOTIFIKASI & RIWAYAT STATUS (COMPACT & SIMPLE)     -->
 <!-- ========================================================= -->
 <div class="card p-3 bg-white mb-4 shadow-sm">

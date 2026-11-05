@@ -170,7 +170,7 @@
             let showStempel        = Boolean(lembaga.print_stempel);
             let showTtdKetuaImg    = Boolean(lembaga.print_ttd_ketua_img);
             let showTtdPengajuImg  = Boolean(lembaga.print_ttd_pengaju_img);
-            let showTtdPembinaImg = Boolean(lembaga.print_ttd_pembina_img);
+            let showTtdPembinaImg  = Boolean(lembaga.print_ttd_pembina_img);
             let showKetua          = Boolean(lembaga.print_ketua);
             let showPengaju        = Boolean(lembaga.print_pengaju);
             let showPembinaLembaga = Boolean(lembaga.print_pembina_lembaga);
@@ -204,8 +204,8 @@
                     <div class="col-6 mb-4">
                         <p class="mb-1">Diajukan Oleh,</p>
                         <p class="fw-bold mb-2">
-                            <% if (typeof userSession !== 'undefined' && userSession.jabatan && userSession.jabatan.trim() !== '') { %>
-                                <%= userSession.jabatan %>
+                            <% if (proposal.User && proposal.User.jabatan && proposal.User.jabatan.trim() !== '') { %>
+                                <%= proposal.User.jabatan %>
                             <% } else if (proker && proker.Bidang && proker.Bidang.nama_bidang) { %>
                                 <%= proker.Bidang.nama_bidang %>
                             <% } else { %>
@@ -214,14 +214,16 @@
                         </p>
                         
                         <div class="signature-box mb-2" style="min-height: 100px;">
-                            <% if (showTtdPengajuImg && proker && proker.Bidang && proker.Bidang.ttd_bidang) { %>
-                                <img src="/uploads/logo/<%= proker.Bidang.ttd_bidang %>" alt="TTD Bidang" style="max-height: 130px; width: auto; object-fit: contain;">
-                            <% } else if (showTtdPengajuImg && lembaga.ttd_pengaju) { %>
-                                <img src="/uploads/logo/<%= lembaga.ttd_pengaju %>" alt="TTD Pengaju" style="max-height: 100px; width: auto; object-fit: contain;">
+                            <% 
+                                // Prioritaskan mengambil TTD dari user pembuat proposal (proposal.User.ttd), fallback ke lembaga.ttd_pengaju
+                                let ttdPengajuProposal = (proposal.User && proposal.User.ttd) ? proposal.User.ttd : lembaga.ttd_pengaju;
+                            %>
+                            <% if (showTtdPengajuImg && ttdPengajuProposal) { %>
+                                <img src="/uploads/logo/<%= ttdPengajuProposal %>" alt="TTD Pengaju" style="max-height: 100px; width: auto; object-fit: contain;">
                             <% } %>
                         </div>
 
-                        <p class="fw-bold mb-0 text-decoration-underline"><%= (typeof userSession !== 'undefined' && userSession.nama_lengkap) ? userSession.nama_lengkap : 'Diyanto, S.Pd' %></p>
+                        <p class="fw-bold mb-0 text-decoration-underline"><%= (proposal.User && proposal.User.nama_lengkap) ? proposal.User.nama_lengkap : ((typeof userSession !== 'undefined' && userSession.nama_lengkap) ? userSession.nama_lengkap : '-') %></p>
                     </div>
                 <% } else { %>
                     <div class="col-6 mb-4"></div>
@@ -285,7 +287,6 @@
                         <div class="col-12 mt-3 mb-2 page-break-safe"><hr><p class="fw-bold big mb-2 text-uppercase text-center">Dewan Pembina</p></div>
                         <% pembinaList.forEach((pembina) => { %>
                             <div class="col-4 mb-4 text-center page-break-safe">
-                                <!-- PERBAIKAN PRESISI: Mengunci tinggi area teks wilayah agar sejajar rapi walau 2 baris -->
                                 <div style="min-height: 48px; display: flex; align-items: flex-end; justify-content: center;" class="mb-2">
                                     <p class="mb-0 big"><%= pembina.wilayah %></p>
                                 </div>
@@ -305,11 +306,9 @@
         window.addEventListener('DOMContentLoaded', () => {
             const container = document.getElementById('watermarkContainer');
             if (container) {
-                // Ambil status proposal dari server/EJS
                 const proposalStatus = "<%= proposal.status %>";
                 const isUrlPreview = new URLSearchParams(window.location.search).get('mode') === 'preview';
 
-                // Jika status BUKAN "Disetujui" DAN BUKAN "Dana Dicairkan" ATAU URL mengandung mode preview, tampilkan watermark!
                 if ((proposalStatus !== 'Disetujui' && proposalStatus !== 'Dana Dicairkan') || isUrlPreview) {
                     container.innerHTML = '<div class="watermark-draft">DRAFT PROPOSAL</div>';
                 }
