@@ -1404,7 +1404,7 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
                 model: RealisasiBiaya, 
                 as: 'Realisasis',
                 where: Object.keys(realisasiWhere).length > 0 ? realisasiWhere : undefined,
-                required: false // Tetap tampilkan proker meskipun tidak ada transaksi di rentang tanggal tersebut, atau ubah ke true jika ingin disembunyikan
+                required: false 
             }
         ];
 
@@ -1418,7 +1418,6 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
             include: includeCondition
         });
 
-        // Jika filter aktif, kita saring realisasi di dalam memori agar hanya realisasi dalam rentang tanggal tersebut yang menjumlahkan nominalnya
         if (startDate && endDate) {
             listProker = listProker.map(proker => {
                 if (proker.Realisasis) {
@@ -1880,6 +1879,93 @@ router.get('/utilitas/users/hapus/:id', isLoggedIn, isAdminLembaga, async (req, 
     } catch (err) {
         console.error("Gagal menghapus user:", err);
         return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+    }
+});
+
+// --- RUTE DIAGNOSTIK TEST MIGRASI 2027 (CLEAN & STRICT) ---
+router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
+    try {
+        const user = req.session.user;
+        const lembagaId = user.activeLembagaId || user.lembagaId;
+        
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        const pengaturan = await Pengaturan.findOne();
+
+        // 1. Validasi Tahun Aktif 2027
+        const isTahunAktifValid = pengaturan && parseInt(pengaturan.tahun_aktif, 10) === 2027;
+
+        // 2. Validasi Bidang 2027
+        const jumlahBidang2027 = await Bidang.count({ where: { lembagaId, tahun: 2027 } });
+
+        // 3. Validasi Proker & RAB 2027 (Pastikan nominal RAB bernilai 0 / kosong secara ketat)
+        const prokers2027 = await Proker.findAll({
+            where: { lembagaId, tahun: 2027 },
+            include: [{ model: RincianBiaya, as: 'RincianBiayas' }]
+        });
+
+        let rabStrictValid = true;
+        prokers2027.forEach(p => {
+            if (p.RincianBiayas) {
+                p.RincianBiayas.forEach(item => {
+                    if (parseFloat(item.total) > 0 || parseFloat(item.harga_satuan) > 0) {
+                        rabStrictValid = false;
+                    }
+                });
+            }
+        });
+
+        // 4. Validasi Proposal (Pastikan berada dalam clean state / belum ada proposal aktif/disetujui)
+        const prokerIds2027 = prokers2027.map(p => p.id);
+        let proposalCleanState = true;
+        if (prokerIds2027.length > 0) {
+            const countProposalAktif = await Proposal.count({
+                where: {
+                    prokerId: prokerIds2027,
+                    status: { [Op.notIn]: ['Draft', 'Belum Ada Draf'] }
+                }
+            });
+            if (countProposalAktif > 0) proposalCleanState = false;
+        }
+
+        const isCleanAndStrict = isTahunAktifValid && jumlahBidang2027 > 0 && rabStrictValid && proposalCleanState;
+
+        return res.status(200).json({
+            status: isCleanAndStrict ? "OK" : "WARNING",
+            pesan: isCleanAndStrict 
+                ? "Sistem migrasi ke tahun 2027 terverifikasi CLEAN dan STRICT dengan sempurna." 
+                : "Ditemukan ketidaksesuaian pada aturan migrasi tahun 2027.",
+            waktu_cek: new Date(),
+            validasi_aturan: {
+                tahun_aktif_2027: isTahunAktifValid,
+                bidang_termigrasi: jumlahBidang2027 > 0,
+                rab_nominal_nol_strict: rabStrictValid,
+                proposal_clean_state: proposalCleanState
+            },
+            user_session: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                lembagaId: lembagaId
+            },
+            data_lembaga: {
+                id: lembaga ? lembaga.id : null,
+                nama_organisasi: lembaga ? lembaga.nama_organisasi : "Tidak ditemukan",
+                tahun_aktif: pengaturan ? pengaturan.tahun_aktif : null,
+                konfigurasi_print: {
+                    stempel: lembaga ? lembaga.print_stempel : null,
+                    ketua: lembaga ? lembaga.print_ketua : null,
+                    pengaju: lembaga ? lembaga.print_pengaju : null,
+                    pembina: lembaga ? lembaga.print_pembina : null,
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Error pada diagnostik migrasi:", err);
+        return res.status(500).json({
+            status: "ERROR",
+            pesan: "Terjadi kesalahan pada server saat pengujian migrasi.",
+            error: err.message
+        });
     }
 });
 

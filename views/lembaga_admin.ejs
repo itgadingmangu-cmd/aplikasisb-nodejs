@@ -55,9 +55,12 @@
 <body class="bg-light">
 
     <% 
-        // Deklarasi Global untuk View ini agar bisa diakses di seluruh baris kode bawahnya
+        // Deklarasi Global untuk View ini agar bisa diakses di seluruh baris kode bawahnya secara ketat
         let jbt = (typeof userSession !== 'undefined' && userSession.jabatan) ? String(userSession.jabatan).toLowerCase() : '';
-        let isBendaharaUser = jbt.includes('bendahara') || (typeof userSession !== 'undefined' && userSession.role === 'admin_lembaga');
+        let roleAkun = (typeof userSession !== 'undefined' && userSession.role) ? userSession.role : '';
+        
+        // Logika Ketat: Bendahara Utama hanya untuk yang benar-benar memiliki role/jabatan bendahara, bukan Admin Lembaga biasa
+        let isBendaharaUser = (roleAkun === 'bendahara_utama' || jbt === 'bendahara' || jbt.includes('bendahara utama'));
     %>
 
     <div class="d-flex flex-column flex-lg-row min-vh-100" id="wrapper">
@@ -79,7 +82,7 @@
             <% } else if (typeof userSession !== 'undefined' && userSession.id_bidang) { %>
                 Panel Bidang: <%= (typeof bidangs !== 'undefined' && bidangs.length > 0) ? bidangs[0].nama_bidang : (userSession.nama_bidang || 'Sekretaris') %>
             <% } else { %>
-                Panel Kontrol Admin Lembaga
+                Panel Pimpinan Lembaga / Admin
             <% } %>
         </h2>
         <p class="text-muted mb-0">
@@ -216,9 +219,9 @@
                                         let badgeClass = 'bg-secondary';
                                         let statusText = p.Proposal.status;
                                         if (statusText === 'Disetujui') {
-                                            badgeClass = 'bg-primary'; // Warna Biru untuk Disetujui
+                                            badgeClass = 'bg-primary'; 
                                         } else if (statusText === 'Dana Dicairkan') {
-                                            badgeClass = 'bg-success'; // Warna Hijau untuk Dana Dicairkan
+                                            badgeClass = 'bg-success'; 
                                         } else if (statusText === 'Diajukan') {
                                             badgeClass = 'bg-warning text-dark';
                                         } else if (statusText === 'Perlu Revisi' || statusText === 'Direvisi' || statusText === 'Dana Ditolak') {
@@ -288,274 +291,305 @@
     </div>
 <% } %>
 
-                <!-- 1. Kartu Statistik & Dashboard Eksekutif Keuangan -->
-    <div class="row g-3 mb-4">
-        <!-- Card Lembaga Aktif (Interaktif untuk Diagnostik) -->
-        <div class="col-xl col-md-4">
-            <a href="/lembaga-admin/diagnostik/cek" class="text-decoration-none">
-                <div class="card p-3 bg-white border-start border-primary border-4 h-100 shadow-sm">
-                    <div class="d-flex align-items-center">
-                        <div class="icon-box bg-primary bg-opacity-10 text-primary fs-4 me-3">
-                            <i class="fas fa-landmark"></i>
+<!-- 1. Kartu Statistik & Dashboard Eksekutif Keuangan -->
+<div class="row g-3 mb-4">
+    <!-- Card Lembaga Aktif & Tombol Test Migrasi Terintegrasi Rapi di Dalamnya -->
+    <div class="col-12">
+        <div class="card p-3 bg-white border-start border-primary border-4 shadow-sm">
+            <div class="row align-items-center">
+                <div class="col-md-7 mb-2 mb-md-0">
+                    <a href="/lembaga-admin/diagnostik/cek" class="text-decoration-none">
+                        <div class="d-flex align-items-center">
+                            <div class="icon-box bg-primary bg-opacity-10 text-primary fs-4 me-3">
+                                <i class="fas fa-landmark"></i>
+                            </div>
+                            <div>
+                                <span class="text-muted small d-block">
+                                    <% if (typeof userSession !== 'undefined' && userSession.id_bidang) { %>
+                                        Bidang Aktif <i class="fas fa-hand-pointer ms-1 small"></i>
+                                    <% } else { %>
+                                        Lembaga Aktif <i class="fas fa-hand-pointer ms-1 small"></i>
+                                    <% } %>
+                                </span>
+                                <h5 class="fw-bold text-dark mb-0 text-truncate" title="<%= (typeof userSession !== 'undefined' && userSession.id_bidang && typeof bidang !== 'undefined' && bidang) ? bidang.nama_bidang : ((typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData.nama_organisasi : 'Lembaga') %>">
+                                    <% if (typeof userSession !== 'undefined' && userSession.id_bidang && typeof bidang !== 'undefined' && bidang) { %>
+                                        <%= bidang.nama_bidang %>
+                                    <% } else { %>
+                                        <%= (typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData.nama_organisasi : 'Lembaga' %>
+                                    <% } %>
+                                </h5>
+                                <small class="text-muted" style="font-size: 0.7rem;">Klik untuk tes modul OK</small>
+                            </div>
                         </div>
-                        <div>
-    <span class="text-muted small d-block">
-        <% if (typeof userSession !== 'undefined' && userSession.id_bidang) { %>
-            Bidang Aktif <i class="fas fa-hand-pointer ms-1 small"></i>
-        <% } else { %>
-            Lembaga Aktif <i class="fas fa-hand-pointer ms-1 small"></i>
-        <% } %>
-    </span>
-    <h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 140px;" title="<%= (typeof userSession !== 'undefined' && userSession.id_bidang && typeof bidang !== 'undefined' && bidang) ? bidang.nama_bidang : ((typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData.nama_organisasi : 'Lembaga') %>">
-        <% if (typeof userSession !== 'undefined' && userSession.id_bidang && typeof bidang !== 'undefined' && bidang) { %>
-            <%= bidang.nama_bidang %>
-        <% } else { %>
-            <%= (typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData.nama_organisasi : 'Lembaga' %>
-        <% } %>
-    </h6>
-    <small class="text-muted" style="font-size: 0.7rem;">Klik untuk tes modul OK</small>
-</div>
-                    </div>
+                    </a>
                 </div>
+                <div class="col-md-5 text-md-end">
+                    <!-- Tombol Pintasan Test Migrasi Clean & Strict 2027 -->
+                    <button type="button" id="btnTestMigrasi" class="btn btn-outline-primary shadow-sm py-2 px-3 fw-bold w-100 w-md-auto">
+                        <i class="fas fa-stethoscope me-2"></i> Jalankan Test Migrasi 2027
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Skrip Penanganan Klik Tombol Test Migrasi -->
+<script>
+document.getElementById('btnTestMigrasi').addEventListener('click', async function() {
+    try {
+        let response = await fetch('/lembaga-admin/diagnostik/test-migrasi-2027');
+        let result = await response.json();
+        
+        if (result.status === 'OK') {
+            alert("SUKSES: " + result.pesan + "\nTahun Aktif: " + result.data_lembaga.tahun_aktif);
+        } else {
+            alert("PERINGATAN: " + result.pesan + "\nStatus Validasi:\n- Tahun Aktif 2027: " + result.validasi_aturan.tahun_aktif_2027 + "\n- Bidang Termigrasi: " + result.validasi_aturan.bidang_termigrasi + "\n- RAB Nominal 0: " + result.validasi_aturan.rab_nominal_nol_strict + "\n- Proposal Clean State: " + result.validasi_aturan.proposal_clean_state);
+        }
+    } catch (error) {
+        console.error("Gagal menjalankan test migrasi:", error);
+        alert("Terjadi kesalahan pada sistem saat menjalankan diagnostik.");
+    }
+});
+</script>
+
+<div class="row g-3 mb-4">
+    <!-- Card Jumlah Bidang -->
+    <div class="col-xl col-md-4">
+        <div class="card p-3 bg-white border-start border-success border-4 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-box bg-success bg-opacity-10 text-success fs-4 me-3">
+                    <i class="fas fa-sitemap"></i>
+                </div>
+                <div>
+                    <span class="text-muted small d-block">Total Bidang</span>
+                    <h5 class="fw-bold text-dark mb-0">
+                        <%= (typeof bidangs !== 'undefined' && bidangs) ? bidangs.length : 0 %> Bidang
+                    </h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Total Anggaran (Pagu RAB) -->
+    <div class="col-xl col-md-4">
+        <div class="card p-3 bg-white border-start border-primary border-4 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-box bg-primary bg-opacity-10 text-primary fs-4 me-3">
+                    <i class="fas fa-wallet"></i>
+                </div>
+                <div>
+                    <span class="text-muted small d-block">Total Pagu RAB</span>
+                    <h5 class="fw-bold text-primary mb-0" style="font-size: 1.05rem;">
+                        Rp <%= typeof totalAnggaranLembaga !== 'undefined' ? totalAnggaranLembaga.toLocaleString('id-ID') : '0' %>
+                    </h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Total Realisasi Riil -->
+    <div class="col-xl col-md-6">
+        <div class="card p-3 bg-white border-start border-success border-4 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-box bg-success bg-opacity-10 text-success fs-4 me-3">
+                    <i class="fas fa-receipt"></i>
+                </div>
+                <div>
+                    <span class="text-muted small d-block">Total Realisasi Riil</span>
+                    <h5 class="fw-bold text-success mb-0" style="font-size: 1.05rem;">
+                        Rp <%= typeof totalRealisasiLembaga !== 'undefined' ? totalRealisasiLembaga.toLocaleString('id-ID') : '0' %>
+                    </h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Persentase Serapan Anggaran (Progress Bar) -->
+    <div class="col-xl col-md-6">
+        <div class="card p-3 bg-white border-start border-warning border-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-muted small fw-bold">Serapan Anggaran</span>
+                <span class="badge bg-warning text-dark fw-bold"><%= typeof persentaseSerapan !== 'undefined' ? persentaseSerapan : '0' %>%</span>
+            </div>
+            <div class="progress mt-1" style="height: 10px;">
+                <% let pVal = typeof persentaseSerapan !== 'undefined' ? parseFloat(persentaseSerapan) : 0; %>
+                <div class="progress-bar bg-success" role="progressbar" style="width: <%= pVal > 100 ? 100 : pVal %>%" aria-valuenow="<%= pVal %>" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <small class="text-muted mt-1" style="font-size: 0.7rem;">Perbandingan Realisasi vs Pagu RAB</small>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Matriks Program Kerja & Anggaran (Bulan 1 - 12) -->
+<div class="card p-4 bg-white mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 gap-3">
+        <h5 class="fw-bold text-dark mb-0">
+            <i class="fas fa-tasks text-warning me-2"></i> Matriks Program Kerja & Anggaran Lembaga (Bulan 1 - 12)
+        </h5>
+        <!-- TOMBOL EKSPOR LAPORAN (EXCEL & PDF) -->
+        <div class="d-flex gap-2">
+            <a href="/lembaga-admin/ekspor/excel" class="btn btn-success btn-sm fw-bold shadow-sm">
+                <i class="fas fa-file-excel me-1"></i> Unduh Excel (.xlsx)
+            </a>
+            <a href="/lembaga-admin/ekspor/pdf" target="_blank" class="btn btn-danger btn-sm fw-bold shadow-sm">
+                <i class="fas fa-file-pdf me-1"></i> Cetak / Simpan PDF Resmi
             </a>
         </div>
-
-                    <!-- Card Jumlah Bidang -->
-                    <div class="col-xl col-md-4">
-                        <div class="card p-3 bg-white border-start border-success border-4 h-100">
-                            <div class="d-flex align-items-center">
-                                <div class="icon-box bg-success bg-opacity-10 text-success fs-4 me-3">
-                                    <i class="fas fa-sitemap"></i>
-                                </div>
-                                <div>
-                                    <span class="text-muted small d-block">Total Bidang</span>
-                                    <h5 class="fw-bold text-dark mb-0">
-                                        <%= (typeof bidangs !== 'undefined' && bidangs) ? bidangs.length : 0 %> Bidang
-                                    </h5>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Card Total Anggaran (Pagu RAB) -->
-                    <div class="col-xl col-md-4">
-                        <div class="card p-3 bg-white border-start border-primary border-4 h-100">
-                            <div class="d-flex align-items-center">
-                                <div class="icon-box bg-primary bg-opacity-10 text-primary fs-4 me-3">
-                                    <i class="fas fa-wallet"></i>
-                                </div>
-                                <div>
-                                    <span class="text-muted small d-block">Total Pagu RAB</span>
-                                    <h5 class="fw-bold text-primary mb-0" style="font-size: 1.05rem;">
-                                        Rp <%= typeof totalAnggaranLembaga !== 'undefined' ? totalAnggaranLembaga.toLocaleString('id-ID') : '0' %>
-                                    </h5>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Card Total Realisasi Riil -->
-                    <div class="col-xl col-md-6">
-                        <div class="card p-3 bg-white border-start border-success border-4 h-100">
-                            <div class="d-flex align-items-center">
-                                <div class="icon-box bg-success bg-opacity-10 text-success fs-4 me-3">
-                                    <i class="fas fa-receipt"></i>
-                                </div>
-                                <div>
-                                    <span class="text-muted small d-block">Total Realisasi Riil</span>
-                                    <h5 class="fw-bold text-success mb-0" style="font-size: 1.05rem;">
-                                        Rp <%= typeof totalRealisasiLembaga !== 'undefined' ? totalRealisasiLembaga.toLocaleString('id-ID') : '0' %>
-                                    </h5>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Card Persentase Serapan Anggaran (Progress Bar) -->
-                    <div class="col-xl col-md-6">
-                        <div class="card p-3 bg-white border-start border-warning border-4 h-100">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="text-muted small fw-bold">Serapan Anggaran</span>
-                                <span class="badge bg-warning text-dark fw-bold"><%= typeof persentaseSerapan !== 'undefined' ? persentaseSerapan : '0' %>%</span>
-                            </div>
-                            <div class="progress mt-1" style="height: 10px;">
-                                <% let pVal = typeof persentaseSerapan !== 'undefined' ? parseFloat(persentaseSerapan) : 0; %>
-                                <div class="progress-bar bg-success" role="progressbar" style="width: <%= pVal > 100 ? 100 : pVal %>%" aria-valuenow="<%= pVal %>" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                            <small class="text-muted mt-1" style="font-size: 0.7rem;">Perbandingan Realisasi vs Pagu RAB</small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. Matriks Program Kerja & Anggaran (Bulan 1 - 12) -->
-                <div class="card p-4 bg-white mb-4">
-                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 gap-3">
-                        <h5 class="fw-bold text-dark mb-0">
-                            <i class="fas fa-tasks text-warning me-2"></i> Matriks Program Kerja & Anggaran Lembaga (Bulan 1 - 12)
-                        </h5>
-                        <!-- TOMBOL EKSPOR LAPORAN (EXCEL & PDF) -->
-                        <div class="d-flex gap-2">
-                            <a href="/lembaga-admin/ekspor/excel" class="btn btn-success btn-sm fw-bold shadow-sm">
-                                <i class="fas fa-file-excel me-1"></i> Unduh Excel (.xlsx)
-                            </a>
-                            <a href="/lembaga-admin/ekspor/pdf" target="_blank" class="btn btn-danger btn-sm fw-bold shadow-sm">
-                                <i class="fas fa-file-pdf me-1"></i> Cetak / Simpan PDF Resmi
-                            </a>
-                        </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover align-middle mb-0 text-center">
-                            <thead class="table-light">
-                                <tr class="small text-uppercase">
-                                    <th rowspan="2" class="align-middle py-3" style="width: 4%;">No</th>
-                                    <th rowspan="2" class="align-middle py-3 text-start" style="width: 26%;">Nama Program Kerja</th>
-                                    <th rowspan="2" class="align-middle py-3" style="width: 15%;">Bidang</th>
-                                    <th colspan="12" class="py-2">Bulan Pelaksanaan</th>
-                                    <th rowspan="2" class="align-middle py-3" style="width: 10%;">Status</th>
-                                    <th rowspan="2" class="align-middle py-3" style="width: 10%;">Aksi</th>
-                                </tr>
-                                <tr class="small">
-                                    <% for(let m = 1; m <= 12; m++) { %>
-                                        <th class="py-2" style="width: 3%;"><%= m %></th>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle mb-0 text-center">
+            <thead class="table-light">
+                <tr class="small text-uppercase">
+                    <th rowspan="2" class="align-middle py-3" style="width: 4%;">No</th>
+                    <th rowspan="2" class="align-middle py-3 text-start" style="width: 26%;">Nama Program Kerja</th>
+                    <th rowspan="2" class="align-middle py-3" style="width: 15%;">Bidang</th>
+                    <th colspan="12" class="py-2">Bulan Pelaksanaan</th>
+                    <th rowspan="2" class="align-middle py-3" style="width: 10%;">Status</th>
+                    <th rowspan="2" class="align-middle py-3" style="width: 10%;">Aksi</th>
+                </tr>
+                <tr class="small">
+                    <% for(let m = 1; m <= 12; m++) { %>
+                        <th class="py-2" style="width: 3%;"><%= m %></th>
+                    <% } %>
+                </tr>
+            </thead>
+            <tbody>
+                <% if (typeof prokers !== 'undefined' && prokers && prokers.length > 0) { %>
+                    <% prokers.forEach((proker, index) => { %>
+                        <tr>
+                            <td class="fw-bold text-muted"><%= index + 1 %></td>
+                            <td class="text-start">
+                                <span class="fw-bold text-dark"><%= proker.nama_proker || proker.nama_program || 'Program Kerja' %></span>
+                            </td>
+                            <td>
+                                <span class="text-muted small"><%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %></span>
+                            </td>
+                            
+                            <% 
+                                let activeMonths = [];
+                                if (proker.waktu_pelaksanaan) {
+                                    activeMonths = String(proker.waktu_pelaksanaan).split(',').map(item => item.trim());
+                                }
+                            %>
+                            <% for(let m = 1; m <= 12; m++) { %>
+                                <td>
+                                    <% if (activeMonths.includes(String(m))) { %>
+                                        <span class="text-success fw-bold">✔</span>
+                                    <% } else { %>
+                                        <span class="text-muted opacity-25">-</span>
                                     <% } %>
+                                </td>
+                            <% } %>
+
+                            <td>
+                                <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
+                                    <%= (proker.Proposal && proker.Proposal.status) ? proker.Proposal.status : (proker.status || 'Aktif') %>
+                                </span>
+                            </td>
+                            <td>
+                                <a href="/lembaga-admin/proker/proposal/<%= proker.id %>" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye"></i> Kelola
+                                </a>
+                            </td>
+                        </tr>
+                    <% }) %>
+                <% } else { %>
+                    <tr>
+                        <td colspan="17" class="text-center py-4 text-muted">
+                            <i class="fas fa-folder-open fs-3 d-block mb-2 text-secondary opacity-50"></i>
+                            Belum ada Program Kerja terdaftar di lembaga ini.
+                        </td>
+                    </tr>
+                <% } %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 3. Bagian Tabel Bawah: Daftar Bidang & Pengurus -->
+<div class="row g-4 mb-4">
+    <!-- TABEL DAFTAR BIDANG -->
+    <div class="col-lg-6">
+        <div class="card p-4 bg-white h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-dark mb-0">
+                    <i class="fas fa-sitemap text-primary me-2"></i> Daftar Bidang & Tugas
+                </h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr class="small text-uppercase">
+                            <th scope="col" style="width: 10%;">No</th>
+                            <th scope="col" style="width: 45%;">Nama Bidang</th>
+                            <th scope="col" style="width: 45%;">Uraian Tugas Singkat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (typeof bidangs !== 'undefined' && bidangs && bidangs.length > 0) { %>
+                            <% bidangs.forEach((bidang, index) => { %>
+                                <tr>
+                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                    <td><span class="fw-bold text-dark"><%= bidang.nama_bidang %></span></td>
+                                    <td>
+                                        <span class="text-muted small" title="<%= bidang.deskripsi_tugas %>">
+                                            <%= bidang.deskripsi_tugas ? bidang.deskripsi_tugas : '-' %>
+                                        </span>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <% if (typeof prokers !== 'undefined' && prokers && prokers.length > 0) { %>
-                                    <% prokers.forEach((proker, index) => { %>
-                                        <tr>
-                                            <td class="fw-bold text-muted"><%= index + 1 %></td>
-                                            <td class="text-start">
-                                                <span class="fw-bold text-dark"><%= proker.nama_proker || proker.nama_program || 'Program Kerja' %></span>
-                                            </td>
-                                            <td>
-                                                <span class="text-muted small"><%= proker.Bidang ? proker.Bidang.nama_bidang : '-' %></span>
-                                            </td>
-                                            
-                                            <% 
-                                                let activeMonths = [];
-                                                if (proker.waktu_pelaksanaan) {
-                                                    activeMonths = String(proker.waktu_pelaksanaan).split(',').map(item => item.trim());
-                                                }
-                                            %>
-                                            <% for(let m = 1; m <= 12; m++) { %>
-                                                <td>
-                                                    <% if (activeMonths.includes(String(m))) { %>
-                                                        <span class="text-success fw-bold">✔</span>
-                                                    <% } else { %>
-                                                        <span class="text-muted opacity-25">-</span>
-                                                    <% } %>
-                                                </td>
-                                            <% } %>
+                            <% }) %>
+                        <% } else { %>
+                            <tr>
+                                <td colspan="3" class="text-center py-3 text-muted small">Belum ada bidang terdaftar.</td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-                                            <td>
-                                                <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
-                                                    <%= (proker.Proposal && proker.Proposal.status) ? proker.Proposal.status : (proker.status || 'Aktif') %>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <a href="/lembaga-admin/proker/proposal/<%= proker.id %>" class="btn btn-outline-primary btn-sm">
-                                                    <i class="fas fa-eye"></i> Kelola
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    <% }) %>
-                                <% } else { %>
-                                    <tr>
-                                        <td colspan="17" class="text-center py-4 text-muted">
-                                            <i class="fas fa-folder-open fs-3 d-block mb-2 text-secondary opacity-50"></i>
-                                            Belum ada Program Kerja terdaftar di lembaga ini.
-                                        </td>
-                                    </tr>
-                                <% } %>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- 3. Bagian Tabel Bawah: Daftar Bidang & Pengurus -->
-                <div class="row g-4 mb-4">
-                    <!-- TABEL DAFTAR BIDANG -->
-                    <div class="col-lg-6">
-                        <div class="card p-4 bg-white h-100">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="fw-bold text-dark mb-0">
-                                    <i class="fas fa-sitemap text-primary me-2"></i> Daftar Bidang & Tugas
-                                </h5>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead class="table-light">
-                                        <tr class="small text-uppercase">
-                                            <th scope="col" style="width: 10%;">No</th>
-                                            <th scope="col" style="width: 45%;">Nama Bidang</th>
-                                            <th scope="col" style="width: 45%;">Uraian Tugas Singkat</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <% if (typeof bidangs !== 'undefined' && bidangs && bidangs.length > 0) { %>
-                                            <% bidangs.forEach((bidang, index) => { %>
-                                                <tr>
-                                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
-                                                    <td><span class="fw-bold text-dark"><%= bidang.nama_bidang %></span></td>
-                                                    <td>
-                                                        <span class="text-muted small" title="<%= bidang.deskripsi_tugas %>">
-                                                            <%= bidang.deskripsi_tugas ? bidang.deskripsi_tugas : '-' %>
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            <% }) %>
-                                        <% } else { %>
-                                            <tr>
-                                                <td colspan="3" class="text-center py-3 text-muted small">Belum ada bidang terdaftar.</td>
-                                            </tr>
-                                        <% } %>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- TABEL PENGURUS / USER BIDANG -->
-                    <div class="col-lg-6">
-                        <div class="card p-4 bg-white h-100">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="fw-bold text-dark mb-0">
-                                    <i class="fas fa-user-shield text-success me-2"></i> Pengurus / User Bidang
-                                </h5>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead class="table-light">
-                                        <tr class="small text-uppercase">
-                                            <th scope="col" style="width: 15%;">No</th>
-                                            <th scope="col" style="width: 50%;">Nama / Username</th>
-                                            <th scope="col" style="width: 35%;">Bidang</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <% if (typeof users !== 'undefined' && users && users.length > 0) { %>
-                                            <% users.forEach((usr, index) => { %>
-                                                <tr>
-                                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
-                                                    <td>
-                                                        <span class="fw-bold text-dark d-block"><%= usr.nama_lengkap %></span>
-                                                        <small class="text-muted">@<%= usr.username %></small>
-                                                    </td>
-                                                    <td><%= usr.Bidang ? usr.Bidang.nama_bidang : '-' %></td>
-                                                </tr>
-                                            <% }) %>
-                                        <% } else { %>
-                                            <tr>
-                                                <td colspan="3" class="text-center py-3 text-muted small">Belum ada akun pengurus.</td>
-                                            </tr>
-                                        <% } %>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <!-- TABEL PENGURUS / USER BIDANG -->
+    <div class="col-lg-6">
+        <div class="card p-4 bg-white h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-dark mb-0">
+                    <i class="fas fa-user-shield text-success me-2"></i> Pengurus / User Bidang
+                </h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr class="small text-uppercase">
+                            <th scope="col" style="width: 15%;">No</th>
+                            <th scope="col" style="width: 50%;">Nama / Username</th>
+                            <th scope="col" style="width: 35%;">Bidang</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (typeof users !== 'undefined' && users && users.length > 0) { %>
+                            <% users.forEach((usr, index) => { %>
+                                <tr>
+                                    <td class="fw-bold text-muted"><%= index + 1 %></td>
+                                    <td>
+                                        <span class="fw-bold text-dark d-block"><%= usr.nama_lengkap %></span>
+                                        <small class="text-muted">@<%= usr.username %></small>
+                                    </td>
+                                    <td><%= usr.Bidang ? usr.Bidang.nama_bidang : '-' %></td>
+                                </tr>
+                            <% }) %>
+                        <% } else { %>
+                            <tr>
+                                <td colspan="3" class="text-center py-3 text-muted small">Belum ada akun pengurus.</td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 
             </div>
         </div>
