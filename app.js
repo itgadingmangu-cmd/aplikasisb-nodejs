@@ -1,3 +1,5 @@
+'use strict';
+
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
@@ -20,7 +22,7 @@ app.set('view engine', 'ejs');
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
-    secret: 'rahasia-proker-senkom-2026',
+    secret: process.env.SESSION_SECRET || 'rahasia-proker-senkom-2026',
     resave: false,
     saveUninitialized: false
 }));
@@ -81,13 +83,10 @@ app.get('/superadmin/pilih-lembaga/:id', isAuthenticated, isSuperAdmin, async (r
             return res.redirect('/');
         }
 
-        // Set session activeLembagaId dan lembagaId agar controller admin lembaga membaca lembaga ini
         req.session.user.activeLembagaId = targetLembagaId;
         req.session.user.lembagaId = targetLembagaId; 
 
         req.session.success_msg = `Berhasil beralih ke panel operasional: ${lembagaTarget.nama_organisasi}`;
-        
-        // Langsung arahkan otomatis ke dashboard lembaga-admin
         return res.redirect('/lembaga-admin');
     } catch (err) {
         console.error(err);
@@ -135,7 +134,6 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             statusServer: 'Online'
         };
 
-        // Ambil daftar lembaga beserta bidang yang terfilter murni berdasarkan tahun aktif
         const rawListLembaga = await Lembaga.findAll({
             include: [{ 
                 model: Bidang, 
@@ -161,7 +159,6 @@ app.get('/', isAuthenticated, isSuperAdmin, async (req, res) => {
             return plainLembaga;
         });
 
-        // Tentukan lembaga aktif yang sedang dipilih oleh Superadmin di session
         let activeLembagaId = req.session.user.activeLembagaId || (listLembaga.length > 0 ? listLembaga[0].id : null);
         let selectedLembaga = null;
 
@@ -271,7 +268,6 @@ app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         
-        // Sertakan relasi Bidang jika diperlukan untuk mengambil nama/detail bidang
         const user = await User.findOne({ 
             where: { username },
             include: [{ model: Bidang, as: 'Bidang' }] 
@@ -285,7 +281,7 @@ app.post('/login', async (req, res) => {
                 role: user.role,          
                 lembagaId: user.lembagaId,
                 id_bidang: user.id_bidang || null,
-                nama_bidang: user.Bidang ? user.Bidang.nama_bidang : null, // <-- Tambahan opsional info nama bidang
+                nama_bidang: user.Bidang ? user.Bidang.nama_bidang : null,
                 activeLembagaId: user.lembagaId || null
             };
             return res.redirect(user.role === 'superadmin' ? '/' : '/lembaga-admin');
@@ -524,6 +520,7 @@ app.use('/proker', isAuthenticated, prokerRoutes);
 app.use('/lembaga-admin', isAuthenticated, lembagaAdminRoutes);
 app.use('/superadmin', isAuthenticated, isSuperAdmin, superadminRoutes);
 
+// --- FUNGSI SEEDER OTOMATIS: SUPERUSER & LEMBAGA ESENSIAL ---
 async function createSuperUser() {
     try {
         const superadminUsername = 'superadmin';
@@ -540,7 +537,24 @@ async function createSuperUser() {
             console.log('Akun Superuser berhasil dibuat.');
         }
     } catch (err) {
-        console.error(err);
+        console.error('Gagal membuat superuser:', err);
+    }
+}
+
+async function seedInitialLembaga() {
+    try {
+        const count = await Lembaga.count();
+        if (count === 0) {
+            console.log('Database lembaga kosong. Memasukkan data awal lembaga...');
+            // Sesuaikan atau tambahkan daftar lembaga dasar Anda di sini agar otomatis ter-seed di cloud
+            await Lembaga.bulkCreate([
+                { id: 1, nama_organisasi: 'Lembaga Utama / Senkom Mitra Polri', nama_ketua: 'Pengurus Pusat', nomor_hp: '-', alamat: '-' },
+                // Tambahkan lembaga lainnya jika diperlukan
+            ]);
+            console.log('Data awal lembaga berhasil di-seed ke database.');
+        }
+    } catch (err) {
+        console.error('Gagal melakukan seeding lembaga otomatis:', err);
     }
 }
 
@@ -636,12 +650,13 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
 });
 
 // --- MENJALANKAN SERVER & SINKRONISASI DATABASE OTOMATIS ---
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 sequelize.sync({ alter: true }).then(async () => {
     console.log('Database & tabel berhasil disinkronkan.');
     await createSuperUser();
+    await seedInitialLembaga();
     app.listen(PORT, () => {
-        console.log(`Server berjalan di http://localhost:${PORT}`);
+        console.log(`Server berjalan di port ${PORT}`);
     });
 }).catch(err => {
     console.error('Gagal sinkronisasi database:', err);
