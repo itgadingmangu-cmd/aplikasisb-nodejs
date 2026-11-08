@@ -651,13 +651,17 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
 
 // --- MENJALANKAN SERVER & SINKRONISASI DATABASE OTOMATIS ---
 const PORT = process.env.PORT || 3000;
-sequelize.sync({ alter: true }).then(async () => {
-    console.log('Database & tabel berhasil disinkronkan.');
-    await createSuperUser();
-    await seedInitialLembaga();
-    app.listen(PORT, () => {
-        console.log(`Server berjalan di port ${PORT}`);
+
+sequelize.sync({ alter: true })
+    .then(async () => {
+        console.log('Database & tabel berhasil disinkronkan.');
+        await createSuperUser();
+        await seedInitialLembaga();
+        
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server berjalan di port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error('Gagal sinkronisasi database:', err);
     });
-}).catch(err => {
-    console.error('Gagal sinkronisasi database:', err);
-});
