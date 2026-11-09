@@ -545,13 +545,14 @@ async function seedInitialLembaga() {
     try {
         const count = await Lembaga.count();
         if (count === 0) {
-            console.log('Database lembaga kosong. Memasukkan data awal lembaga...');
-            // Sesuaikan atau tambahkan daftar lembaga dasar Anda di sini agar otomatis ter-seed di cloud
+            console.log('Database lembaga kosong. Memasukkan daftar lengkap lembaga...');
+            // Masukkan seluruh daftar lembaga lengkap Anda di sini agar otomatis ter-seed di cloud
             await Lembaga.bulkCreate([
                 { id: 1, nama_organisasi: 'Lembaga Utama / Senkom Mitra Polri', nama_ketua: 'Pengurus Pusat', nomor_hp: '-', alamat: '-' },
-                // Tambahkan lembaga lainnya jika diperlukan
+                // Contoh penambahan lembaga lain (silakan sesuaikan atau tambahkan baris berikutnya):
+                // { id: 2, nama_organisasi: 'Nama Lembaga 2', nama_ketua: 'Nama Ketua 2', nomor_hp: '...', alamat: '...' },
             ]);
-            console.log('Data awal lembaga berhasil di-seed ke database.');
+            console.log('Daftar lengkap lembaga berhasil di-seed ke database.');
         }
     } catch (err) {
         console.error('Gagal melakukan seeding lembaga otomatis:', err);
