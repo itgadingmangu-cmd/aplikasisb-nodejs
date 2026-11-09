@@ -546,11 +546,11 @@ async function seedInitialLembaga() {
         const count = await Lembaga.count();
         if (count === 0) {
             console.log('Database lembaga kosong. Memasukkan daftar lengkap lembaga...');
-            // Masukkan seluruh daftar lembaga lengkap Anda di sini agar otomatis ter-seed di cloud
             await Lembaga.bulkCreate([
-                { id: 1, nama_organisasi: 'Lembaga Utama / Senkom Mitra Polri', nama_ketua: 'Pengurus Pusat', nomor_hp: '-', alamat: '-' },
-                // Contoh penambahan lembaga lain (silakan sesuaikan atau tambahkan baris berikutnya):
-                // { id: 2, nama_organisasi: 'Nama Lembaga 2', nama_ketua: 'Nama Ketua 2', nomor_hp: '...', alamat: '...' },
+                { id: 1, nama_organisasi: 'Lembaga Utama / Senkom Mitra Polri', nama_ketua: 'Pengurus Pusat', nomor_hp: '-', alamat: '-', logo: null },
+                { id: 2, nama_organisasi: 'LDII JOMBANG', nama_ketua: 'Drs. WIDODO, M.Si', nomor_hp: '0812xxxxx', alamat: 'Jl. Mashur Ds. Gadingmangu', logo: 'nama_file_logo_ldii.png' },
+                { id: 3, nama_organisasi: 'PERSINAS ASAD JOMBANG', nama_ketua: 'Suwandi, S.H', nomor_hp: '0812xxx', alamat: 'Jl. Jombang', logo: 'nama_file_logo_asad.png' },
+                { id: 4, nama_organisasi: 'SENKOM JOMBANG', nama_ketua: 'AGUS EFENDY', nomor_hp: '0812220xxx', alamat: 'Jl. RE. Martadinata Jombang', logo: 'nama_file_logo_senkom.png' }
             ]);
             console.log('Daftar lengkap lembaga berhasil di-seed ke database.');
         }
@@ -558,7 +558,6 @@ async function seedInitialLembaga() {
         console.error('Gagal melakukan seeding lembaga otomatis:', err);
     }
 }
-
 app.get('/siklus-ta/hapus/:tahun', isAuthenticated, isSuperAdmin, async (req, res) => {
     try {
         const tahunTarget = req.params.tahun;
