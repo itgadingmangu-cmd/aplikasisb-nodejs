@@ -657,7 +657,7 @@ sequelize.sync({ alter: true })
         console.log('Database & tabel berhasil disinkronkan.');
         await createSuperUser();
         await seedInitialLembaga();
-        
+
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`Server berjalan di port ${PORT}`);
         });
