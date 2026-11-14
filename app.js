@@ -20,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.set('view engine', 'ejs');
 app.use(express.static(path.join(__dirname, 'public')));
+app.set('trust proxy', true);
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'rahasia-proker-senkom-2026',
@@ -263,7 +264,7 @@ app.get('/login', async (req, res) => {
     }
 
     try {
-        const host = req.hostname; 
+        const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname; 
         const subdomain = host.split('.')[0].toLowerCase(); 
 
         let namaLembaga = 'SISTEM INFORMASI PORTAL ADMIN';
