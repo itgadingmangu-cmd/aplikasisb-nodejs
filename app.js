@@ -256,12 +256,43 @@ app.get('/diagnostik/cek', isAuthenticated, isSuperAdmin, async (req, res) => {
     }
 });
 
-// --- RUTE AUTH ---
-app.get('/login', (req, res) => {
+// --- RUTE AUTH (MODIFIKASI SUBDOMAIN LOGO) ---
+app.get('/login', async (req, res) => {
     if (req.session.user) {
         return res.redirect(req.session.user.role === 'superadmin' ? '/' : '/lembaga-admin');
     }
-    res.render('login');
+
+    try {
+        const host = req.hostname; 
+        const subdomain = host.split('.')[0].toLowerCase(); 
+
+        let namaLembaga = 'SISTEM INFORMASI PORTAL ADMIN';
+        let logoLembaga = '/images/default-shield.png'; 
+
+        if (subdomain !== 'portal' && subdomain !== 'localhost' && subdomain !== 'www') {
+            const lembaga = await Lembaga.findOne({
+                where: {
+                    nama_organisasi: {
+                        [Op.iLike]: `%${subdomain}%` 
+                    }
+                }
+            });
+
+            if (lembaga) {
+                namaLembaga = lembaga.nama_organisasi;
+                logoLembaga = lembaga.logo ? `/uploads/logo/${lembaga.logo}` : logoLembaga;
+            }
+        }
+
+        res.render('login', {
+            namaLembaga,
+            logoLembaga
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).send("Terjadi kesalahan server");
+    }
 });
 
 app.post('/login', async (req, res) => {

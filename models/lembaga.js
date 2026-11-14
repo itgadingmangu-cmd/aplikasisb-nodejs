@@ -28,12 +28,17 @@ module.exports = (sequelize, DataTypes) => {
     pembina_senkom: DataTypes.STRING,
     nomor_hp: DataTypes.STRING,
     alamat: DataTypes.TEXT,
-    logo: DataTypes.STRING,
+    logo: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'default-shield.png'
+    },
     kop_surat: DataTypes.STRING,
     stempel: DataTypes.STRING,
     ttd_ketua: DataTypes.STRING,
     ttd_pengaju: DataTypes.STRING,
     ttd_pembina_senkom: DataTypes.STRING,
+    
     // Tambahan atribut untuk 6 Pembina Wilayah / Dewan Penasihat
     pembina_1: DataTypes.STRING,
     pembina_2: DataTypes.STRING,
@@ -42,7 +47,6 @@ module.exports = (sequelize, DataTypes) => {
     pembina_5: DataTypes.STRING,
     pembina_6: DataTypes.STRING,
     
-    // Tambahkan baris ini di dalam definisi kolom model Lembaga:
     print_ttd_pengaju_img: {
         type: DataTypes.BOOLEAN,
         defaultValue: true
