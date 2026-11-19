@@ -681,12 +681,13 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
     }
 });
 
-// --- MENJALANKAN SERVER & SINKRONISASI DATABASE OTOMATIS ---
+// --- MENJALANKAN SERVER & SINKRONISASI DATABASE ---
 const PORT = process.env.PORT || 3000;
+const shouldAlter = process.env.DB_SYNC_ALTER === 'true';
 
-sequelize.sync({ alter: true })
+sequelize.sync(shouldAlter ? { alter: true } : undefined)
     .then(async () => {
-        console.log('Database & tabel berhasil disinkronkan.');
+        console.log(`Database & tabel siap (alter: ${shouldAlter}).`);
         await createSuperUser();
         await seedInitialLembaga();
 
