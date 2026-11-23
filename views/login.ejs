@@ -111,6 +111,16 @@
             border-radius: 0 12px 12px 0;
             padding-left: 10px;
         }
+        .captcha-box {
+            background: #eef2fb;
+            border: 1px dashed #4361ee;
+            color: #1e293b;
+            font-weight: 700;
+            border-radius: 12px;
+            padding: 12px 16px;
+            letter-spacing: 1px;
+            user-select: none;
+        }
         .btn-login {
             background-color: #4361ee;
             border: none;
@@ -218,7 +228,7 @@
                 <div class="mb-4">
                     <h6 class="text-primary fw-bold mb-1" style="font-size: 0.8rem; letter-spacing: 1px;">RUANG KERJA DIGITAL</h6>
                     <h2 class="fw-bold text-dark mb-2">Selamat Datang!</h2>
-                    <p class="text-muted small">Masuk menggunakan username dan password.</p>
+                    <p class="text-muted small">Masuk menggunakan username, password, dan kode keamanan.</p>
                 </div>
 
                 <% if (typeof error_msg !== 'undefined' && error_msg) { %>
@@ -233,7 +243,7 @@
                 <% } %>
 
                 <form action="/login" method="POST">
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label class="form-label small fw-bold text-dark">Username</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-user"></i></span>
@@ -241,7 +251,7 @@
                         </div>
                     </div>
                     
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label class="form-label small fw-bold text-dark">Password</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-lock"></i></span>
@@ -249,19 +259,33 @@
                         </div>
                     </div>
 
-                    <div class="d-grid mt-5 mb-4">
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-dark">Verifikasi Keamanan (Captcha)</label>
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                            <div class="captcha-box flex-grow-1 text-center">
+                                <i class="fas fa-shield-halved text-primary me-2"></i>
+                                <span><%= typeof captchaQuestion !== 'undefined' ? captchaQuestion : '2 + 3 = ?' %></span>
+                            </div>
+                            <a href="/login" class="btn btn-outline-secondary btn-sm py-2 px-3 rounded-3" title="Ganti soal captcha">
+                                <i class="fas fa-rotate-right"></i>
+                            </a>
+                        </div>
+                        <input type="text" name="captcha_answer" class="form-control" placeholder="Masukkan hasil perhitungan di atas" required autocomplete="off">
+                    </div>
+
+                    <div class="d-grid mt-4 mb-4">
                         <button type="submit" class="btn btn-primary btn-login text-white">
                             Masuk ke Portal <i class="fas fa-arrow-right ms-2 opacity-75"></i>
                         </button>
                     </div>
                 </form>
 
-                <div class="text-center mt-4">
+                <div class="text-center mt-3">
                     <p class="small text-muted mb-1">Belum punya akses atau lupa password?</p>
                     <a href="#" class="small fw-bold text-primary text-decoration-none">Hubungi administrator sistem.</a>
                 </div>
                 
-                <div class="text-center mt-5">
+                <div class="text-center mt-4">
                     <small class="text-muted" style="font-size: 0.7rem;">© 2026 Sistem Manajemen Program Kerja</small>
                 </div>
             </div>

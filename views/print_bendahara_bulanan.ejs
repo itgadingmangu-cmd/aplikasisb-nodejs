@@ -21,13 +21,46 @@
     </style>
 </head>
 <body onload="window.print()">
+    <%
+        const listBulanName = [
+            { val: '1', name: 'Januari' }, { val: '2', name: 'Februari' },
+            { val: '3', name: 'Maret' }, { val: '4', name: 'April' },
+            { val: '5', name: 'Mei' }, { val: '6', name: 'Juni' },
+            { val: '7', name: 'Juli' }, { val: '8', name: 'Agustus' },
+            { val: '9', name: 'September' }, { val: '10', name: 'Oktober' },
+            { val: '11', name: 'November' }, { val: '12', name: 'Desember' }
+        ];
+        const awalVal = (typeof bulanAwal !== 'undefined' && bulanAwal) ? String(bulanAwal) : ((typeof selectedBulan !== 'undefined' && selectedBulan) ? String(selectedBulan) : '');
+        const akhirVal = (typeof bulanAkhir !== 'undefined' && bulanAkhir) ? String(bulanAkhir) : '';
+        const rangeAktif = (typeof isRangeBulan !== 'undefined') ? Boolean(isRangeBulan) : (awalVal && akhirVal && parseInt(akhirVal, 10) > parseInt(awalVal, 10));
+
+        let namaBulanAktif = "Seluruh Bulan (1 Tahun)";
+        if (awalVal) {
+            const bAwalObj = listBulanName.find(x => x.val === awalVal);
+            const bAkhirObj = listBulanName.find(x => x.val === akhirVal);
+            if (rangeAktif && bAwalObj && bAkhirObj) {
+                namaBulanAktif = `${bAwalObj.name} s.d. ${bAkhirObj.name}`;
+            } else if (bAwalObj) {
+                namaBulanAktif = bAwalObj.name;
+            }
+        }
+
+        const backParams = new URLSearchParams();
+        if (awalVal) {
+            backParams.set('bulan_awal', awalVal);
+            if (akhirVal) {
+                backParams.set('bulan_akhir', akhirVal);
+            }
+        }
+        backParams.set('tahun', String(selectedTahun));
+    %>
 
     <!-- Tombol Navigasi (Hilang saat diprint) -->
     <div class="container text-center my-3 no-print">
         <button onclick="window.print()" class="btn btn-primary fw-bold px-4 me-2">
             <i class="fas fa-print me-1"></i> Cetak / Simpan PDF
         </button>
-        <a href="/lembaga-admin/bendahara/proposal-bulanan" class="btn btn-outline-secondary fw-bold px-4">
+        <a href="/lembaga-admin/bendahara/proposal-bulanan?<%= backParams.toString() %>" class="btn btn-outline-secondary fw-bold px-4">
             Kembali
         </a>
     </div>
@@ -47,21 +80,6 @@
         <div class="text-center my-3">
             <h4 class="fw-bold text-uppercase mb-1" style="letter-spacing: 0.5px;">REKAPITULASI <br> PROPOSAL & RAB BULANAN</h4>
             <p class="text-dark small mb-0 fw-semibold">Tahun Anggaran: <%= selectedTahun %></p>
-            <% 
-                const listBulanName = [
-                    { val: '1', name: 'Januari' }, { val: '2', name: 'Februari' },
-                    { val: '3', name: 'Maret' }, { val: '4', name: 'April' },
-                    { val: '5', name: 'Mei' }, { val: '6', name: 'Juni' },
-                    { val: '7', name: 'Juli' }, { val: '8', name: 'Agustus' },
-                    { val: '9', name: 'September' }, { val: '10', name: 'Oktober' },
-                    { val: '11', name: 'November' }, { val: '12', name: 'Desember' }
-                ];
-                let namaBulanAktif = "Seluruh Bulan (1 Tahun)";
-                if (selectedBulan) {
-                    let bObj = listBulanName.find(x => x.val == selectedBulan);
-                    if (bObj) namaBulanAktif = bObj.name;
-                }
-            %>
             <p class="text-dark small mb-0 mt-1 fw-semibold">Periode Bulan: <%= namaBulanAktif %></p>
         </div>
 

@@ -42,6 +42,11 @@ module.exports = (sequelize, DataTypes) => {
     lembagaId: {
       type: DataTypes.INTEGER,
       allowNull: true
+    },
+    must_change_password: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
     }
   }, {
     sequelize,

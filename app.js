@@ -40,6 +40,32 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// --- HELPER CAPTCHA & VALIDASI PASSWORD KUAT ---
+function generateLoginCaptcha() {
+    const a = Math.floor(Math.random() * 9) + 1;
+    const b = Math.floor(Math.random() * 9) + 1;
+    const isMinus = a > b && Math.random() < 0.4;
+    const question = isMinus ? `${a} - ${b} = ?` : `${a} + ${b} = ?`;
+    const answer = String(isMinus ? a - b : a + b);
+    return { question, answer };
+}
+
+function validateStrongPassword(password) {
+    if (typeof password !== 'string' || password.length < 8) {
+        return 'Password minimal 8 karakter.';
+    }
+    if (!/[A-Z]/.test(password)) {
+        return 'Password harus mengandung minimal 1 huruf besar (A-Z).';
+    }
+    if (!/[a-z]/.test(password)) {
+        return 'Password harus mengandung minimal 1 huruf kecil (a-z).';
+    }
+    if (!/[0-9]/.test(password)) {
+        return 'Password harus mengandung minimal 1 angka (0-9).';
+    }
+    return null;
+}
+
 // --- MIDDLEWARE FLASH MESSAGE & GLOBAL SETTING ---
 app.use(async (req, res, next) => {
     res.locals.success_msg = req.session.success_msg || null;
@@ -258,14 +284,14 @@ app.get('/diagnostik/cek', isAuthenticated, isSuperAdmin, async (req, res) => {
     }
 });
 
-// --- RUTE AUTH (MODIFIKASI SUBDOMAIN LOGO) ---
+// --- RUTE AUTH (MODIFIKASI SUBDOMAIN LOGO + CAPTCHA + GANTI PASSWORD PERTAMA) ---
 app.get('/login', async (req, res) => {
     if (req.session.user) {
         return res.redirect(req.session.user.role === 'superadmin' ? '/' : '/lembaga-admin');
     }
 
     try {
-        const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname; 
+        const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || 'localhost'; 
         const subdomain = host.split('.')[0].toLowerCase(); 
 
         let namaLembaga = 'SISTEM INFORMASI PORTAL ADMIN';
@@ -286,9 +312,13 @@ app.get('/login', async (req, res) => {
             }
         }
 
+        const captcha = generateLoginCaptcha();
+        req.session.loginCaptcha = captcha.answer;
+
         res.render('login', {
             namaLembaga,
-            logoLembaga
+            logoLembaga,
+            captchaQuestion: captcha.question
         });
 
     } catch (error) {
@@ -299,7 +329,14 @@ app.get('/login', async (req, res) => {
 
 app.post('/login', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, captcha_answer } = req.body;
+        const expectedCaptcha = req.session.loginCaptcha;
+        delete req.session.loginCaptcha;
+
+        if (!expectedCaptcha || !captcha_answer || String(captcha_answer).trim() !== String(expectedCaptcha).trim()) {
+            req.session.error_msg = "Kode keamanan (Captcha) salah atau sudah kedaluwarsa. Silakan coba lagi.";
+            return res.redirect('/login');
+        }
         
         const user = await User.findOne({ 
             where: { username },
@@ -307,6 +344,7 @@ app.post('/login', async (req, res) => {
         });
 
         if (user && bcrypt.compareSync(password, user.password)) {
+            const mustChange = Boolean(user.must_change_password);
             req.session.user = {
                 id: user.id,
                 nama_lengkap: user.nama_lengkap,
@@ -315,8 +353,16 @@ app.post('/login', async (req, res) => {
                 lembagaId: user.lembagaId,
                 id_bidang: user.id_bidang || null,
                 nama_bidang: user.Bidang ? user.Bidang.nama_bidang : null,
-                activeLembagaId: user.lembagaId || null
+                activeLembagaId: user.lembagaId || null,
+                ttd: user.ttd || null,
+                must_change_password: mustChange
             };
+
+            if (mustChange) {
+                req.session.success_msg = "Login berhasil. Demi keamanan akun, Anda disarankan mengganti password dengan password yang lebih kuat.";
+                return res.redirect('/ganti-password-wajib');
+            }
+
             return res.redirect(user.role === 'superadmin' ? '/' : '/lembaga-admin');
         } else {
             req.session.error_msg = "Username atau password salah!";
@@ -324,6 +370,77 @@ app.post('/login', async (req, res) => {
         }
     } catch (err) {
         res.status(500).send("Terjadi kesalahan: " + err.message);
+    }
+});
+
+app.get('/ganti-password-wajib', isAuthenticated, async (req, res) => {
+    try {
+        const currentUser = await User.findByPk(req.session.user.id, {
+            include: [{ model: Bidang, as: 'Bidang' }]
+        });
+        if (!currentUser) {
+            return res.redirect('/login');
+        }
+
+        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026, nama_aplikasi: 'Aplikasi Program Kerja' };
+        const lembagaId = req.session.user.activeLembagaId || req.session.user.lembagaId;
+        const lembaga = lembagaId ? await Lembaga.findByPk(lembagaId) : null;
+
+        res.render('ganti_password_pertama', {
+            title: 'Ganti Password Akun',
+            userSession: req.session.user,
+            currentUser,
+            pengaturan,
+            lembaga
+        });
+    } catch (err) {
+        res.status(500).send("Terjadi kesalahan: " + err.message);
+    }
+});
+
+app.post('/ganti-password-wajib', isAuthenticated, async (req, res) => {
+    try {
+        const { password_lama, password_baru, konfirmasi_password } = req.body;
+        const user = await User.findByPk(req.session.user.id);
+
+        if (!user) {
+            req.session.error_msg = "Akun pengguna tidak ditemukan.";
+            return res.redirect('/login');
+        }
+
+        if (!password_lama || !bcrypt.compareSync(password_lama, user.password)) {
+            req.session.error_msg = "Password saat ini tidak sesuai.";
+            return res.redirect('/ganti-password-wajib');
+        }
+
+        if (password_baru !== konfirmasi_password) {
+            req.session.error_msg = "Konfirmasi password baru tidak cocok.";
+            return res.redirect('/ganti-password-wajib');
+        }
+
+        if (bcrypt.compareSync(password_baru, user.password)) {
+            req.session.error_msg = "Password baru tidak boleh sama dengan password lama.";
+            return res.redirect('/ganti-password-wajib');
+        }
+
+        const passwordError = validateStrongPassword(password_baru);
+        if (passwordError) {
+            req.session.error_msg = passwordError;
+            return res.redirect('/ganti-password-wajib');
+        }
+
+        const hashedPassword = bcrypt.hashSync(password_baru, 10);
+        await user.update({
+            password: hashedPassword,
+            must_change_password: false
+        });
+
+        req.session.user.must_change_password = false;
+        req.session.success_msg = "Password berhasil diperbarui dengan password kuat!";
+        return res.redirect(user.role === 'superadmin' ? '/' : '/lembaga-admin');
+    } catch (err) {
+        req.session.error_msg = "Gagal memperbarui password: " + err.message;
+        return res.redirect('/ganti-password-wajib');
     }
 });
 

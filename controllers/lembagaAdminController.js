@@ -6,6 +6,49 @@ const bcrypt = require('bcrypt');
 const fs = require('fs');
 const path = require('path');
 
+function resolveRentangBulan(query = {}) {
+    let awal = parseInt(query.bulan_awal || query.bulan || '', 10);
+    let akhir = parseInt(query.bulan_akhir || '', 10);
+
+    const validAwal = Number.isInteger(awal) && awal >= 1 && awal <= 12 ? awal : null;
+    let validAkhir = Number.isInteger(akhir) && akhir >= 1 && akhir <= 12 ? akhir : null;
+
+    if (!validAwal && validAkhir) {
+        return { bulanAwal: validAkhir, bulanAkhir: validAkhir, isRange: false };
+    }
+
+    if (!validAwal) {
+        return { bulanAwal: '', bulanAkhir: '', isRange: false };
+    }
+
+    if (!validAkhir) {
+        validAkhir = validAwal;
+    }
+
+    if (validAkhir < validAwal) {
+        const temp = validAwal;
+        awal = validAkhir;
+        validAkhir = temp;
+        return { bulanAwal: awal, bulanAkhir: validAkhir, isRange: awal !== validAkhir };
+    }
+
+    return { bulanAwal: validAwal, bulanAkhir: validAkhir, isRange: validAwal !== validAkhir };
+}
+
+function filterProkersByBulanRange(prokers, bulanAwal, bulanAkhir) {
+    if (!bulanAwal || !bulanAkhir) return prokers;
+
+    return prokers.filter(p => {
+        if (!p.waktu_pelaksanaan) return false;
+        const bulanNums = p.waktu_pelaksanaan
+            .split(',')
+            .map(b => parseInt(b.trim(), 10))
+            .filter(n => Number.isInteger(n) && n >= 1 && n <= 12);
+
+        return bulanNums.some(n => n >= bulanAwal && n <= bulanAkhir);
+    });
+}
+
 const lembagaAdminController = {
     index: async (req, res) => {
         try {
@@ -279,12 +322,13 @@ const lembagaAdminController = {
         }
     },
 
-    // Konsolidasi Rekapitulasi Proposal & RAB Bulanan untuk Bendahara Utama
+    // Konsolidasi Rekapitulasi Proposal & RAB Bulanan untuk Bendahara Utama (Satu Bulan & Rentang Bulan)
     getRekapProposalBulanan: async (req, res) => {
         try {
             const user = req.session.user;
             const lembagaId = user.activeLembagaId || user.lembagaId;
-            const { bulan, tahun } = req.query;
+            const { tahun } = req.query;
+            const { bulanAwal, bulanAkhir, isRange } = resolveRentangBulan(req.query);
 
             const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
             const tahunAktif = tahun || pengaturan.tahun_aktif;
@@ -305,12 +349,8 @@ const lembagaAdminController = {
                 order: [['createdAt', 'ASC']]
             });
 
-            if (bulan) {
-                prokers = prokers.filter(p => {
-                    if (!p.waktu_pelaksanaan) return false;
-                    const bulanArr = p.waktu_pelaksanaan.split(',').map(b => b.trim());
-                    return bulanArr.includes(String(bulan));
-                });
+            if (bulanAwal && bulanAkhir) {
+                prokers = filterProkersByBulanRange(prokers, bulanAwal, bulanAkhir);
             }
 
             return res.render('bendahara_proposal_bulanan', {
@@ -319,7 +359,10 @@ const lembagaAdminController = {
                 lembaga,
                 prokers,
                 pengaturan,
-                selectedBulan: bulan || '',
+                selectedBulan: bulanAwal ? String(bulanAwal) : '',
+                bulanAwal: bulanAwal ? String(bulanAwal) : '',
+                bulanAkhir: bulanAkhir ? String(bulanAkhir) : '',
+                isRangeBulan: isRange,
                 selectedTahun: tahunAktif,
                 query: req.query
             });
@@ -416,12 +459,13 @@ const lembagaAdminController = {
         }
     },
 
-    // Cetak Rekapitulasi Proposal & RAB Bulanan
+    // Cetak Rekapitulasi Proposal & RAB Bulanan (Satu Bulan & Rentang Bulan)
     printRekapProposalBulanan: async (req, res) => {
         try {
             const user = req.session.user;
             const lembagaId = user.activeLembagaId || user.lembagaId;
-            const { bulan, tahun } = req.query;
+            const { tahun } = req.query;
+            const { bulanAwal, bulanAkhir, isRange } = resolveRentangBulan(req.query);
 
             const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
             const tahunAktif = tahun || pengaturan.tahun_aktif;
@@ -442,12 +486,8 @@ const lembagaAdminController = {
                 order: [['createdAt', 'ASC']]
             });
 
-            if (bulan) {
-                prokers = prokers.filter(p => {
-                    if (!p.waktu_pelaksanaan) return false;
-                    const bulanArr = p.waktu_pelaksanaan.split(',').map(b => b.trim());
-                    return bulanArr.includes(String(bulan));
-                });
+            if (bulanAwal && bulanAkhir) {
+                prokers = filterProkersByBulanRange(prokers, bulanAwal, bulanAkhir);
             }
 
             return res.render('print_bendahara_bulanan', {
@@ -455,7 +495,10 @@ const lembagaAdminController = {
                 lembaga,
                 prokers,
                 pengaturan,
-                selectedBulan: bulan || '',
+                selectedBulan: bulanAwal ? String(bulanAwal) : '',
+                bulanAwal: bulanAwal ? String(bulanAwal) : '',
+                bulanAkhir: bulanAkhir ? String(bulanAkhir) : '',
+                isRangeBulan: isRange,
                 selectedTahun: tahunAktif
             });
         } catch (error) {
