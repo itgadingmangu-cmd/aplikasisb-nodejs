@@ -28,6 +28,11 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.INTEGER,
             allowNull: true // Menyimpan ID user/pengaju yang membuat proposal
         },
+        jenis_pengajuan: {
+            type: DataTypes.ENUM('dengan_proposal', 'tanpa_proposal'),
+            allowNull: false,
+            defaultValue: 'dengan_proposal'
+        },
         latar_belakang: {
             type: DataTypes.TEXT,
             allowNull: true
@@ -37,6 +42,18 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: true
         },
         tema: {
+            type: DataTypes.STRING,
+            allowNull: true
+        },
+        tanggal_kegiatan: {
+            type: DataTypes.STRING,
+            allowNull: true
+        },
+        tempat_kegiatan: {
+            type: DataTypes.TEXT,
+            allowNull: true
+        },
+        dresscode_kegiatan: {
             type: DataTypes.STRING,
             allowNull: true
         },

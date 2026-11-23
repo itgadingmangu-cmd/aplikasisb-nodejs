@@ -56,6 +56,13 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: true
     },
     
+    // Pengaturan batas nominal anggaran (Rupiah) untuk rekomendasi/aturan proposal
+    batas_anggaran_proposal: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      defaultValue: 2000000
+    },
+    
     // Konfigurasi tampilan komponen tanda tangan & stempel saat cetak
     print_stempel: {
       type: DataTypes.BOOLEAN,

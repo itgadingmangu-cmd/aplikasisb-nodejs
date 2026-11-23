@@ -1445,7 +1445,7 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
 });
 
 // ==========================================
-// MODUL PROPOSAL & APPROVAL
+// MODUL PENGAJUAN (PROPOSAL / TANPA PROPOSAL) & APPROVAL
 // ==========================================
 router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
     try {
@@ -1463,20 +1463,24 @@ router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
             return res.redirect('/lembaga-admin');
         }
 
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        const batasAnggaranProposal = Number(lembaga && lembaga.batas_anggaran_proposal ? lembaga.batas_anggaran_proposal : 2000000);
+        const anggaranProker = Number(proker.anggaran || 0);
+
         let proposal = await Proposal.findOne({ where: { prokerId: proker.id } });
 
         if (!proposal) {
             proposal = await Proposal.create({
                 prokerId: proker.id,
                 lembagaId: lembagaId,
+                userId: user.id,
+                jenis_pengajuan: anggaranProker > batasAnggaranProposal ? 'dengan_proposal' : 'tanpa_proposal',
                 latar_belakang: `Dalam rangka menunjang efektivitas dan pencapaian target kerja operasional pada ${proker.Bidang ? proker.Bidang.nama_bidang : 'lembaga'}, maka diselenggarakan program kerja "${proker.nama_program}". Kegiatan ini dirancang sebagai langkah strategis untuk merealisasikan sasaran program tahunan secara terstruktur.`,
                 tujuan: `- Meningkatkan kualitas pelaksanaan program kerja bidang.\n- Memastikan pencapaian target operasional secara optimal.\n- Mempererat koordinasi dan sinergi antar pengurus.`,
                 tema: `Optimalisasi Kinerja dan Sinergi Melalui ${proker.nama_program}`,
                 status: 'Draft'
             });
         }
-
-        const lembaga = await Lembaga.findByPk(lembagaId);
 
         const success_msg = req.session.success_msg || null;
         const error_msg = req.session.error_msg || null;
@@ -1488,11 +1492,12 @@ router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
             proker,
             proposal,
             lembaga,
+            batasAnggaranProposal,
             success_msg,
             error_msg
         });
     } catch (err) {
-        console.error("Gagal membuat/membuka proposal:", err);
+        console.error("Gagal membuat/membuka pengajuan:", err);
         return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
@@ -1501,7 +1506,8 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
     try {
         const { id } = req.params;
         const { 
-            tema, latar_belakang, tujuan, action, 
+            tema, latar_belakang, tujuan, tanggal_kegiatan, tempat_kegiatan, dresscode_kegiatan,
+            action, jenis_pengajuan,
             pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
             show_stempel, show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, 
             show_ketua, show_pengaju, show_pembina_lembaga, show_pembina 
@@ -1509,13 +1515,17 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
 
         const proposal = await Proposal.findByPk(id);
         if (!proposal) {
-            req.session.error_msg = "Proposal tidak ditemukan!";
+            req.session.error_msg = "Data pengajuan tidak ditemukan!";
             return res.redirect('/lembaga-admin/proposal');
         }
 
+        proposal.jenis_pengajuan = jenis_pengajuan === 'tanpa_proposal' ? 'tanpa_proposal' : 'dengan_proposal';
         proposal.tema = tema;
         proposal.latar_belakang = latar_belakang;
         proposal.tujuan = tujuan;
+        proposal.tanggal_kegiatan = tanggal_kegiatan ? tanggal_kegiatan.trim() : null;
+        proposal.tempat_kegiatan = tempat_kegiatan ? tempat_kegiatan.trim() : null;
+        proposal.dresscode_kegiatan = dresscode_kegiatan ? dresscode_kegiatan.trim() : null;
         proposal.pembina_1 = pembina_1 ? pembina_1.trim() : null;
         proposal.pembina_2 = pembina_2 ? pembina_2.trim() : null;
         proposal.pembina_3 = pembina_3 ? pembina_3.trim() : null;
@@ -1525,9 +1535,11 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
 
         if (action === 'submit') {
             proposal.status = 'Diajukan';
-            req.session.success_msg = "Proposal berhasil diajukan untuk persetujuan!";
+            req.session.success_msg = proposal.jenis_pengajuan === 'tanpa_proposal'
+                ? "Pengajuan (Tanpa Proposal) berhasil dikirim untuk persetujuan!"
+                : "Pengajuan (Dengan Proposal) berhasil dikirim untuk persetujuan!";
         } else {
-            req.session.success_msg = "Draf proposal dan konfigurasi tanda tangan berhasil disimpan!";
+            req.session.success_msg = "Draf pengajuan dan konfigurasi tanda tangan berhasil disimpan!";
         }
         await proposal.save();
 
@@ -1547,7 +1559,7 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
         
     } catch (err) {
-        console.error("Gagal mengupdate proposal:", err);
+        console.error("Gagal mengupdate pengajuan:", err);
         req.session.error_msg = "Terjadi kesalahan pada server.";
         return res.redirect('/lembaga-admin/proposal');
     }
@@ -1569,6 +1581,9 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
         const lembagaId = user.activeLembagaId || user.lembagaId;
         const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
         const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+
+        const lembaga = await Lembaga.findByPk(lembagaId);
+        const batasAnggaranProposal = Number(lembaga && lembaga.batas_anggaran_proposal ? lembaga.batas_anggaran_proposal : 2000000);
 
         let whereCondition = { 
             lembagaId: lembagaId, 
@@ -1596,11 +1611,12 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
             userSession: user,
             pengaturan,
             prokers,
+            batasAnggaranProposal,
             success_msg,
             error_msg
         });
     } catch (err) {
-        console.error("Gagal memuat daftar proposal:", err);
+        console.error("Gagal memuat daftar pengajuan:", err);
         return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
     }
 });
@@ -1746,7 +1762,11 @@ router.post('/setting/update', isLoggedIn, upload.fields([
     try {
         const user = req.session.user;
         const lembagaId = user.activeLembagaId || user.lembagaId;
-        const { nama_organisasi, nama_ketua, pembina_lembaga, pembina_senkom, nomor_hp, alamat, pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6 } = req.body;
+        const {
+            nama_organisasi, nama_ketua, pembina_lembaga, pembina_senkom,
+            nomor_hp, alamat, batas_anggaran_proposal,
+            pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6
+        } = req.body;
 
         const lembaga = await Lembaga.findByPk(lembagaId);
         if (!lembaga) {
@@ -1770,6 +1790,9 @@ router.post('/setting/update', isLoggedIn, upload.fields([
         lembaga.pembina_senkom = pembina_senkom ? pembina_senkom.trim() : null;
         lembaga.nomor_hp = nomor_hp ? nomor_hp.trim() : lembaga.nomor_hp;
         lembaga.alamat = alamat ? alamat.trim() : lembaga.alamat;
+
+        const parsedBatas = Number(String(batas_anggaran_proposal || '').replace(/[^\d]/g, ''));
+        lembaga.batas_anggaran_proposal = parsedBatas > 0 ? parsedBatas : 2000000;
         
         lembaga.pembina_1 = pembina_1 ? pembina_1.trim() : null;
         lembaga.pembina_2 = pembina_2 ? pembina_2.trim() : null;

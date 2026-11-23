@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola Draf Proposal & RAB</title>
+    <title>Kelola Pengajuan & RAB</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -16,17 +16,27 @@
         <%- include('partials/sidebar') %>
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
+                <%
+                    const thresholdBatas = (typeof batasAnggaranProposal !== 'undefined' && batasAnggaranProposal) ? Number(batasAnggaranProposal) : 2000000;
+                    const nominalAnggaran = Number(proker.anggaran || 0);
+                    const currentJenisPengajuan = (typeof proposal !== 'undefined' && proposal && proposal.jenis_pengajuan)
+                        ? proposal.jenis_pengajuan
+                        : (nominalAnggaran > thresholdBatas ? 'dengan_proposal' : 'tanpa_proposal');
+                %>
                 
                 <!-- Header Navigasi Kembali & Badge Status -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
                         <a href="/lembaga-admin/proposal" class="btn btn-outline-secondary btn-sm mb-2">
-                            <i class="fas fa-arrow-left me-1"></i> Kembali ke Daftar Proposal
+                            <i class="fas fa-arrow-left me-1"></i> Kembali ke Daftar Pengajuan
                         </a>
-                        <h2 class="fw-bold text-dark mb-1">Editor Proposal & Konfigurasi TTD</h2>
+                        <h2 class="fw-bold text-dark mb-1">Editor Pengajuan & Konfigurasi TTD</h2>
                         <p class="text-muted mb-0">Program Kerja: <span class="fw-semibold text-primary"><%= proker.nama_program %></span></p>
                     </div>
-                    <div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span class="badge bg-<%= currentJenisPengajuan === 'tanpa_proposal' ? 'info text-dark border border-info' : 'primary' %> fs-6 px-3 py-2 shadow-sm">
+                            <%= currentJenisPengajuan === 'tanpa_proposal' ? 'Mode: Tanpa Proposal' : 'Mode: Dengan Proposal' %>
+                        </span>
                         <% 
                             let badgeClass = 'secondary';
                             let displayStatus = 'Draft';
@@ -52,7 +62,7 @@
                             <i class="fas fa-check-double fs-2 me-3 text-success"></i>
                             <div>
                                 <h6 class="fw-bold mb-1">Dana Kegiatan Telah Dicairkan!</h6>
-                                <p class="mb-0">Bendahara telah memproses pencairan dana untuk proposal ini. Silakan lanjutkan program kerja Anda dan susun LPJ.</p>
+                                <p class="mb-0">Bendahara telah memproses pencairan dana untuk pengajuan ini. Silakan lanjutkan program kerja Anda dan susun LPJ.</p>
                             </div>
                         </div>
                     </div>
@@ -77,7 +87,7 @@
                         <h5 class="fw-bold text-danger mb-1">
                             <i class="fas fa-exclamation-triangle me-2"></i> Catatan Koreksi dari Pimpinan:
                         </h5>
-                        <p class="mb-0 text-dark"><%= proposal.catatan_revisi || 'Mohon sesuaikan kembali proposal kegiatan ini sesuai arahan pimpinan.' %></p>
+                        <p class="mb-0 text-dark"><%= proposal.catatan_revisi || 'Mohon sesuaikan kembali pengajuan kegiatan ini sesuai arahan pimpinan.' %></p>
                     </div>
                 <% } %>
 
@@ -127,9 +137,74 @@
                 <!-- FORM UTAMA -->
                 <form action="/lembaga-admin/proker/proposal/update/<%= proposal.id %>" method="POST" id="formProposal">
                     <div class="row g-4">
-                        <!-- Kolom Kiri: Editor Narasi & RAB Otomatis -->
+                        <!-- Kolom Kiri: Pilihan Jenis Pengajuan, Detail Pelaksanaan, Editor Narasi & RAB Otomatis -->
                         <div class="col-lg-8">
+                            <!-- Pilihan Jenis Pengajuan (Fleksibel: Dengan Proposal vs Tanpa Proposal) -->
+                            <div class="card p-4 bg-white mb-4 border-start border-4 border-primary">
+                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+                                    <div>
+                                        <h5 class="fw-bold text-dark mb-1"><i class="fas fa-list-check text-primary me-2"></i> Jenis Pengajuan Kegiatan</h5>
+                                        <p class="text-muted small mb-0">Pilih apakah pengajuan ini menggunakan Proposal lengkap atau tanpa Proposal (fokus ke RAB & persetujuan).</p>
+                                    </div>
+                                    <span class="badge bg-light text-dark border px-3 py-2">
+                                        Batas Setting: <strong>Rp <%= thresholdBatas.toLocaleString('id-ID') %></strong>
+                                    </span>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="border rounded-3 p-3 d-flex align-items-start gap-2 h-100 bg-light" style="cursor: pointer;">
+                                            <input class="form-check-input mt-1 jenis-pengajuan-radio" type="radio" name="jenis_pengajuan" value="dengan_proposal" id="jenisDenganProposal" <%= currentJenisPengajuan === 'dengan_proposal' ? 'checked' : '' %> <%= lockAttr %>>
+                                            <div>
+                                                <span class="fw-bold d-block text-dark"><i class="fas fa-file-contract text-primary me-1"></i> Ajukan dengan Proposal</span>
+                                                <small class="text-muted">Menyertakan tema, latar belakang, tujuan kegiatan, serta RAB terintegrasi.</small>
+                                            </div>
+                                        </label>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="border rounded-3 p-3 d-flex align-items-start gap-2 h-100 bg-light" style="cursor: pointer;">
+                                            <input class="form-check-input mt-1 jenis-pengajuan-radio" type="radio" name="jenis_pengajuan" value="tanpa_proposal" id="jenisTanpaProposal" <%= currentJenisPengajuan === 'tanpa_proposal' ? 'checked' : '' %> <%= lockAttr %>>
+                                            <div>
+                                                <span class="fw-bold d-block text-dark"><i class="fas fa-file-alt text-info me-1"></i> Ajukan tanpa Proposal</span>
+                                                <small class="text-muted">Pengajuan ringkas tanpa menyusun narasi proposal panjang; tetap mengacu pada RAB.</small>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Peringatan Dinamis Berdasarkan Batas Anggaran di Setting Lembaga -->
+                                <div class="alert alert-warning border-start border-4 border-warning mt-3 mb-0 d-none" id="peringatanBatasAnggaran" role="alert">
+                                    <div class="d-flex align-items-start gap-2">
+                                        <i class="fas fa-exclamation-triangle text-warning mt-1"></i>
+                                        <div class="small">
+                                            <strong>Catatan Batas Anggaran:</strong> Anggaran program kerja ini sebesar <strong>Rp <%= nominalAnggaran.toLocaleString('id-ID') %></strong>, melebihi batas rekomendasi proposal yang diatur di Setting Lembaga (<strong>Rp <%= thresholdBatas.toLocaleString('id-ID') %></strong>). Anda tetap dapat mengajukan tanpa proposal, namun disarankan menggunakan <strong>Dengan Proposal</strong> bila diperlukan dokumentasi lengkap.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Detail Pelaksanaan Kegiatan (Opsional: Hari & Tanggal, Lokasi/Tempat, Dresscode) -->
                             <div class="card p-4 bg-white mb-4">
+                                <h5 class="fw-bold text-dark mb-1"><i class="fas fa-calendar-alt text-primary me-2"></i> Detail Pelaksanaan Kegiatan (Opsional)</h5>
+                                <p class="text-muted small mb-3">Boleh dikosongkan bila belum ditentukan; bila diisi akan tercetak pada dokumen pengajuan/proposal.</p>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small">Hari & Tanggal Kegiatan</label>
+                                        <input type="text" class="form-control" name="tanggal_kegiatan" value="<%= proposal.tanggal_kegiatan || '' %>" placeholder="Contoh: Sabtu, 5 Desember 2026" <%= lockAttr %>>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small">Dresscode Kegiatan</label>
+                                        <input type="text" class="form-control" name="dresscode_kegiatan" value="<%= proposal.dresscode_kegiatan || '' %>" placeholder="Contoh: Seragam Resmi / Batik / Menyesuaikan" <%= lockAttr %>>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold small">Lokasi / Tempat Kegiatan</label>
+                                        <input type="text" class="form-control" name="tempat_kegiatan" value="<%= proposal.tempat_kegiatan || '' %>" placeholder="Contoh: Aula / Ruang Lingkup Operasional Lembaga" <%= lockAttr %>>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card p-4 bg-white mb-4" id="cardNarasiProposal">
                                 <h5 class="fw-bold text-dark mb-3"><i class="fas fa-edit text-primary me-2"></i> Narasi Proposal Kegiatan</h5>
                                 
                                 <div class="mb-3">
@@ -139,12 +214,12 @@
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Latar Belakang</label>
-                                    <textarea class="form-control" name="latar_belakang" rows="4" required <%= lockAttr %>><%= proposal.latar_belakang || '' %></textarea>
+                                    <textarea class="form-control" name="latar_belakang" id="latarBelakangInput" rows="4" required <%= lockAttr %>><%= proposal.latar_belakang || '' %></textarea>
                                 </div>
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Tujuan Kegiatan (Gunakan baris baru untuk poin)</label>
-                                    <textarea class="form-control" name="tujuan" rows="4" required <%= lockAttr %>><%= proposal.tujuan || '' %></textarea>
+                                    <textarea class="form-control" name="tujuan" id="tujuanInput" rows="4" required <%= lockAttr %>><%= proposal.tujuan || '' %></textarea>
                                 </div>
                             </div>
 
@@ -179,7 +254,7 @@
                             <!-- PANEL KONTROL ALUR AKSI & APPROVAL -->
                             <div class="card p-3 bg-white mb-4 border border-primary">
                                 <h6 class="fw-bold text-primary mb-3 small text-uppercase">
-                                    <i class="fas fa-tasks me-2"></i> Status & Aksi Alur Proposal
+                                    <i class="fas fa-tasks me-2"></i> Status & Aksi Alur Pengajuan
                                 </h6>
 
                                 <!-- 1. AKSI PENGAJU (Draft / Revisi / Dana Ditolak) -->
@@ -191,7 +266,7 @@
                                     </div>
                                     <div class="mb-3">
                                         <button type="button" class="btn btn-success fw-bold py-2 w-100" id="btnAjukanAksi">
-                                            <i class="fas fa-paper-plane me-1"></i> Kirim / Ajukan Proposal
+                                            <i class="fas fa-paper-plane me-1"></i> Kirim / Ajukan Pengajuan
                                         </button>
                                     </div>
                                 <% } %>
@@ -204,7 +279,7 @@
                                             <label class="form-label small fw-semibold">Pilih Keputusan:</label>
                                             <select name="aksi" class="form-select form-select-sm" required onchange="toggleCatatanRevisi(this.value)">
                                                 <option value="" selected disabled>-- Pilih Keputusan --</option>
-                                                <option value="Disetujui">Setujui Proposal</option>
+                                                <option value="Disetujui">Setujui Pengajuan</option>
                                                 <option value="Revisi">Minta Revisi</option>
                                             </select>
                                         </div>
@@ -283,7 +358,7 @@
                                         </ul>
                                     </div>
                                 <% } else { %>
-                                    <button type="button" class="btn btn-secondary fw-bold py-2 w-100 mt-2" disabled title="Tombol cetak resmi aktif setelah proposal disetujui oleh Ketua Lembaga">
+                                    <button type="button" class="btn btn-secondary fw-bold py-2 w-100 mt-2" disabled title="Tombol cetak resmi aktif setelah pengajuan disetujui oleh Ketua Lembaga">
                                         <i class="fas fa-lock me-1"></i> Cetak Terkunci (Menunggu Persetujuan)
                                     </button>
                                 <% } %>
@@ -358,11 +433,58 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let isDirty = false;
+        const thresholdBatasClient = <%= thresholdBatas %>;
+        const nominalAnggaranClient = <%= nominalAnggaran %>;
         
         const narasiInputs = document.querySelectorAll('#formProposal input[type="text"]:not([disabled]), #formProposal textarea');
         narasiInputs.forEach(input => {
             input.addEventListener('input', () => { isDirty = true; });
         });
+
+        const jenisRadios = document.querySelectorAll('.jenis-pengajuan-radio');
+        const cardNarasiProposal = document.getElementById('cardNarasiProposal');
+        const peringatanBatas = document.getElementById('peringatanBatasAnggaran');
+        const latarBelakangInput = document.getElementById('latarBelakangInput');
+        const tujuanInput = document.getElementById('tujuanInput');
+
+        function syncJenisPengajuanUI(markDirty) {
+            const checkedRadio = document.querySelector('.jenis-pengajuan-radio:checked');
+            const selectedJenis = checkedRadio ? checkedRadio.value : 'dengan_proposal';
+            const isTanpaProposal = selectedJenis === 'tanpa_proposal';
+
+            if (cardNarasiProposal) {
+                cardNarasiProposal.classList.toggle('d-none', isTanpaProposal);
+            }
+
+            if (latarBelakangInput) {
+                latarBelakangInput.required = !isTanpaProposal;
+                if (isTanpaProposal && !latarBelakangInput.value.trim()) {
+                    latarBelakangInput.value = 'Pengajuan kegiatan tanpa proposal (mengacu pada RAB program kerja).';
+                }
+            }
+
+            if (tujuanInput) {
+                tujuanInput.required = !isTanpaProposal;
+                if (isTanpaProposal && !tujuanInput.value.trim()) {
+                    tujuanInput.value = '- Realisasi kegiatan dan RAB sesuai program kerja.';
+                }
+            }
+
+            if (peringatanBatas) {
+                const showWarning = isTanpaProposal && (nominalAnggaranClient > thresholdBatasClient);
+                peringatanBatas.classList.toggle('d-none', !showWarning);
+            }
+
+            if (markDirty) {
+                isDirty = true;
+            }
+        }
+
+        jenisRadios.forEach(radio => {
+            radio.addEventListener('change', () => syncJenisPengajuanUI(true));
+        });
+
+        syncJenisPengajuanUI(false);
 
         const checkPembina = document.getElementById('checkPembina');
         if (checkPembina) {
@@ -436,17 +558,20 @@
 
         const btnSimpan = document.getElementById('btnSimpan');
         if (btnSimpan) {
-            btnSimpan.addEventListener('click', () => { isDirty = false; });
+            btnSimpan.addEventListener('click', () => {
+                syncJenisPengajuanUI(false);
+                isDirty = false;
+            });
         }
 
         const btnAjukanAksi = document.getElementById('btnAjukanAksi');
         if (btnAjukanAksi) {
             btnAjukanAksi.addEventListener('click', () => {
                 if (isDirty) {
-                    alert('⚠️ Anda memiliki perubahan data yang belum disimpan.\n\nSilakan klik tombol "Simpan Draf" terlebih dahulu sebelum mengajukan proposal!');
+                    alert('⚠️ Anda memiliki perubahan data yang belum disimpan.\n\nSilakan klik tombol "Simpan Draf" terlebih dahulu sebelum mengajukan!');
                     return;
                 }
-                if (confirm('Yakin ingin mengajukan proposal ini kepada Ketua/Pimpinan?')) {
+                if (confirm('Yakin ingin mengirimkan pengajuan ini kepada Ketua/Pimpinan?')) {
                     const ajukanForm = document.createElement('form');
                     ajukanForm.method = 'POST';
                     ajukanForm.action = '/lembaga-admin/proker/proposal/ajukan/<%= proposal.id %>';
@@ -459,7 +584,7 @@
         document.querySelectorAll('.btnPreviewLink').forEach(link => {
             link.addEventListener('click', function(e) {
                 if (isDirty) {
-                    alert('⚠️ Anda baru saja mengubah narasi atau pengaturan centang.\n\nSilakan klik tombol "Simpan Draf" terlebih dahulu sebelum membuka pratinjau atau mencetak dokumen!');
+                    alert('⚠️ Anda baru saja mengubah pilihan/narasi atau pengaturan centang.\n\nSilakan klik tombol "Simpan Draf" terlebih dahulu sebelum membuka pratinjau atau mencetak dokumen!');
                     e.preventDefault();
                 }
             });

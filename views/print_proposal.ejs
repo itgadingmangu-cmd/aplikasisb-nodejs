@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cetak Proposal - <%= proker.nama_program %></title>
+    <% const isTanpaProposal = (typeof proposal !== 'undefined' && proposal && proposal.jenis_pengajuan === 'tanpa_proposal'); %>
+    <title><%= isTanpaProposal ? 'Cetak Pengajuan Anggaran (Tanpa Proposal)' : 'Cetak Proposal' %> - <%= proker.nama_program %></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f8f9fa; font-family: 'Times New Roman', Times, serif; color: #000; line-height: 1.6; }
@@ -62,44 +63,61 @@
             <% } %>
         </div>
 
-        <!-- JUDUL PROPOSAL -->
+        <!-- JUDUL DOKUMEN -->
         <div class="text-center my-4">
-            <h4 class="fw-bold text-uppercase">PROPOSAL KEGIATAN</h4>
-            <h5 class="fw-bold text-uppercase text-secondary"><%= proker.nama_program %></h5>
-            <p class="small text-muted mb-1">Tema: "<%= proposal.tema || '-' %>"</p>
+            <% if (isTanpaProposal) { %>
+                <h4 class="fw-bold text-uppercase">PENGAJUAN ANGGARAN KEGIATAN</h4>
+                <p class="small text-muted mb-1">(Pengajuan Tanpa Proposal — Mengacu pada RAB Program Kerja)</p>
+                <h5 class="fw-bold text-uppercase text-secondary mt-2"><%= proker.nama_program %></h5>
+            <% } else { %>
+                <h4 class="fw-bold text-uppercase">PROPOSAL KEGIATAN</h4>
+                <h5 class="fw-bold text-uppercase text-secondary"><%= proker.nama_program %></h5>
+                <p class="small text-muted mb-1">Tema: "<%= proposal.tema || '-' %>"</p>
+            <% } %>
             <p class="fw-bold mt-2 mb-0" style="font-size: 1.2rem; font-family: 'Traditional Arabic', serif;" dir="rtl">اَلسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ</p>
         </div>
 
-        <!-- 1. LATAR BELAKANG -->
-        <div class="mb-3">
-            <h6 class="fw-bold text-uppercase">I. Latar Belakang</h6>
-            <p class="text-justify" style="text-align: justify; white-space: pre-line;"><%= proposal.latar_belakang %></p>
-        </div>
+        <% if (!isTanpaProposal) { %>
+            <!-- 1. LATAR BELAKANG -->
+            <div class="mb-3">
+                <h6 class="fw-bold text-uppercase">I. Latar Belakang</h6>
+                <p class="text-justify" style="text-align: justify; white-space: pre-line;"><%= proposal.latar_belakang %></p>
+            </div>
 
-        <!-- 2. TUJUAN KEGIATAN -->
-        <div class="mb-3">
-            <h6 class="fw-bold text-uppercase">II. Tujuan Kegiatan</h6>
-            <div style="white-space: pre-line;"><%= proposal.tujuan %></div>
-        </div>
+            <!-- 2. TUJUAN KEGIATAN -->
+            <div class="mb-3">
+                <h6 class="fw-bold text-uppercase">II. Tujuan Kegiatan</h6>
+                <div style="white-space: pre-line;"><%= proposal.tujuan %></div>
+            </div>
+        <% } %>
 
-        <!-- 3. WAKTU & TEMPAT -->
+        <!-- WAKTU & TEMPAT -->
         <div class="mb-3">
-            <h6 class="fw-bold text-uppercase">III. Waktu & Tempat Pelaksanaan</h6>
+            <h6 class="fw-bold text-uppercase"><%= isTanpaProposal ? 'I.' : 'III.' %> Waktu & Tempat Pelaksanaan</h6>
             <ul>
                 <% 
                     const namaBulan = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
                     let rawBulan = String(proker.waktu_pelaksanaan || '');
                     let arrBulan = rawBulan.split(',').map(b => parseInt(b.trim())).filter(Boolean);
-                    let namaBulanTampil = arrBulan.length > 0 ? namaBulan[arrBulan[0]] : '-'; 
+                    let namaBulanTampil = arrBulan.length > 0 ? namaBulan[arrBulan[0]] : '-';
+                    const hariTanggalTampil = (proposal && proposal.tanggal_kegiatan && proposal.tanggal_kegiatan.trim() !== '') ? proposal.tanggal_kegiatan.trim() : null;
+                    const tempatTampil = (proposal && proposal.tempat_kegiatan && proposal.tempat_kegiatan.trim() !== '') ? proposal.tempat_kegiatan.trim() : 'Ruang Lingkup Operasional Lembaga / Sesuai Ketentuan Bidang';
+                    const dresscodeTampil = (proposal && proposal.dresscode_kegiatan && proposal.dresscode_kegiatan.trim() !== '') ? proposal.dresscode_kegiatan.trim() : null;
                 %>
                 <li>Bulan Pelaksanaan: <strong><%= namaBulanTampil %></strong> (Tahun Anggaran <%= proker.tahun %>)</li>
-                <li>Tempat: Ruang Lingkup Operasional Lembaga / Sesuai Ketentuan Bidang</li>
+                <% if (hariTanggalTampil) { %>
+                    <li>Hari / Tanggal Kegiatan: <strong><%= hariTanggalTampil %></strong></li>
+                <% } %>
+                <li>Tempat / Lokasi: <strong><%= tempatTampil %></strong></li>
+                <% if (dresscodeTampil) { %>
+                    <li>Dresscode Kegiatan: <strong><%= dresscodeTampil %></strong></li>
+                <% } %>
             </ul>
         </div>
 
-        <!-- 4. RENCANA ANGGARAN BIAYA (RAB) -->
+        <!-- RENCANA ANGGARAN BIAYA (RAB) -->
         <div class="mb-4">
-            <h6 class="fw-bold text-uppercase">IV. Rencana Anggaran Biaya (RAB)</h6>
+            <h6 class="fw-bold text-uppercase"><%= isTanpaProposal ? 'II.' : 'IV.' %> Rencana Anggaran Biaya (RAB)</h6>
             <table class="table table-bordered table-sm align-middle">
                 <thead class="table-light text-center">
                     <tr>
@@ -153,11 +171,15 @@
             </table>
         </div>
 
-        <!-- 5. PENUTUP -->
+        <!-- PENUTUP -->
         <div class="mb-5">
-            <h6 class="fw-bold text-uppercase">V. Penutup</h6>
+            <h6 class="fw-bold text-uppercase"><%= isTanpaProposal ? 'III.' : 'V.' %> Penutup</h6>
             <p class="text-justify mb-3" style="text-align: justify;">
-                Demikian proposal dan Rencana Anggaran Biaya (RAB) ini kami sampaikan. Besar harapan kami atas dukungan, bimbingan, serta pengesahan dari Bapak/Ibu pimpinan dan pembina sekalian demi kelancaran dan kesuksesan program kerja ini. Atas perhatian dan kerjasamanya, kami ucapkan terima kasih.
+                <% if (isTanpaProposal) { %>
+                    Demikian pengajuan anggaran dan Rencana Anggaran Biaya (RAB) kegiatan ini kami sampaikan. Besar harapan kami atas dukungan, bimbingan, serta pengesahan dari Bapak/Ibu pimpinan dan pembina sekalian demi kelancaran dan kesuksesan program kerja ini. Atas perhatian dan kerjasamanya, kami ucapkan terima kasih.
+                <% } else { %>
+                    Demikian proposal dan Rencana Anggaran Biaya (RAB) ini kami sampaikan. Besar harapan kami atas dukungan, bimbingan, serta pengesahan dari Bapak/Ibu pimpinan dan pembina sekalian demi kelancaran dan kesuksesan program kerja ini. Atas perhatian dan kerjasamanya, kami ucapkan terima kasih.
+                <% } %>
             </p>
             <div class="mt-3 text-center">
                 <p class="fw-bold mb-1" style="font-size: 1.2rem; font-family: 'Traditional Arabic', serif;" dir="rtl">اَلْحَمْدُ للهِ، جَزَاكُمُ اللهُ خَيْرًا</p>
@@ -307,10 +329,11 @@
             const container = document.getElementById('watermarkContainer');
             if (container) {
                 const proposalStatus = "<%= proposal.status %>";
+                const isTanpaProposal = <%= isTanpaProposal ? 'true' : 'false' %>;
                 const isUrlPreview = new URLSearchParams(window.location.search).get('mode') === 'preview';
 
                 if ((proposalStatus !== 'Disetujui' && proposalStatus !== 'Dana Dicairkan') || isUrlPreview) {
-                    container.innerHTML = '<div class="watermark-draft">DRAFT PROPOSAL</div>';
+                    container.innerHTML = `<div class="watermark-draft">${isTanpaProposal ? 'DRAFT PENGAJUAN' : 'DRAFT PROPOSAL'}</div>`;
                 }
             }
         });
