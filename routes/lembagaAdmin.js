@@ -9,52 +9,194 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
 const ExcelJS = require('exceljs');
-const prokerController = require('../controllers/prokerController'); 
+const prokerController = require('../controllers/prokerController');
 const realisasiLpjController = require('../controllers/realisasiLpjController');
 const lembagaAdminController = require('../controllers/lembagaAdminController');
 const uploadLpjFiles = require('../config/multerLpj');
 
-// --- PANGGIL MIDDLEWARE DI ATAS SEBELUM DIGUNAKAN PADA RUTE ---
+// --- MIDDLEWARE AUTENTIKASI ---
 const { isLoggedIn, isAdminLembaga } = require('../middleware/auth');
 
+// --- KONSTANTA OPTIMASI & KEAMANAN ---
+const HEAVY_LEMBAGA_BLOB_COLUMNS = [
+    'kop_surat',
+    'stempel',
+    'ttd_ketua',
+    'ttd_pengaju',
+    'ttd_pembina_senkom'
+];
+
+const LEMBAGA_LIGHT_ATTRIBUTES = {
+    exclude: HEAVY_LEMBAGA_BLOB_COLUMNS
+};
+
+const USER_SAFE_ATTRIBUTES = {
+    exclude: ['password']
+};
+
+const DEFAULT_PENGATURAN = Object.freeze({
+    tahun_aktif: 2026,
+    nama_aplikasi: 'Aplikasi Program Kerja'
+});
+
+// --- IN-MEMORY CACHE DENGAN STALE FALLBACK ---
+let cachedPengaturan = null;
+let cachedPengaturanAt = 0;
+const PENGATURAN_TTL_MS = 30 * 1000;
+
+async function getCachedPengaturan() {
+    const now = Date.now();
+    if (cachedPengaturan && (now - cachedPengaturanAt) < PENGATURAN_TTL_MS) {
+        return cachedPengaturan;
+    }
+    try {
+        const setting = await Pengaturan.findOne({
+            attributes: [
+                'id', 'nama_aplikasi', 'logo_icon', 'logo_aplikasi',
+                'step1_judul', 'step1_deskripsi', 'step2_judul', 'step2_deskripsi',
+                'step3_judul', 'step3_deskripsi', 'step4_judul', 'step4_deskripsi',
+                'tahun_aktif'
+            ]
+        });
+        if (setting) {
+            cachedPengaturan = setting;
+            cachedPengaturanAt = now;
+            return setting;
+        }
+    } catch (err) {
+        console.error('[CACHE-WARN] Gagal menyegarkan Pengaturan, menggunakan stale/default:', err.message);
+        if (cachedPengaturan) {
+            return cachedPengaturan;
+        }
+    }
+    return cachedPengaturan || { ...DEFAULT_PENGATURAN };
+}
+
+let cachedLembagaList = null;
+let cachedLembagaListAt = 0;
+const LEMBAGA_LIST_TTL_MS = 60 * 1000;
+
+async function getCachedLembagaList(forceRefresh = false) {
+    const now = Date.now();
+    if (!forceRefresh && cachedLembagaList && (now - cachedLembagaListAt) < LEMBAGA_LIST_TTL_MS) {
+        return cachedLembagaList;
+    }
+    try {
+        const list = await Lembaga.findAll({
+            attributes: ['id', 'nama_organisasi', 'logo'],
+            order: [['id', 'ASC']]
+        });
+        cachedLembagaList = list;
+        cachedLembagaListAt = now;
+        return list;
+    } catch (err) {
+        console.error('[CACHE-WARN] Gagal menyegarkan daftar Lembaga:', err.message);
+        if (cachedLembagaList) {
+            return cachedLembagaList;
+        }
+        throw err;
+    }
+}
+
+function invalidateLembagaListCache() {
+    cachedLembagaList = null;
+    cachedLembagaListAt = 0;
+}
+
+// --- HELPER VALIDASI & OTORISASI KETAT ---
+function getActiveLembagaId(user) {
+    if (!user) return null;
+    const rawId = user.activeLembagaId || user.lembagaId;
+    const parsed = parseInt(rawId, 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getTahunAktifInt(pengaturan) {
+    const parsed = parseInt(pengaturan && pengaturan.tahun_aktif, 10);
+    return Number.isInteger(parsed) && parsed >= 2000 ? parsed : 2026;
+}
+
+function isPimpinanAtauBendahara(user) {
+    if (!user) return false;
+    return (
+        user.role === 'admin_lembaga' ||
+        user.role === 'superadmin' ||
+        user.role === 'bendahara_utama' ||
+        user.jabatan === 'Bendahara' ||
+        user.hierarki === 'Bendahara'
+    );
+}
+
+function canManageProker(user, proker) {
+    if (!user || !proker) return false;
+    const activeLembagaId = getActiveLembagaId(user);
+    if (!activeLembagaId || Number(proker.lembagaId) !== activeLembagaId) {
+        return false;
+    }
+    if (isPimpinanAtauBendahara(user)) {
+        return true;
+    }
+    return Boolean(user.id_bidang) && Number(proker.bidangId) === Number(user.id_bidang);
+}
+
+function parsePositiveInt(value) {
+    const num = parseInt(value, 10);
+    return Number.isInteger(num) && num > 0 ? num : null;
+}
+
+function parseNonNegativeNumber(value) {
+    const num = parseFloat(value);
+    return Number.isFinite(num) && num >= 0 ? num : null;
+}
+
+function parseBooleanFlag(val) {
+    return val === 'true' || val === 'on' || val === true || val === '1';
+}
+
+function popFlashMessages(req) {
+    const success_msg = req.session.success_msg || null;
+    const error_msg = req.session.error_msg || null;
+    delete req.session.success_msg;
+    delete req.session.error_msg;
+    return { success_msg, error_msg };
+}
+
+async function recalculateProkerAnggaran(prokerId) {
+    const total = await RincianBiaya.sum('total', { where: { prokerId } });
+    const totalAnggaran = Number.isFinite(Number(total)) ? Number(total) : 0;
+    await Proker.update({ anggaran: totalAnggaran }, { where: { id: prokerId } });
+    return totalAnggaran;
+}
+
 // --- KONFIGURASI MULTER UNTUK UPLOAD LOGO & TTD ---
+const uploadLogoDir = path.join(__dirname, '../public/uploads/logo');
+if (!fs.existsSync(uploadLogoDir)) {
+    fs.mkdirSync(uploadLogoDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'public/uploads/logo/');
+        cb(null, uploadLogoDir);
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
-const upload = multer({ storage: storage });
-
-// --- MODUL PROFIL & UPLOAD TTD PRIBADI ---
-router.get('/profile', isLoggedIn, async (req, res) => {
-    try {
-        const userId = req.session.user.id;
-        const currentUser = await User.findByPk(userId, {
-            include: [{ model: Bidang, as: 'Bidang' }]
-        });
-
-        const success_msg = req.session.success_msg || null;
-        const error_msg = req.session.error_msg || null;
-        delete req.session.success_msg;
-        delete req.session.error_msg;
-
-        return res.render('profile', {
-            title: 'Profil & Tanda Tangan Saya',
-            userSession: req.session.user,
-            currentUser,
-            success_msg,
-            error_msg
-        });
-    } catch (err) {
-        console.error("Gagal memuat halaman profil:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E6);
+        cb(null, uniqueSuffix + path.extname(file.originalname).toLowerCase());
     }
 });
 
-router.post('/profile/update-ttd', isLoggedIn, upload.single('ttd'), lembagaAdminController.updateTtdProfile);
+const upload = multer({
+    storage,
+    limits: { fileSize: 1 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const filetypes = /jpeg|jpg|png|webp/;
+        const mimetype = filetypes.test(file.mimetype);
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('Format gambar tidak valid! Hanya diizinkan JPG, PNG, atau WEBP maksimal 1 MB.'));
+    }
+});
 
 // --- KONFIGURASI MULTER KHUSUS UNTUK UPLOAD BUKTI NOTA REALISASI (Maks. 1 MB) ---
 const uploadRealizDir = path.join(__dirname, '../public/uploads/realisasi');
@@ -68,7 +210,7 @@ const storageRealisasi = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'realisasi-' + uniqueSuffix + path.extname(file.originalname));
+        cb(null, 'realisasi-' + uniqueSuffix + path.extname(file.originalname).toLowerCase());
     }
 });
 
@@ -89,44 +231,103 @@ const uploadRealisasi = multer({
 // --- MIDDLEWARE KHUSUS BENDAHARA UTAMA ---
 function ensureBendaharaUtama(req, res, next) {
     const user = req.session.user;
-    if (user && (user.role === 'admin_lembaga' || user.role === 'superadmin' || user.jabatan === 'Bendahara' || user.role === 'bendahara_utama')) {
+    if (isPimpinanAtauBendahara(user)) {
         return next();
     }
-    req.session.error_msg = "Akses ditolak. Halaman ini khusus untuk Bendahara Utama (Akses Utama).";
+    req.session.error_msg = 'Akses ditolak. Halaman ini khusus untuk Bendahara Utama / Pimpinan Lembaga.';
     return res.redirect('/lembaga-admin');
 }
+
+// ==========================================
+// MODUL PROFIL & UPLOAD TTD PRIBADI
+// ==========================================
+router.get('/profile', isLoggedIn, async (req, res) => {
+    try {
+        const userId = parsePositiveInt(req.session.user.id);
+        const currentUser = await User.findByPk(userId, {
+            attributes: USER_SAFE_ATTRIBUTES,
+            include: [{ model: Bidang, as: 'Bidang' }]
+        });
+
+        if (!currentUser) {
+            req.session.error_msg = 'Data profil pengguna tidak ditemukan.';
+            return res.redirect('/lembaga-admin');
+        }
+
+        const { success_msg, error_msg } = popFlashMessages(req);
+
+        return res.render('profile', {
+            title: 'Profil & Tanda Tangan Saya',
+            userSession: req.session.user,
+            currentUser,
+            success_msg,
+            error_msg
+        });
+    } catch (err) {
+        console.error('Gagal memuat halaman profil:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
+    }
+});
+
+router.post('/profile/update-ttd', isLoggedIn, (req, res, next) => {
+    upload.single('ttd')(req, res, (err) => {
+        if (err) {
+            req.session.error_msg = err.code === 'LIMIT_FILE_SIZE'
+                ? 'Ukuran file tanda tangan melebihi batas maksimal 1 MB!'
+                : err.message;
+            return res.redirect('/lembaga-admin/profile');
+        }
+        next();
+    });
+}, lembagaAdminController.updateTtdProfile);
 
 // ==========================================
 // MODUL EKSPOR LAPORAN
 // ==========================================
 router.get('/ekspor/excel', isLoggedIn, async (req, res) => {
     try {
-        const lembagaId = req.session.user.activeLembagaId || req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const user = req.session.user;
+        const lembagaId = getActiveLembagaId(user);
+        if (!lembagaId) {
+            return res.status(403).send('Sesi lembaga tidak valid.');
+        }
 
-        const lembaga = await Lembaga.findByPk(lembagaId);
-        const prokers = await Proker.findAll({
-            where: { lembagaId: lembagaId, tahun: tahunAktifInt },
-            include: [
-                { model: Bidang, as: 'Bidang' },
-                { model: RincianBiaya, as: 'RincianBiayas' },
-                { model: RealisasiBiaya, as: 'Realisasis' }
-            ]
-        });
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+
+        const prokerWhere = { lembagaId, tahun: tahunAktifInt };
+        if (!isPimpinanAtauBendahara(user) && user.id_bidang) {
+            prokerWhere.bidangId = user.id_bidang;
+        }
+
+        const [lembaga, prokers] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: ['id', 'nama_organisasi'] }),
+            Proker.findAll({
+                where: prokerWhere,
+                include: [
+                    { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
+                    { model: RincianBiaya, as: 'RincianBiayas', attributes: ['id', 'total'] },
+                    { model: RealisasiBiaya, as: 'Realisasis', attributes: ['id', 'nominal_realisasi'] }
+                ],
+                order: [['bidangId', 'ASC'], ['id', 'ASC']]
+            })
+        ]);
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Rekapitulasi Keuangan');
 
-        worksheet.addRow([ lembaga ? lembaga.nama_organisasi.toUpperCase() : 'LAPORAN KEUANGAN' ]);
-        worksheet.addRow([ `REKAPITULASI PROGRAM KERJA & REALISASI TAHUN ${tahunAktifInt}` ]);
+        worksheet.addRow([lembaga ? lembaga.nama_organisasi.toUpperCase() : 'LAPORAN KEUANGAN']);
+        worksheet.addRow([`REKAPITULASI PROGRAM KERJA & REALISASI TAHUN ${tahunAktifInt}`]);
         worksheet.addRow([]);
 
         worksheet.getCell('A1').font = { bold: true, size: 13 };
         worksheet.getCell('A2').font = { bold: true, size: 11 };
 
-        const headerRow = worksheet.addRow(['No', 'Nama Program Kerja', 'Bidang', 'Jenis', 'Pagu RAB (Rp)', 'Realisasi Riil (Rp)', 'Selisih / Sisa (Rp)', 'Status']);
-        
+        const headerRow = worksheet.addRow([
+            'No', 'Nama Program Kerja', 'Bidang', 'Jenis',
+            'Pagu RAB (Rp)', 'Realisasi Riil (Rp)', 'Selisih / Sisa (Rp)', 'Status'
+        ]);
+
         headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
         headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
         headerRow.eachCell((cell) => {
@@ -148,8 +349,12 @@ router.get('/ekspor/excel', isLoggedIn, async (req, res) => {
         let sumSelisih = 0;
 
         prokers.forEach((p, index) => {
-            const totalRAB = p.RincianBiayas ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
-            const totalRealisasi = p.Realisasis ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0) : 0;
+            const totalRAB = p.RincianBiayas
+                ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0)
+                : 0;
+            const totalRealisasi = p.Realisasis
+                ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0)
+                : 0;
             const selisih = totalRAB - totalRealisasi;
 
             sumRAB += totalRAB;
@@ -221,13 +426,13 @@ router.get('/ekspor/excel', isLoggedIn, async (req, res) => {
         await workbook.xlsx.write(res);
         res.end();
     } catch (error) {
-        console.error("ERROR EKSPOR EXCEL:", error);
+        console.error('ERROR EKSPOR EXCEL:', error);
         req.session.error_msg = 'Gagal mengekspor data ke Excel: ' + error.message;
-        return res.redirect('back');
+        return res.redirect('/lembaga-admin');
     }
 });
 
-router.get('/ekspor/pdf', isLoggedIn, async (req, res) => {
+router.get('/ekspor/pdf', isLoggedIn, (req, res) => {
     return res.redirect('/lembaga-admin/rekap-global/print');
 });
 
@@ -237,52 +442,56 @@ router.get('/ekspor/pdf', isLoggedIn, async (req, res) => {
 router.get('/bendahara/rekapitulasi', isLoggedIn, ensureBendaharaUtama, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        const lembagaData = await Lembaga.findByPk(lembagaId, {
-            include: [
-                { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
-                { 
-                    model: Proker, 
-                    as: 'Prokers', 
-                    where: { tahun: tahunAktifInt }, 
-                    include: [
-                        { model: Bidang, as: 'Bidang' },
-                        { model: Proposal, as: 'Proposal' },
-                        { model: RincianBiaya, as: 'RincianBiayas' },
-                        { model: RealisasiBiaya, as: 'Realisasis' }
-                    ], 
-                    required: false 
-                }
-            ]
-        });
+        const [lembagaData, bidangs, prokers] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Bidang.findAll({
+                where: { lembagaId, tahun: tahunAktifInt },
+                order: [['id', 'ASC']]
+            }),
+            Proker.findAll({
+                where: { lembagaId, tahun: tahunAktifInt },
+                include: [
+                    { model: Bidang, as: 'Bidang' },
+                    { model: Proposal, as: 'Proposal' },
+                    { model: RincianBiaya, as: 'RincianBiayas' },
+                    { model: RealisasiBiaya, as: 'Realisasis' }
+                ],
+                order: [['id', 'ASC']]
+            })
+        ]);
 
         if (!lembagaData) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin');
         }
 
-        const prokers = lembagaData.Prokers || [];
+        lembagaData.Bidangs = bidangs;
+        lembagaData.Prokers = prokers;
 
         let totalPaguLembaga = 0;
         let totalRealisasiLembaga = 0;
 
         prokers.forEach(p => {
-            const paguP = p.RincianBiayas ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
-            const realP = p.Realisasis ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0) : 0;
+            const paguP = p.RincianBiayas
+                ? p.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0)
+                : 0;
+            const realP = p.Realisasis
+                ? p.Realisasis.reduce((s, r) => s + (parseFloat(r.nominal_realisasi) || 0), 0)
+                : 0;
             totalPaguLembaga += paguP;
             totalRealisasiLembaga += realP;
         });
 
         const sisaAnggaranLembaga = totalPaguLembaga - totalRealisasiLembaga;
-        const persentaseSerapan = totalPaguLembaga > 0 ? ((totalRealisasiLembaga / totalPaguLembaga) * 100).toFixed(1) : 0;
+        const persentaseSerapan = totalPaguLembaga > 0
+            ? ((totalRealisasiLembaga / totalPaguLembaga) * 100).toFixed(1)
+            : 0;
 
-        const success_msg = req.session.success_msg || null;
-        const error_msg = req.session.error_msg || null;
-        delete req.session.success_msg;
-        delete req.session.error_msg;
+        const { success_msg, error_msg } = popFlashMessages(req);
 
         return res.render('bendahara_rekapitulasi', {
             title: 'Rekapitulasi Keuangan Bendahara Utama',
@@ -298,8 +507,8 @@ router.get('/bendahara/rekapitulasi', isLoggedIn, ensureBendaharaUtama, async (r
             error_msg
         });
     } catch (err) {
-        console.error("Gagal memuat rekapitulasi bendahara utama:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal memuat rekapitulasi bendahara utama:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -309,102 +518,104 @@ router.get('/bendahara/proposal-bulanan', isLoggedIn, ensureBendaharaUtama, lemb
 // --- RUTE CETAK KONSOLIDASI PROPOSAL & RAB BULANAN ---
 router.get('/bendahara/proposal-bulanan/print', isLoggedIn, ensureBendaharaUtama, lembagaAdminController.printRekapProposalBulanan);
 
-// --- RUTE HALAMAN UTAMA / DASHBOARD DINAMIS (/lembaga-admin) ---
+// ==========================================
+// RUTE HALAMAN UTAMA / DASHBOARD DINAMIS (/lembaga-admin)
+// ==========================================
 router.get('/', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        let lembagaData;
-
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026, nama_aplikasi: 'Aplikasi Program Kerja' };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
-
-        if (user.role === 'admin_lembaga' || user.role === 'superadmin' || user.jabatan === 'Bendahara') {
-            lembagaData = await Lembaga.findByPk(lembagaId, {
-                include: [
-                    { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false, include: [{ model: Proker, as: 'Prokers' }] },
-                    { model: User, as: 'Users', include: [{ model: Bidang, as: 'Bidang' }] },
-                    { 
-                        model: Proker, 
-                        as: 'Prokers', 
-                        where: { tahun: tahunAktifInt }, 
-                        include: [
-                            { model: Bidang, as: 'Bidang' },
-                            { model: Proposal, as: 'Proposal' },
-                            { model: RincianBiaya, as: 'RincianBiayas' },
-                            { model: RealisasiBiaya, as: 'Realisasis' }
-                        ], 
-                        required: false 
-                    }
-                ]
-            });
-        } else {
-            lembagaData = await Lembaga.findByPk(lembagaId, {
-                include: [
-                    { model: Bidang, as: 'Bidangs', where: { id: user.id_bidang, tahun: tahunAktifInt }, required: false },
-                    { model: User, as: 'Users', where: { id_bidang: user.id_bidang }, required: false, include: [{ model: Bidang, as: 'Bidang' }] },
-                    { 
-                        model: Proker, 
-                        as: 'Prokers', 
-                        where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, 
-                        include: [
-                            { model: Bidang, as: 'Bidang' },
-                            { model: Proposal, as: 'Proposal' },
-                            { model: RincianBiaya, as: 'RincianBiayas' },
-                            { model: RealisasiBiaya, as: 'Realisasis' }
-                        ], 
-                        required: false 
-                    }
-                ]
-            });
+        const lembagaId = getActiveLembagaId(user);
+        if (!lembagaId) {
+            req.session.error_msg = 'Sesi lembaga tidak valid.';
+            return res.redirect('/login');
         }
 
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+        const hasFullAccess = isPimpinanAtauBendahara(user);
+
+        const bidangWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, id: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const userWhere = hasFullAccess
+            ? { lembagaId }
+            : { lembagaId, id_bidang: user.id_bidang || -1 };
+
+        const prokerWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, bidangId: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const needPendingCount = hasFullAccess;
+
+        const [lembagaData, bidangs, users, prokers, listLembaga, totalPendingPencairan] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Bidang.findAll({
+                where: bidangWhere,
+                order: [['id', 'ASC']]
+            }),
+            User.findAll({
+                where: userWhere,
+                attributes: USER_SAFE_ATTRIBUTES,
+                include: [{ model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] }],
+                order: [['id', 'ASC']]
+            }),
+            Proker.findAll({
+                where: prokerWhere,
+                include: [
+                    { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
+                    { model: Proposal, as: 'Proposal' },
+                    { model: RincianBiaya, as: 'RincianBiayas', attributes: ['id', 'prokerId', 'total', 'bulan'] },
+                    { model: RealisasiBiaya, as: 'Realisasis', attributes: ['id', 'prokerId', 'nominal_realisasi'] }
+                ],
+                order: [['id', 'ASC']]
+            }),
+            getCachedLembagaList(),
+            needPendingCount
+                ? Proposal.count({ where: { lembagaId, status: 'Disetujui' } }).catch(() => 0)
+                : Promise.resolve(0)
+        ]);
+
         if (!lembagaData) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/');
         }
 
-        const listLembaga = await Lembaga.findAll();
+        // Hubungkan Prokers per Bidang di memori tanpa melakukan double JOIN di SQL
+        const prokersByBidang = new Map();
+        for (const p of prokers) {
+            const key = Number(p.bidangId);
+            if (!prokersByBidang.has(key)) prokersByBidang.set(key, []);
+            prokersByBidang.get(key).push(p);
+        }
+        bidangs.forEach(b => {
+            b.Prokers = prokersByBidang.get(Number(b.id)) || [];
+        });
 
-        const bidangs = lembagaData.Bidangs || [];
-        const users = lembagaData.Users || [];
-        const prokers = lembagaData.Prokers || [];
+        lembagaData.Bidangs = bidangs;
+        lembagaData.Users = users;
+        lembagaData.Prokers = prokers;
 
         let totalAnggaranLembaga = 0;
         let totalRealisasiLembaga = 0;
 
-        if (prokers.length > 0) {
-            prokers.forEach(proker => {
-                const paguProker = proker.RincianBiayas ? proker.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0) : (parseFloat(proker.anggaran) || 0);
-                totalAnggaranLembaga += paguProker;
+        for (const proker of prokers) {
+            const paguProker = (proker.RincianBiayas && proker.RincianBiayas.length > 0)
+                ? proker.RincianBiayas.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0)
+                : (parseFloat(proker.anggaran) || 0);
+            totalAnggaranLembaga += paguProker;
 
-                if (proker.Realisasis && proker.Realisasis.length > 0) {
-                    const realisasiProker = proker.Realisasis.reduce((sum, r) => sum + (parseFloat(r.nominal_realisasi) || 0), 0);
-                    totalRealisasiLembaga += realisasiProker;
-                }
-            });
-        }
-
-        const persentaseSerapan = totalAnggaranLembaga > 0 ? ((totalRealisasiLembaga / totalAnggaranLembaga) * 100).toFixed(1) : 0;
-
-        const success_msg = req.session.success_msg || null;
-        const error_msg = req.session.error_msg || null;
-        delete req.session.success_msg;
-        delete req.session.error_msg;
-
-        let totalPendingPencairan = 0;
-        if (user.hierarki === 'Bendahara' || user.jabatan === 'Bendahara' || user.role === 'admin_lembaga') {
-            try {
-                totalPendingPencairan = await Proposal.count({
-                    where: {
-                        lembagaId: lembagaId,
-                        status: 'Disetujui'
-                    }
-                });
-            } catch (errCount) {
-                console.error("DEBUG: Gagal menghitung notifikasi pencairan Bendahara:", errCount);
+            if (proker.Realisasis && proker.Realisasis.length > 0) {
+                const realisasiProker = proker.Realisasis.reduce((sum, r) => sum + (parseFloat(r.nominal_realisasi) || 0), 0);
+                totalRealisasiLembaga += realisasiProker;
             }
         }
+
+        const persentaseSerapan = totalAnggaranLembaga > 0
+            ? ((totalRealisasiLembaga / totalAnggaranLembaga) * 100).toFixed(1)
+            : 0;
+
+        const { success_msg, error_msg } = popFlashMessages(req);
 
         let titlePanel = 'Panel Bidang: ' + (user.jabatan || 'Pengurus');
         if (user.role === 'admin_lembaga' || user.role === 'superadmin') {
@@ -432,10 +643,9 @@ router.get('/', isLoggedIn, async (req, res) => {
             totalPendingPencairan,
             titlePanel
         });
-
     } catch (err) {
-        console.error("Error pada dashboard lembaga:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error pada dashboard lembaga:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -444,13 +654,23 @@ router.get('/', isLoggedIn, async (req, res) => {
 // ==========================================
 router.get('/bidang', isLoggedIn, async (req, res) => {
     try {
-        const lembagaId = req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        const lembagaData = await Lembaga.findByPk(lembagaId, {
-            include: [{ model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false }]
-        });
+        const [lembagaData, bidangs] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Bidang.findAll({
+                where: { lembagaId, tahun: tahunAktifInt },
+                order: [['id', 'ASC']]
+            })
+        ]);
+
+        if (!lembagaData) {
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
+        }
+        lembagaData.Bidangs = bidangs;
 
         return res.render('manajemen_bidang', {
             pengaturan,
@@ -458,20 +678,21 @@ router.get('/bidang', isLoggedIn, async (req, res) => {
             lembagaData
         });
     } catch (err) {
-        console.error("Error halaman manajemen bidang:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman manajemen bidang:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/bidang/tambah', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const { nama_bidang, deskripsi_tugas } = req.body;
-        const lembagaId = req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
         if (!nama_bidang || nama_bidang.trim() === '') {
-            return res.status(400).send("Nama bidang wajib diisi!");
+            req.session.error_msg = 'Nama bidang wajib diisi!';
+            return res.redirect('/lembaga-admin/bidang');
         }
 
         await Bidang.create({
@@ -481,83 +702,117 @@ router.post('/bidang/tambah', isLoggedIn, isAdminLembaga, async (req, res) => {
             tahun: tahunAktifInt
         });
 
+        req.session.success_msg = 'Bidang baru berhasil ditambahkan!';
         return res.redirect('/lembaga-admin/bidang');
     } catch (err) {
-        console.error("Gagal menambah bidang:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menambah bidang:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/bidang/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
-        const bidangId = req.params.id;
-        const lembagaId = req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
-
-        const bidang = await Bidang.findOne({ where: { id: bidangId, lembagaId: lembagaId, tahun: tahunAktifInt } });
-        if (!bidang) {
-            return res.status(404).send("Data bidang tidak ditemukan pada tahun aktif atau Anda tidak memiliki akses.");
+        const bidangId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        if (!bidangId || !lembagaId) {
+            return res.status(400).send('Parameter bidang tidak valid.');
         }
 
-        return res.render('edit_bidang', { pengaturan, userSession: req.session.user, bidang });
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+
+        const bidang = await Bidang.findOne({
+            where: { id: bidangId, lembagaId, tahun: tahunAktifInt }
+        });
+        if (!bidang) {
+            return res.status(404).send('Data bidang tidak ditemukan pada tahun aktif atau Anda tidak memiliki akses.');
+        }
+
+        return res.render('edit_bidang', {
+            pengaturan,
+            userSession: req.session.user,
+            bidang
+        });
     } catch (err) {
-        console.error("Error ambil data edit bidang:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error ambil data edit bidang:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
-router.post('/bidang/edit/:id', isLoggedIn, isAdminLembaga, upload.single('ttd_bidang'), async (req, res) => {
+router.post('/bidang/edit/:id', isLoggedIn, isAdminLembaga, (req, res, next) => {
+    upload.single('ttd_bidang')(req, res, (err) => {
+        if (err) {
+            req.session.error_msg = err.code === 'LIMIT_FILE_SIZE'
+                ? 'Ukuran file TTD Bidang melebihi batas maksimal 1 MB!'
+                : err.message;
+            return res.redirect(`/lembaga-admin/bidang/edit/${req.params.id}`);
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
-        const bidangId = req.params.id;
-        const lembagaId = req.session.user.lembagaId;
+        const bidangId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
         const { nama_bidang, deskripsi_tugas } = req.body;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        if (!nama_bidang || nama_bidang.trim() === '') {
-            return res.status(400).send("Nama bidang wajib diisi!");
+        if (!bidangId || !nama_bidang || nama_bidang.trim() === '') {
+            req.session.error_msg = 'Nama bidang wajib diisi!';
+            return res.redirect(`/lembaga-admin/bidang/edit/${req.params.id}`);
         }
 
-        const bidang = await Bidang.findOne({ where: { id: bidangId, lembagaId: lembagaId, tahun: tahunAktifInt } });
+        const bidang = await Bidang.findOne({
+            where: { id: bidangId, lembagaId, tahun: tahunAktifInt }
+        });
         if (!bidang) {
-            return res.status(404).send("Data bidang tidak ditemukan!");
+            return res.status(404).send('Data bidang tidak ditemukan!');
         }
 
         bidang.nama_bidang = nama_bidang.trim();
         bidang.deskripsi_tugas = deskripsi_tugas ? deskripsi_tugas.trim() : null;
 
         if (req.file) {
-            const maxSize = 1 * 1024 * 1024;
-            if (req.file.size > maxSize) {
-                req.session.error_msg = "Ukuran file TTD Bidang melebihi batas maksimal 1 MB!";
-                return res.redirect(`/lembaga-admin/bidang/edit/${bidangId}`);
-            }
             bidang.ttd_bidang = req.file.filename;
         }
 
         await bidang.save();
 
-        req.session.success_msg = "Data bidang dan tanda tangan berhasil diperbarui!";
+        req.session.success_msg = 'Data bidang dan tanda tangan berhasil diperbarui!';
         return res.redirect('/lembaga-admin/bidang');
     } catch (err) {
-        console.error("Gagal mengupdate bidang:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal mengupdate bidang:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/bidang/hapus/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
-        const bidangId = req.params.id;
-        const lembagaId = req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const bidangId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        if (!bidangId || !lembagaId) {
+            return res.redirect('/lembaga-admin/bidang');
+        }
 
-        await Bidang.destroy({ where: { id: bidangId, lembagaId: lembagaId, tahun: tahunAktifInt } });
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+
+        const [jumlahProker, jumlahUser] = await Promise.all([
+            Proker.count({ where: { bidangId, lembagaId, tahun: tahunAktifInt } }),
+            User.count({ where: { id_bidang: bidangId, lembagaId } })
+        ]);
+
+        if (jumlahProker > 0 || jumlahUser > 0) {
+            req.session.error_msg = `Bidang tidak dapat dihapus karena masih memiliki ${jumlahProker} program kerja dan ${jumlahUser} pengurus terkait.`;
+            return res.redirect('/lembaga-admin/bidang');
+        }
+
+        await Bidang.destroy({ where: { id: bidangId, lembagaId, tahun: tahunAktifInt } });
+        req.session.success_msg = 'Bidang berhasil dihapus.';
         return res.redirect('/lembaga-admin/bidang');
     } catch (err) {
-        console.error("Gagal menghapus bidang:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menghapus bidang:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -566,16 +821,30 @@ router.get('/bidang/hapus/:id', isLoggedIn, isAdminLembaga, async (req, res) => 
 // ==========================================
 router.get('/pengurus', isLoggedIn, async (req, res) => {
     try {
-        const lembagaId = req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        const lembagaData = await Lembaga.findByPk(lembagaId, {
-            include: [
-                { model: User, as: 'Users', include: [{ model: Bidang, as: 'Bidang' }] },
-                { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false }
-            ]
-        });
+        const [lembagaData, users, bidangs] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            User.findAll({
+                where: { lembagaId },
+                attributes: USER_SAFE_ATTRIBUTES,
+                include: [{ model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] }],
+                order: [['id', 'ASC']]
+            }),
+            Bidang.findAll({
+                where: { lembagaId, tahun: tahunAktifInt },
+                order: [['id', 'ASC']]
+            })
+        ]);
+
+        if (!lembagaData) {
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
+        }
+        lembagaData.Users = users;
+        lembagaData.Bidangs = bidangs;
 
         return res.render('kelola_pengurus', {
             pengaturan,
@@ -583,55 +852,92 @@ router.get('/pengurus', isLoggedIn, async (req, res) => {
             lembagaData
         });
     } catch (err) {
-        console.error("Error halaman pengurus:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman pengurus:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/pengurus/tambah', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const { nama_lengkap, username, password, role, jabatan, id_bidang } = req.body;
-        const lembagaId = req.session.user.lembagaId;
+        const lembagaId = getActiveLembagaId(req.session.user);
 
-        if (!nama_lengkap || !username || !password) {
-            return res.status(400).send("Nama lengkap, username, dan password wajib diisi!");
+        if (!nama_lengkap || !username || !password || nama_lengkap.trim() === '' || username.trim() === '' || password.trim() === '') {
+            req.session.error_msg = 'Nama lengkap, username, dan password wajib diisi!';
+            return res.redirect('/lembaga-admin/pengurus');
         }
 
-        const hashedPassword = bcrypt.hashSync(password, 10);
+        const cleanUsername = username.trim();
+        const existingUser = await User.findOne({ where: { username: cleanUsername } });
+        if (existingUser) {
+            req.session.error_msg = `Username "${cleanUsername}" sudah digunakan. Silakan pilih username lain.`;
+            return res.redirect('/lembaga-admin/pengurus');
+        }
+
+        let validBidangId = null;
+        if (id_bidang) {
+            const parsedBidangId = parsePositiveInt(id_bidang);
+            if (parsedBidangId) {
+                const bidangValid = await Bidang.findOne({ where: { id: parsedBidangId, lembagaId } });
+                if (!bidangValid) {
+                    req.session.error_msg = 'Bidang yang dipilih tidak valid untuk lembaga ini.';
+                    return res.redirect('/lembaga-admin/pengurus');
+                }
+                validBidangId = parsedBidangId;
+            }
+        }
+
+        const hashedPassword = bcrypt.hashSync(password.trim(), 10);
 
         await User.create({
             nama_lengkap: nama_lengkap.trim(),
-            username: username.trim(),
+            username: cleanUsername,
             password: hashedPassword,
-            role,
-            jabatan,
-            id_bidang: id_bidang ? id_bidang : null,
+            role: role || 'pengurus_bidang',
+            jabatan: jabatan ? jabatan.trim() : null,
+            id_bidang: validBidangId,
             lembagaId
         });
 
+        req.session.success_msg = `Pengurus [${cleanUsername}] berhasil ditambahkan!`;
         return res.redirect('/lembaga-admin/pengurus');
     } catch (err) {
-        console.error("Gagal menambah pengurus:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menambah pengurus:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/pengurus/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
-        const userId = req.params.id;
-        const lembagaId = req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
-
-        const targetUser = await User.findOne({ where: { id: userId, lembagaId: lembagaId } });
-        if (!targetUser) {
-            req.session.error_msg = "Data pengurus tidak ditemukan!";
+        const userId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        if (!userId || !lembagaId) {
             return res.redirect('/lembaga-admin/pengurus');
         }
 
-        const lembagaData = await Lembaga.findByPk(lembagaId, {
-            include: [{ model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false }]
-        });
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+
+        const [targetUser, lembagaData, bidangs] = await Promise.all([
+            User.findOne({
+                where: { id: userId, lembagaId },
+                attributes: USER_SAFE_ATTRIBUTES
+            }),
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Bidang.findAll({
+                where: { lembagaId, tahun: tahunAktifInt },
+                order: [['id', 'ASC']]
+            })
+        ]);
+
+        if (!targetUser) {
+            req.session.error_msg = 'Data pengurus tidak ditemukan!';
+            return res.redirect('/lembaga-admin/pengurus');
+        }
+
+        if (lembagaData) {
+            lembagaData.Bidangs = bidangs;
+        }
 
         return res.render('edit_pengurus', {
             pengaturan,
@@ -640,28 +946,58 @@ router.get('/pengurus/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) =>
             lembagaData
         });
     } catch (err) {
-        console.error("Error halaman edit pengurus:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman edit pengurus:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/pengurus/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
-        const userId = req.params.id;
-        const lembagaId = req.session.user.lembagaId;
+        const userId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
         const { nama_lengkap, username, password, role, jabatan, id_bidang } = req.body;
 
-        const targetUser = await User.findOne({ where: { id: userId, lembagaId: lembagaId } });
-        if (!targetUser) {
-            req.session.error_msg = "Data pengurus tidak ditemukan!";
+        if (!userId || !lembagaId) {
             return res.redirect('/lembaga-admin/pengurus');
         }
 
-        targetUser.nama_lengkap = nama_lengkap ? nama_lengkap.trim() : targetUser.nama_lengkap;
-        targetUser.username = username ? username.trim() : targetUser.username;
+        const targetUser = await User.findOne({ where: { id: userId, lembagaId } });
+        if (!targetUser) {
+            req.session.error_msg = 'Data pengurus tidak ditemukan!';
+            return res.redirect('/lembaga-admin/pengurus');
+        }
+
+        if (username && username.trim() !== '' && username.trim() !== targetUser.username) {
+            const duplicate = await User.findOne({
+                where: {
+                    username: username.trim(),
+                    id: { [Op.ne]: userId }
+                }
+            });
+            if (duplicate) {
+                req.session.error_msg = `Username "${username.trim()}" sudah dipakai pengguna lain.`;
+                return res.redirect(`/lembaga-admin/pengurus/edit/${userId}`);
+            }
+            targetUser.username = username.trim();
+        }
+
+        let validBidangId = null;
+        if (id_bidang) {
+            const parsedBidangId = parsePositiveInt(id_bidang);
+            if (parsedBidangId) {
+                const bidangValid = await Bidang.findOne({ where: { id: parsedBidangId, lembagaId } });
+                if (!bidangValid) {
+                    req.session.error_msg = 'Bidang yang dipilih tidak valid untuk lembaga ini.';
+                    return res.redirect(`/lembaga-admin/pengurus/edit/${userId}`);
+                }
+                validBidangId = parsedBidangId;
+            }
+        }
+
+        targetUser.nama_lengkap = nama_lengkap && nama_lengkap.trim() !== '' ? nama_lengkap.trim() : targetUser.nama_lengkap;
         targetUser.role = role || targetUser.role;
-        targetUser.jabatan = jabatan || targetUser.jabatan;
-        targetUser.id_bidang = id_bidang ? id_bidang : null;
+        targetUser.jabatan = jabatan ? jabatan.trim() : targetUser.jabatan;
+        targetUser.id_bidang = validBidangId;
 
         if (password && password.trim() !== '') {
             targetUser.password = bcrypt.hashSync(password.trim(), 10);
@@ -672,8 +1008,8 @@ router.post('/pengurus/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) =
         req.session.success_msg = `Data pengurus [${targetUser.username}] dan Role berhasil diperbarui!`;
         return res.redirect('/lembaga-admin/pengurus');
     } catch (err) {
-        console.error("Gagal mengupdate pengurus:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal mengupdate pengurus:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -682,33 +1018,39 @@ router.post('/pengurus/edit/:id', isLoggedIn, isAdminLembaga, async (req, res) =
 // ==========================================
 router.get('/proker', isLoggedIn, async (req, res) => {
     try {
-        const lembagaId = req.session.user.lembagaId;
         const user = req.session.user;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+        const hasFullAccess = isPimpinanAtauBendahara(user);
 
-        let lembagaData;
-        if (user.role === 'admin_lembaga') {
-            lembagaData = await Lembaga.findByPk(lembagaId, {
+        const bidangWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, id: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const prokerWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, bidangId: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const [lembagaData, bidangs, prokers] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Bidang.findAll({ where: bidangWhere, order: [['id', 'ASC']] }),
+            Proker.findAll({
+                where: prokerWhere,
                 include: [
-                    { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
-                    { model: Proker, as: 'Prokers', where: { tahun: tahunAktifInt }, include: [
-                        { model: Bidang, as: 'Bidang' },
-                        { model: RincianBiaya, as: 'RincianBiayas' }
-                    ], required: false }
-                ]
-            });
-        } else {
-            lembagaData = await Lembaga.findByPk(lembagaId, {
-                include: [
-                    { model: Bidang, as: 'Bidangs', where: { id: user.id_bidang, tahun: tahunAktifInt }, required: false },
-                    { model: Proker, as: 'Prokers', where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, include: [
-                        { model: Bidang, as: 'Bidang' },
-                        { model: RincianBiaya, as: 'RincianBiayas' }
-                    ], required: false }
-                ]
-            });
+                    { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
+                    { model: RincianBiaya, as: 'RincianBiayas' }
+                ],
+                order: [['id', 'ASC']]
+            })
+        ]);
+
+        if (!lembagaData) {
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
         }
+        lembagaData.Bidangs = bidangs;
+        lembagaData.Prokers = prokers;
 
         return res.render('manajemen_proker', {
             pengaturan,
@@ -716,32 +1058,46 @@ router.get('/proker', isLoggedIn, async (req, res) => {
             lembagaData
         });
     } catch (err) {
-        console.error("Error halaman proker:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman proker:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/proker/tambah', isLoggedIn, lembagaAdminController.storeProker, async (req, res) => {
     try {
+        const user = req.session.user;
         const { nama_program, bidangId, deskripsi, status } = req.body;
-        const lembagaId = req.session.user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        if (!nama_program || !bidangId) {
-            return res.status(400).send("Nama program dan bidang penanggung jawab wajib diisi!");
+        const targetBidangId = isPimpinanAtauBendahara(user)
+            ? parsePositiveInt(bidangId)
+            : parsePositiveInt(user.id_bidang);
+
+        if (!nama_program || nama_program.trim() === '' || !targetBidangId) {
+            req.session.error_msg = 'Nama program dan bidang penanggung jawab wajib diisi!';
+            return res.redirect('/lembaga-admin/proker');
+        }
+
+        const bidangValid = await Bidang.findOne({
+            where: { id: targetBidangId, lembagaId, tahun: tahunAktifInt }
+        });
+        if (!bidangValid) {
+            req.session.error_msg = 'Bidang penanggung jawab tidak valid pada tahun aktif!';
+            return res.redirect('/lembaga-admin/proker');
         }
 
         let bulanPelaksanaan = req.body.bulan;
         if (Array.isArray(bulanPelaksanaan)) {
-            bulanPelaksanaan = bulanPelaksanaan.join(',');
+            bulanPelaksanaan = bulanPelaksanaan.map(b => String(b).trim()).filter(Boolean).join(',');
         } else if (!bulanPelaksanaan) {
             bulanPelaksanaan = '';
         }
 
         await Proker.create({
             nama_program: nama_program.trim(),
-            bidangId,
+            bidangId: targetBidangId,
             lembagaId,
             deskripsi: deskripsi ? deskripsi.trim() : null,
             waktu_pelaksanaan: bulanPelaksanaan,
@@ -750,32 +1106,40 @@ router.post('/proker/tambah', isLoggedIn, lembagaAdminController.storeProker, as
             tahun: tahunAktifInt
         });
 
+        req.session.success_msg = 'Program kerja berhasil ditambahkan!';
         return res.redirect('/lembaga-admin/proker');
     } catch (err) {
-        console.error("Gagal menambah proker:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menambah proker:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/proker/edit/:id', isLoggedIn, async (req, res) => {
     try {
-        const prokerId = req.params.id;
+        const prokerId = parsePositiveInt(req.params.id);
         const user = req.session.user;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        if (!prokerId || !lembagaId) {
+            return res.redirect('/lembaga-admin/proker');
+        }
 
-        const proker = await Proker.findOne({ where: { id: prokerId, tahun: tahunAktifInt } });
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+
+        const [proker, bidangs] = await Promise.all([
+            Proker.findOne({ where: { id: prokerId, lembagaId, tahun: tahunAktifInt } }),
+            Bidang.findAll({ where: { lembagaId, tahun: tahunAktifInt }, order: [['id', 'ASC']] })
+        ]);
+
         if (!proker) {
-            req.session.error_msg = "Program kerja tidak ditemukan pada tahun aktif!";
+            req.session.error_msg = 'Program kerja tidak ditemukan pada tahun aktif!';
             return res.redirect('/lembaga-admin/proker');
         }
 
-        if (user.role !== 'admin_lembaga' && proker.bidangId !== user.id_bidang) {
-            req.session.error_msg = "Anda tidak memiliki akses untuk mengedit program kerja ini!";
+        if (!canManageProker(user, proker)) {
+            req.session.error_msg = 'Anda tidak memiliki akses untuk mengedit program kerja ini!';
             return res.redirect('/lembaga-admin/proker');
         }
-
-        const bidangs = await Bidang.findAll({ where: { lembagaId: user.lembagaId, tahun: tahunAktifInt } });
 
         return res.render('edit_proker', {
             pengaturan,
@@ -784,69 +1148,90 @@ router.get('/proker/edit/:id', isLoggedIn, async (req, res) => {
             bidangs
         });
     } catch (err) {
-        console.error("Error ambil form edit proker:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error ambil form edit proker:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/proker/edit/:id', isLoggedIn, async (req, res) => {
     try {
-        const prokerId = req.params.id;
+        const prokerId = parsePositiveInt(req.params.id);
         const user = req.session.user;
+        const lembagaId = getActiveLembagaId(user);
         const { nama_program, bidangId, deskripsi, status } = req.body;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        const proker = await Proker.findOne({ where: { id: prokerId, tahun: tahunAktifInt } });
+        const proker = await Proker.findOne({ where: { id: prokerId, lembagaId, tahun: tahunAktifInt } });
         if (!proker) {
-            return res.status(404).send("Program kerja tidak ditemukan!");
+            return res.status(404).send('Program kerja tidak ditemukan!');
         }
 
-        if (user.role !== 'admin_lembaga' && proker.bidangId !== user.id_bidang) {
-            return res.status(403).send("Akses ditolak!");
+        if (!canManageProker(user, proker)) {
+            return res.status(403).send('Akses ditolak!');
+        }
+
+        let targetBidangId = proker.bidangId;
+        if (isPimpinanAtauBendahara(user) && bidangId) {
+            const parsedBidangId = parsePositiveInt(bidangId);
+            if (parsedBidangId) {
+                const bidangValid = await Bidang.findOne({
+                    where: { id: parsedBidangId, lembagaId, tahun: tahunAktifInt }
+                });
+                if (!bidangValid) {
+                    req.session.error_msg = 'Bidang tujuan tidak valid!';
+                    return res.redirect(`/lembaga-admin/proker/edit/${prokerId}`);
+                }
+                targetBidangId = parsedBidangId;
+            }
         }
 
         let bulanPelaksanaan = req.body.bulan;
         if (Array.isArray(bulanPelaksanaan)) {
-            bulanPelaksanaan = bulanPelaksanaan.join(',');
+            bulanPelaksanaan = bulanPelaksanaan.map(b => String(b).trim()).filter(Boolean).join(',');
         } else if (!bulanPelaksanaan) {
             bulanPelaksanaan = proker.waktu_pelaksanaan;
         }
 
         await proker.update({
-            nama_program: nama_program ? nama_program.trim() : proker.nama_program,
-            bidangId: user.role === 'admin_lembaga' ? bidangId : proker.bidangId,
+            nama_program: nama_program && nama_program.trim() !== '' ? nama_program.trim() : proker.nama_program,
+            bidangId: targetBidangId,
             deskripsi: deskripsi ? deskripsi.trim() : null,
             waktu_pelaksanaan: bulanPelaksanaan,
             status: status || proker.status
         });
 
-        req.session.success_msg = "Program kerja berhasil diperbarui!";
+        req.session.success_msg = 'Program kerja berhasil diperbarui!';
         return res.redirect('/lembaga-admin/proker');
     } catch (err) {
-        console.error("Gagal update proker:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal update proker:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/proker/rab/:id', isLoggedIn, async (req, res) => {
     try {
-        const prokerId = req.params.id;
+        const prokerId = parsePositiveInt(req.params.id);
         const user = req.session.user;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        if (!prokerId || !lembagaId) {
+            return res.redirect('/lembaga-admin/proker');
+        }
+
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
         const proker = await Proker.findOne({
-            where: { id: prokerId, tahun: tahunAktifInt },
+            where: { id: prokerId, lembagaId, tahun: tahunAktifInt },
             include: [
-                { model: Bidang, as: 'Bidang' },
-                { model: Lembaga, as: 'Lembaga' },
+                { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
+                { model: Lembaga, as: 'Lembaga', attributes: LEMBAGA_LIGHT_ATTRIBUTES },
                 { model: RincianBiaya, as: 'RincianBiayas' }
             ]
         });
 
         if (!proker) {
-            req.session.error_msg = "Program kerja tidak ditemukan!";
+            req.session.error_msg = 'Program kerja tidak ditemukan!';
             return res.redirect('/lembaga-admin/proker');
         }
 
@@ -856,26 +1241,39 @@ router.get('/proker/rab/:id', isLoggedIn, async (req, res) => {
             proker
         });
     } catch (err) {
-        console.error("Error halaman RAB:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman RAB:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/proker/rab/tambah/:id', isLoggedIn, async (req, res) => {
     try {
-        const prokerId = req.params.id;
+        const prokerId = parsePositiveInt(req.params.id);
+        const user = req.session.user;
+        const lembagaId = getActiveLembagaId(user);
         const { nama_item, satuan, jumlah, harga_satuan } = req.body;
 
-        if (!nama_item || !jumlah || !harga_satuan) {
-            return res.status(400).send("Nama item, volume (jumlah), dan harga satuan wajib diisi!");
+        const jml = parseNonNegativeNumber(jumlah);
+        const harga = parseNonNegativeNumber(harga_satuan);
+
+        if (!prokerId || !nama_item || nama_item.trim() === '' || jml === null || jml <= 0 || harga === null) {
+            req.session.error_msg = 'Nama item, volume (> 0), dan harga satuan wajib diisi dengan valid!';
+            return res.redirect(`/lembaga-admin/proker/rab/${req.params.id}`);
         }
 
-        const jml = parseFloat(jumlah) || 0;
-        const harga = parseFloat(harga_satuan) || 0;
+        const proker = await Proker.findOne({ where: { id: prokerId, lembagaId } });
+        if (!proker) {
+            req.session.error_msg = 'Program kerja tidak ditemukan!';
+            return res.redirect('/lembaga-admin/proker');
+        }
 
-        const proker = await Proker.findByPk(prokerId);
+        if (!canManageProker(user, proker)) {
+            req.session.error_msg = 'Anda tidak memiliki akses untuk menambah RAB pada program kerja ini!';
+            return res.redirect('/lembaga-admin/proker');
+        }
+
         let jumlahBulan = 1;
-        if (proker && proker.waktu_pelaksanaan) {
+        if (proker.waktu_pelaksanaan) {
             const bulanArr = proker.waktu_pelaksanaan.split(',').filter(Boolean);
             if (bulanArr.length > 0) {
                 jumlahBulan = bulanArr.length;
@@ -887,42 +1285,44 @@ router.post('/proker/rab/tambah/:id', isLoggedIn, async (req, res) => {
         await RincianBiaya.create({
             prokerId,
             nama_item: nama_item.trim(),
-            satuan: satuan ? satuan.trim() : 'Pcs',
+            satuan: satuan && satuan.trim() !== '' ? satuan.trim() : 'Pcs',
             jumlah: jml,
             harga_satuan: harga,
             bulan: jumlahBulan,
             total: totalBiaya
         });
 
-        const allRAB = await RincianBiaya.findAll({ where: { prokerId } });
-        const totalAnggaranProker = allRAB.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+        await recalculateProkerAnggaran(prokerId);
 
-        await Proker.update({ anggaran: totalAnggaranProker }, { where: { id: prokerId } });
-
+        req.session.success_msg = 'Item rincian biaya berhasil ditambahkan!';
         return res.redirect(`/lembaga-admin/proker/rab/${prokerId}`);
     } catch (err) {
-        console.error("Gagal menambah item RAB:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menambah item RAB:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/proker/rab/edit/:idItem', isLoggedIn, async (req, res) => {
     try {
-        const idItem = req.params.idItem;
+        const idItem = parsePositiveInt(req.params.idItem);
         const user = req.session.user;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+        if (!idItem) {
+            return res.redirect('/lembaga-admin/proker');
+        }
+
+        const pengaturan = await getCachedPengaturan();
 
         const itemRAB = await RincianBiaya.findByPk(idItem, {
             include: [{ model: Proker, as: 'Proker' }]
         });
 
-        if (!itemRAB) {
-            req.session.error_msg = "Item RAB tidak ditemukan!";
+        if (!itemRAB || !itemRAB.Proker) {
+            req.session.error_msg = 'Item RAB tidak ditemukan!';
             return res.redirect('/lembaga-admin/proker');
         }
 
-        if (user.role !== 'admin_lembaga' && itemRAB.Proker.bidangId !== user.id_bidang) {
-            req.session.error_msg = "Akses ditolak!";
+        if (!canManageProker(user, itemRAB.Proker)) {
+            req.session.error_msg = 'Akses ditolak! Item RAB berada di luar wewenang Anda.';
             return res.redirect('/lembaga-admin/proker');
         }
 
@@ -932,28 +1332,39 @@ router.get('/proker/rab/edit/:idItem', isLoggedIn, async (req, res) => {
             itemRAB
         });
     } catch (err) {
-        console.error("Error ambil form edit RAB:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error ambil form edit RAB:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/proker/rab/edit/:idItem', isLoggedIn, async (req, res) => {
     try {
-        const idItem = req.params.idItem;
+        const idItem = parsePositiveInt(req.params.idItem);
+        const user = req.session.user;
         const { nama_item, satuan, jumlah, harga_satuan } = req.body;
 
-        const itemRAB = await RincianBiaya.findByPk(idItem);
-        if (!itemRAB) {
-            return res.status(404).send("Item RAB tidak ditemukan!");
+        const jml = parseNonNegativeNumber(jumlah);
+        const harga = parseNonNegativeNumber(harga_satuan);
+
+        if (!idItem || !nama_item || nama_item.trim() === '' || jml === null || jml <= 0 || harga === null) {
+            req.session.error_msg = 'Input rincian biaya tidak valid!';
+            return res.redirect('/lembaga-admin/proker');
         }
 
-        const jml = parseFloat(jumlah) || 0;
-        const harga = parseFloat(harga_satuan) || 0;
+        const itemRAB = await RincianBiaya.findByPk(idItem, {
+            include: [{ model: Proker, as: 'Proker' }]
+        });
+        if (!itemRAB || !itemRAB.Proker) {
+            return res.status(404).send('Item RAB tidak ditemukan!');
+        }
 
-        const proker = await Proker.findByPk(itemRAB.prokerId);
+        if (!canManageProker(user, itemRAB.Proker)) {
+            return res.status(403).send('Akses ditolak!');
+        }
+
         let jumlahBulan = 1;
-        if (proker && proker.waktu_pelaksanaan) {
-            const bulanArr = proker.waktu_pelaksanaan.split(',').filter(Boolean);
+        if (itemRAB.Proker.waktu_pelaksanaan) {
+            const bulanArr = itemRAB.Proker.waktu_pelaksanaan.split(',').filter(Boolean);
             if (bulanArr.length > 0) jumlahBulan = bulanArr.length;
         }
 
@@ -961,45 +1372,53 @@ router.post('/proker/rab/edit/:idItem', isLoggedIn, async (req, res) => {
 
         await itemRAB.update({
             nama_item: nama_item.trim(),
-            satuan: satuan ? satuan.trim() : 'Pcs',
+            satuan: satuan && satuan.trim() !== '' ? satuan.trim() : 'Pcs',
             jumlah: jml,
             harga_satuan: harga,
             bulan: jumlahBulan,
             total: totalBiaya
         });
 
-        const allRAB = await RincianBiaya.findAll({ where: { prokerId: itemRAB.prokerId } });
-        const totalAnggaranProker = allRAB.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-        await Proker.update({ anggaran: totalAnggaranProker }, { where: { id: itemRAB.prokerId } });
+        await recalculateProkerAnggaran(itemRAB.prokerId);
 
+        req.session.success_msg = 'Item RAB berhasil diperbarui!';
         return res.redirect(`/lembaga-admin/proker/rab/${itemRAB.prokerId}`);
     } catch (err) {
-        console.error("Gagal update item RAB:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal update item RAB:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/proker/rab/hapus/:idItem', isLoggedIn, async (req, res) => {
     try {
-        const idItem = req.params.idItem;
-        const itemRAB = await RincianBiaya.findByPk(idItem);
+        const idItem = parsePositiveInt(req.params.idItem);
+        const user = req.session.user;
+        if (!idItem) {
+            return res.redirect('/lembaga-admin/proker');
+        }
 
-        if (!itemRAB) {
-            return res.status(404).send("Item rincian biaya tidak ditemukan!");
+        const itemRAB = await RincianBiaya.findByPk(idItem, {
+            include: [{ model: Proker, as: 'Proker' }]
+        });
+
+        if (!itemRAB || !itemRAB.Proker) {
+            return res.status(404).send('Item rincian biaya tidak ditemukan!');
+        }
+
+        if (!canManageProker(user, itemRAB.Proker)) {
+            return res.status(403).send('Akses ditolak!');
         }
 
         const prokerId = itemRAB.prokerId;
         await itemRAB.destroy();
 
-        const allRAB = await RincianBiaya.findAll({ where: { prokerId } });
-        const totalAnggaranProker = allRAB.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+        await recalculateProkerAnggaran(prokerId);
 
-        await Proker.update({ anggaran: totalAnggaranProker }, { where: { id: prokerId } });
-
+        req.session.success_msg = 'Item RAB berhasil dihapus.';
         return res.redirect(`/lembaga-admin/proker/rab/${prokerId}`);
     } catch (err) {
-        console.error("Gagal menghapus item RAB:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menghapus item RAB:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1008,31 +1427,39 @@ router.get('/proker/rab/hapus/:idItem', isLoggedIn, async (req, res) => {
 // ==========================================
 router.get('/anggaran', isLoggedIn, async (req, res) => {
     try {
-        const lembagaId = req.session.user.lembagaId;
         const user = req.session.user;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+        const hasFullAccess = isPimpinanAtauBendahara(user);
 
-        let includeCondition = [
-            { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
-            { 
-                model: Proker, 
-                as: 'Prokers', 
-                where: { tahun: tahunAktifInt }, 
+        const bidangWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, id: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const prokerWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, bidangId: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const [lembagaData, bidangs, prokers] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Bidang.findAll({ where: bidangWhere, order: [['id', 'ASC']] }),
+            Proker.findAll({
+                where: prokerWhere,
                 include: [
-                    { model: Bidang, as: 'Bidang' },
+                    { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
                     { model: RincianBiaya, as: 'RincianBiayas' }
-                ], 
-                required: false 
-            }
-        ];
+                ],
+                order: [['id', 'ASC']]
+            })
+        ]);
 
-        if (user.role !== 'admin_lembaga' && user.role !== 'superadmin' && user.jabatan !== 'Bendahara' && user.id_bidang) {
-            includeCondition[1].where = { bidangId: user.id_bidang, tahun: tahunAktifInt };
-            includeCondition[0].where = { id: user.id_bidang, tahun: tahunAktifInt };
+        if (!lembagaData) {
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
         }
-
-        const lembagaData = await Lembaga.findByPk(lembagaId, { include: includeCondition });
+        lembagaData.Bidangs = bidangs;
+        lembagaData.Prokers = prokers;
 
         return res.render('rekap_anggaran', {
             pengaturan,
@@ -1040,42 +1467,47 @@ router.get('/anggaran', isLoggedIn, async (req, res) => {
             lembagaData
         });
     } catch (err) {
-        console.error("Error halaman rekap anggaran:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman rekap anggaran:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/realisasi', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
-        let lembagaData;
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+        const hasFullAccess = isPimpinanAtauBendahara(user);
 
-        if (user.role === 'admin_lembaga') {
-            lembagaData = await Lembaga.findByPk(lembagaId, {
+        const bidangWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, id: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const prokerWhere = hasFullAccess
+            ? { lembagaId, tahun: tahunAktifInt }
+            : { lembagaId, bidangId: user.id_bidang || -1, tahun: tahunAktifInt };
+
+        const [lembagaData, bidangs, prokers] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Bidang.findAll({ where: bidangWhere, order: [['id', 'ASC']] }),
+            Proker.findAll({
+                where: prokerWhere,
                 include: [
-                    { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false },
-                    { model: Proker, as: 'Prokers', where: { tahun: tahunAktifInt }, include: [
-                        { model: Bidang, as: 'Bidang' },
-                        { model: RincianBiaya, as: 'RincianBiayas' },
-                        { model: RealisasiBiaya, as: 'Realisasis' }
-                    ], required: false }
-                ]
-            });
-        } else {
-            lembagaData = await Lembaga.findByPk(lembagaId, {
-                include: [
-                    { model: Bidang, as: 'Bidangs', where: { id: user.id_bidang, tahun: tahunAktifInt }, required: false },
-                    { model: Proker, as: 'Prokers', where: { bidangId: user.id_bidang, tahun: tahunAktifInt }, include: [
-                        { model: Bidang, as: 'Bidang' },
-                        { model: RincianBiaya, as: 'RincianBiayas' },
-                        { model: RealisasiBiaya, as: 'Realisasis' }
-                    ], required: false }
-                ]
-            });
+                    { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
+                    { model: RincianBiaya, as: 'RincianBiayas', attributes: ['id', 'prokerId', 'total'] },
+                    { model: RealisasiBiaya, as: 'Realisasis', attributes: ['id', 'prokerId', 'nominal_realisasi'] }
+                ],
+                order: [['id', 'ASC']]
+            })
+        ]);
+
+        if (!lembagaData) {
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
         }
+        lembagaData.Bidangs = bidangs;
+        lembagaData.Prokers = prokers;
 
         return res.render('laporan_realisasi', {
             pengaturan,
@@ -1083,30 +1515,35 @@ router.get('/realisasi', isLoggedIn, async (req, res) => {
             lembagaData
         });
     } catch (err) {
-        console.error("Error halaman laporan realisasi:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman laporan realisasi:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/proker/realisasi/:id', isLoggedIn, async (req, res) => {
     try {
-        const prokerId = req.params.id;
+        const prokerId = parsePositiveInt(req.params.id);
         const user = req.session.user;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        if (!prokerId || !lembagaId) {
+            return res.redirect('/lembaga-admin/realisasi');
+        }
+
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
         const proker = await Proker.findOne({
-            where: { id: prokerId, tahun: tahunAktifInt },
+            where: { id: prokerId, lembagaId, tahun: tahunAktifInt },
             include: [
-                { model: Bidang, as: 'Bidang' },
-                { model: Lembaga, as: 'Lembaga' },
+                { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
+                { model: Lembaga, as: 'Lembaga', attributes: LEMBAGA_LIGHT_ATTRIBUTES },
                 { model: RincianBiaya, as: 'RincianBiayas' },
                 { model: RealisasiBiaya, as: 'Realisasis' }
             ]
         });
 
         if (!proker) {
-            req.session.error_msg = "Program kerja tidak ditemukan!";
+            req.session.error_msg = 'Program kerja tidak ditemukan!';
             return res.redirect('/lembaga-admin/realisasi');
         }
 
@@ -1116,8 +1553,8 @@ router.get('/proker/realisasi/:id', isLoggedIn, async (req, res) => {
             proker
         });
     } catch (err) {
-        console.error("Error halaman kelola realisasi:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman kelola realisasi:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1126,65 +1563,99 @@ router.post('/proker/realisasi/tambah/:id', isLoggedIn, (req, res, next) => {
     uploadRealisasi(req, res, function (err) {
         if (err instanceof multer.MulterError) {
             if (err.code === 'LIMIT_FILE_SIZE') {
-                req.session.error_msg = "Gagal menambah realisasi: Ukuran file bukti nota melebihi batas maksimal 1 MB!";
+                req.session.error_msg = 'Gagal menambah realisasi: Ukuran file bukti nota melebihi batas maksimal 1 MB!';
             } else {
-                req.session.error_msg = "Gagal mengunggah file: " + err.message;
+                req.session.error_msg = 'Gagal mengunggah file: ' + err.message;
             }
-            return res.redirect('back');
+            return res.redirect(`/lembaga-admin/proker/realisasi/${req.params.id}`);
         } else if (err) {
             req.session.error_msg = err.message;
-            return res.redirect('back');
+            return res.redirect(`/lembaga-admin/proker/realisasi/${req.params.id}`);
         }
         next();
     });
 }, async (req, res) => {
     try {
-        const prokerId = req.params.id;
-        const userId = req.session.user.id;
+        const prokerId = parsePositiveInt(req.params.id);
+        const user = req.session.user;
+        const lembagaId = getActiveLembagaId(user);
         const { uraian_pengeluaran, nominal_realisasi, tanggal_transaksi, keterangan } = req.body;
 
-        if (!uraian_pengeluaran || !nominal_realisasi || !tanggal_transaksi) {
-            req.session.error_msg = "Uraian pengeluaran, nominal, dan tanggal transaksi wajib diisi!";
-            return res.redirect('back');
+        const nominal = parseNonNegativeNumber(nominal_realisasi);
+
+        if (!prokerId || !uraian_pengeluaran || uraian_pengeluaran.trim() === '' || nominal === null || nominal <= 0 || !tanggal_transaksi) {
+            if (req.file) {
+                fs.unlink(path.join(uploadRealizDir, req.file.filename), () => {});
+            }
+            req.session.error_msg = 'Uraian pengeluaran, nominal (> 0), dan tanggal transaksi wajib diisi dengan valid!';
+            return res.redirect(`/lembaga-admin/proker/realisasi/${req.params.id}`);
+        }
+
+        const proker = await Proker.findOne({ where: { id: prokerId, lembagaId } });
+        if (!proker || !canManageProker(user, proker)) {
+            if (req.file) {
+                fs.unlink(path.join(uploadRealizDir, req.file.filename), () => {});
+            }
+            req.session.error_msg = 'Program kerja tidak ditemukan atau di luar wewenang Anda!';
+            return res.redirect('/lembaga-admin/realisasi');
         }
 
         const buktiNotaFilename = req.file ? req.file.filename : null;
 
         await RealisasiBiaya.create({
             prokerId,
-            userId,
+            userId: user.id,
             uraian_pengeluaran: uraian_pengeluaran.trim(),
-            nominal_realisasi: parseFloat(nominal_realisasi) || 0,
+            nominal_realisasi: nominal,
             tanggal_transaksi,
             keterangan: keterangan ? keterangan.trim() : null,
             bukti_nota: buktiNotaFilename
         });
 
-        req.session.success_msg = "Realisasi biaya dan bukti nota berhasil disimpan!";
+        req.session.success_msg = 'Realisasi biaya dan bukti nota berhasil disimpan!';
         return res.redirect(`/lembaga-admin/proker/realisasi/${prokerId}`);
     } catch (err) {
-        console.error("Gagal menambah realisasi biaya:", err);
-        req.session.error_msg = "Terjadi kesalahan pada server: " + err.message;
-        return res.redirect('back');
+        console.error('Gagal menambah realisasi biaya:', err);
+        req.session.error_msg = 'Terjadi kesalahan pada server: ' + err.message;
+        return res.redirect(`/lembaga-admin/proker/realisasi/${req.params.id}`);
     }
 });
 
 router.get('/proker/realisasi/hapus/:idItem', isLoggedIn, async (req, res) => {
     try {
-        const idItem = req.params.idItem;
-        const realisasi = await RealisasiBiaya.findByPk(idItem);
+        const idItem = parsePositiveInt(req.params.idItem);
+        const user = req.session.user;
+        if (!idItem) {
+            return res.redirect('/lembaga-admin/realisasi');
+        }
 
-        if (!realisasi) {
-            return res.status(404).send("Data realisasi tidak ditemukan!");
+        const realisasi = await RealisasiBiaya.findByPk(idItem, {
+            include: [{ model: Proker, as: 'Proker' }]
+        });
+
+        if (!realisasi || !realisasi.Proker) {
+            return res.status(404).send('Data realisasi tidak ditemukan!');
+        }
+
+        if (!canManageProker(user, realisasi.Proker)) {
+            return res.status(403).send('Akses ditolak! Realisasi berada di luar wewenang Anda.');
         }
 
         const prokerId = realisasi.prokerId;
+        const oldNotaFile = realisasi.bukti_nota;
+
         await realisasi.destroy();
 
+        if (oldNotaFile) {
+            const safeFilename = path.basename(oldNotaFile);
+            fs.unlink(path.join(uploadRealizDir, safeFilename), () => {});
+        }
+
+        req.session.success_msg = 'Data realisasi berhasil dihapus.';
         return res.redirect(`/lembaga-admin/proker/realisasi/${prokerId}`);
     } catch (err) {
-        console.error("Gagal menghapus realisasi:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menghapus realisasi:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1192,17 +1663,16 @@ router.get('/proker/realisasi/hapus/:idItem', isLoggedIn, async (req, res) => {
 router.get('/rekap-global', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        
-        const lembaga = await Lembaga.findByPk(lembagaId);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+
+        const lembaga = await Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES });
         if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin');
         }
 
-        const success_msg = req.session.success_msg || null;
-        delete req.session.success_msg;
+        const { success_msg } = popFlashMessages(req);
 
         return res.render('rekap_global_form', {
             pengaturan,
@@ -1211,8 +1681,8 @@ router.get('/rekap-global', isLoggedIn, async (req, res) => {
             success_msg
         });
     } catch (err) {
-        console.error("Gagal membuka halaman rekap global:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal membuka halaman rekap global:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1220,20 +1690,20 @@ router.get('/rekap-global', isLoggedIn, async (req, res) => {
 router.post('/rekap-global/simpan', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const { 
-            nama_ketua, pembina_senkom, 
+        const lembagaId = getActiveLembagaId(user);
+        const {
+            nama_ketua, pembina_senkom,
             pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
             show_stempel, show_ketua, show_pengaju, show_pembina,
-            show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, show_pembina_lembaga 
+            show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, show_pembina_lembaga
         } = req.body;
+
         const lembaga = await Lembaga.findByPk(lembagaId);
         if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin');
         }
 
-        lembaga.nama_organisasi = lembaga.nama_organisasi;
         lembaga.nama_ketua = nama_ketua ? nama_ketua.trim() : lembaga.nama_ketua;
         lembaga.pembina_senkom = pembina_senkom ? pembina_senkom.trim() : null;
         lembaga.pembina_1 = pembina_1 ? pembina_1.trim() : null;
@@ -1243,22 +1713,22 @@ router.post('/rekap-global/simpan', isLoggedIn, async (req, res) => {
         lembaga.pembina_5 = pembina_5 ? pembina_5.trim() : null;
         lembaga.pembina_6 = pembina_6 ? pembina_6.trim() : null;
 
-        lembaga.print_stempel = (show_stempel === 'true' || show_stempel === 'on');
-        lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true' || show_ttd_ketua_img === 'on');
-        lembaga.print_ttd_pengaju_img = (show_ttd_pengaju_img === 'true' || show_ttd_pengaju_img === 'on');
-        lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true' || show_ttd_pembina_img === 'on');
-        lembaga.print_ketua = (show_ketua === 'true' || show_ketua === 'on');
-        lembaga.print_pengaju = (show_pengaju === 'true' || show_pengaju === 'on');
-        lembaga.print_pembina_lembaga = (show_pembina_lembaga === 'true' || show_pembina_lembaga === 'on');
-        lembaga.print_pembina = (show_pembina === 'true' || show_pembina === 'on');
-        
+        lembaga.print_stempel = parseBooleanFlag(show_stempel);
+        lembaga.print_ttd_ketua_img = parseBooleanFlag(show_ttd_ketua_img);
+        lembaga.print_ttd_pengaju_img = parseBooleanFlag(show_ttd_pengaju_img);
+        lembaga.print_ttd_pembina_img = parseBooleanFlag(show_ttd_pembina_img);
+        lembaga.print_ketua = parseBooleanFlag(show_ketua);
+        lembaga.print_pengaju = parseBooleanFlag(show_pengaju);
+        lembaga.print_pembina_lembaga = parseBooleanFlag(show_pembina_lembaga);
+        lembaga.print_pembina = parseBooleanFlag(show_pembina);
+
         await lembaga.save();
 
-        req.session.success_msg = "Pengaturan cetak berhasil disimpan! Silakan klik Buka Pratinjau & Cetak.";
+        req.session.success_msg = 'Pengaturan cetak berhasil disimpan! Silakan klik Buka Pratinjau & Cetak.';
         return res.redirect('/lembaga-admin/rekap-global');
     } catch (err) {
-        console.error("Gagal menyimpan pengaturan rekap global:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menyimpan pengaturan rekap global:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1266,23 +1736,27 @@ router.post('/rekap-global/simpan', isLoggedIn, async (req, res) => {
 router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId; 
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
-        
-        const lembaga = await Lembaga.findByPk(lembagaId);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+
+        // Cetak membutuhkan kop_surat, stempel, dan tanda tangan
+        const [lembaga, listProker] = await Promise.all([
+            Lembaga.findByPk(lembagaId),
+            Proker.findAll({
+                where: { lembagaId, tahun: tahunAktifInt },
+                include: [
+                    { model: Bidang, as: 'Bidang' },
+                    { model: RincianBiaya, as: 'RincianBiayas' }
+                ],
+                order: [['bidangId', 'ASC'], ['id', 'ASC']]
+            })
+        ]);
+
         if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin');
         }
-
-        const listProker = await Proker.findAll({
-            where: { lembagaId: lembagaId, tahun: tahunAktifInt },
-            include: [
-                { model: Bidang, as: 'Bidang' },
-                { model: RincianBiaya, as: 'RincianBiayas' }
-            ]
-        });
 
         return res.render('print_rekap_global', {
             lembaga,
@@ -1293,8 +1767,8 @@ router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
             userSession: user
         });
     } catch (err) {
-        console.error("Gagal mencetak rekap global:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal mencetak rekap global:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1302,17 +1776,16 @@ router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
 router.get('/realisasi/print-config', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        
-        const lembaga = await Lembaga.findByPk(lembagaId);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+
+        const lembaga = await Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES });
         if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin/realisasi');
         }
 
-        const success_msg = req.session.success_msg || null;
-        delete req.session.success_msg;
+        const { success_msg } = popFlashMessages(req);
 
         return res.render('realisasi_print_form', {
             pengaturan,
@@ -1321,8 +1794,8 @@ router.get('/realisasi/print-config', isLoggedIn, async (req, res) => {
             success_msg
         });
     } catch (err) {
-        console.error("Gagal membuka konfigurasi cetak realisasi:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal membuka konfigurasi cetak realisasi:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1330,17 +1803,17 @@ router.get('/realisasi/print-config', isLoggedIn, async (req, res) => {
 router.post('/realisasi/print-config/simpan', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const { 
-            nama_ketua, pembina_senkom, 
+        const lembagaId = getActiveLembagaId(user);
+        const {
+            nama_ketua, pembina_senkom,
             pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
             show_stempel, show_ketua, show_pengaju, show_pembina,
-            show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, show_pembina_lembaga 
+            show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, show_pembina_lembaga
         } = req.body;
-        
+
         const lembaga = await Lembaga.findByPk(lembagaId);
         if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin/realisasi');
         }
 
@@ -1353,22 +1826,22 @@ router.post('/realisasi/print-config/simpan', isLoggedIn, async (req, res) => {
         lembaga.pembina_5 = pembina_5 ? pembina_5.trim() : null;
         lembaga.pembina_6 = pembina_6 ? pembina_6.trim() : null;
 
-        lembaga.print_stempel = (show_stempel === 'true' || show_stempel === 'on');
-        lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true' || show_ttd_ketua_img === 'on');
-        lembaga.print_ttd_pengaju_img = (show_ttd_pengaju_img === 'true' || show_ttd_pengaju_img === 'on');
-        lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true' || show_ttd_pembina_img === 'on');
-        lembaga.print_ketua = (show_ketua === 'true' || show_ketua === 'on');
-        lembaga.print_pengaju = (show_pengaju === 'true' || show_pengaju === 'on');
-        lembaga.print_pembina_lembaga = (show_pembina_lembaga === 'true' || show_pembina_lembaga === 'on');
-        lembaga.print_pembina = (show_pembina === 'true' || show_pembina === 'on');
-        
+        lembaga.print_stempel = parseBooleanFlag(show_stempel);
+        lembaga.print_ttd_ketua_img = parseBooleanFlag(show_ttd_ketua_img);
+        lembaga.print_ttd_pengaju_img = parseBooleanFlag(show_ttd_pengaju_img);
+        lembaga.print_ttd_pembina_img = parseBooleanFlag(show_ttd_pembina_img);
+        lembaga.print_ketua = parseBooleanFlag(show_ketua);
+        lembaga.print_pengaju = parseBooleanFlag(show_pengaju);
+        lembaga.print_pembina_lembaga = parseBooleanFlag(show_pembina_lembaga);
+        lembaga.print_pembina = parseBooleanFlag(show_pembina);
+
         await lembaga.save();
 
-        req.session.success_msg = "Pengaturan cetak realisasi berhasil disimpan!";
+        req.session.success_msg = 'Pengaturan cetak realisasi berhasil disimpan!';
         return res.redirect('/lembaga-admin/realisasi/print');
     } catch (err) {
-        console.error("Gagal menyimpan pengaturan cetak realisasi:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menyimpan pengaturan cetak realisasi:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1376,48 +1849,49 @@ router.post('/realisasi/print-config/simpan', isLoggedIn, async (req, res) => {
 router.get('/realisasi/print', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId; 
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
-        
-        const lembaga = await Lembaga.findByPk(lembagaId);
-        if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
-            return res.redirect('/lembaga-admin');
-        }
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        // Tangkap parameter tanggal dari query (mendukung start_date / tanggal_mulai)
         const startDate = req.query.start_date || req.query.tanggal_mulai;
         const endDate = req.query.end_date || req.query.tanggal_selesai;
 
-        let realisasiWhere = {};
+        const realisasiWhere = {};
         if (startDate && endDate) {
             realisasiWhere.tanggal_transaksi = {
                 [Op.between]: [startDate, endDate]
             };
         }
 
-        let includeCondition = [
-            { model: Bidang, as: 'Bidang' },
-            { model: RincianBiaya, as: 'RincianBiayas' },
-            { 
-                model: RealisasiBiaya, 
-                as: 'Realisasis',
-                where: Object.keys(realisasiWhere).length > 0 ? realisasiWhere : undefined,
-                required: false 
-            }
-        ];
-
-        let prokerWhere = { lembagaId: lembagaId, tahun: tahunAktifInt };
-        if (user.role !== 'admin_lembaga' && user.role !== 'superadmin' && user.jabatan !== 'Bendahara' && user.id_bidang) {
+        const prokerWhere = { lembagaId, tahun: tahunAktifInt };
+        if (!isPimpinanAtauBendahara(user) && user.id_bidang) {
             prokerWhere.bidangId = user.id_bidang;
         }
 
-        let listProker = await Proker.findAll({
-            where: prokerWhere,
-            include: includeCondition
-        });
+        const [lembaga, listProkerRaw] = await Promise.all([
+            Lembaga.findByPk(lembagaId),
+            Proker.findAll({
+                where: prokerWhere,
+                include: [
+                    { model: Bidang, as: 'Bidang' },
+                    { model: RincianBiaya, as: 'RincianBiayas' },
+                    {
+                        model: RealisasiBiaya,
+                        as: 'Realisasis',
+                        where: Object.keys(realisasiWhere).length > 0 ? realisasiWhere : undefined,
+                        required: false
+                    }
+                ],
+                order: [['bidangId', 'ASC'], ['id', 'ASC']]
+            })
+        ]);
 
+        if (!lembaga) {
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
+        }
+
+        let listProker = listProkerRaw;
         if (startDate && endDate) {
             listProker = listProker.map(proker => {
                 if (proker.Realisasis) {
@@ -1436,11 +1910,11 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
             pengaturan,
             tahunAktif: tahunAktifInt,
             userSession: user,
-            query: req.query 
+            query: req.query
         });
     } catch (err) {
-        console.error("Gagal mencetak laporan realisasi:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal mencetak laporan realisasi:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1449,30 +1923,35 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
 // ==========================================
 router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
     try {
-        const { prokerId } = req.params;
+        const prokerId = parsePositiveInt(req.params.prokerId);
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-
-        const proker = await Proker.findOne({
-            where: { id: prokerId, lembagaId: lembagaId },
-            include: [{ model: Bidang, as: 'Bidang' }]
-        });
-
-        if (!proker) {
-            req.session.error_msg = "Program Kerja tidak ditemukan!";
+        const lembagaId = getActiveLembagaId(user);
+        if (!prokerId || !lembagaId) {
             return res.redirect('/lembaga-admin');
         }
 
-        const lembaga = await Lembaga.findByPk(lembagaId);
+        const [proker, lembaga] = await Promise.all([
+            Proker.findOne({
+                where: { id: prokerId, lembagaId },
+                include: [{ model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] }]
+            }),
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES })
+        ]);
+
+        if (!proker) {
+            req.session.error_msg = 'Program Kerja tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
+        }
+
         const batasAnggaranProposal = Number(lembaga && lembaga.batas_anggaran_proposal ? lembaga.batas_anggaran_proposal : 2000000);
         const anggaranProker = Number(proker.anggaran || 0);
 
-        let proposal = await Proposal.findOne({ where: { prokerId: proker.id } });
+        let proposal = await Proposal.findOne({ where: { prokerId: proker.id, lembagaId } });
 
         if (!proposal) {
             proposal = await Proposal.create({
                 prokerId: proker.id,
-                lembagaId: lembagaId,
+                lembagaId,
                 userId: user.id,
                 jenis_pengajuan: anggaranProker > batasAnggaranProposal ? 'dengan_proposal' : 'tanpa_proposal',
                 latar_belakang: `Dalam rangka menunjang efektivitas dan pencapaian target kerja operasional pada ${proker.Bidang ? proker.Bidang.nama_bidang : 'lembaga'}, maka diselenggarakan program kerja "${proker.nama_program}". Kegiatan ini dirancang sebagai langkah strategis untuk merealisasikan sasaran program tahunan secara terstruktur.`,
@@ -1482,10 +1961,7 @@ router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
             });
         }
 
-        const success_msg = req.session.success_msg || null;
-        const error_msg = req.session.error_msg || null;
-        delete req.session.success_msg;
-        delete req.session.error_msg;
+        const { success_msg, error_msg } = popFlashMessages(req);
 
         return res.render('detail_proposal', {
             userSession: user,
@@ -1497,25 +1973,39 @@ router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
             error_msg
         });
     } catch (err) {
-        console.error("Gagal membuat/membuka pengajuan:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal membuat/membuka pengajuan:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
     try {
-        const { id } = req.params;
-        const { 
+        const proposalId = parsePositiveInt(req.params.id);
+        const user = req.session.user;
+        const lembagaId = getActiveLembagaId(user);
+        if (!proposalId || !lembagaId) {
+            return res.redirect('/lembaga-admin/proposal');
+        }
+
+        const {
             tema, latar_belakang, tujuan, tanggal_kegiatan, tempat_kegiatan, dresscode_kegiatan,
             action, jenis_pengajuan,
             pembina_1, pembina_2, pembina_3, pembina_4, pembina_5, pembina_6,
-            show_stempel, show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img, 
-            show_ketua, show_pengaju, show_pembina_lembaga, show_pembina 
+            show_stempel, show_ttd_ketua_img, show_ttd_pengaju_img, show_ttd_pembina_img,
+            show_ketua, show_pengaju, show_pembina_lembaga, show_pembina
         } = req.body;
 
-        const proposal = await Proposal.findByPk(id);
+        const proposal = await Proposal.findOne({
+            where: { id: proposalId, lembagaId },
+            include: [{ model: Proker, as: 'Proker' }]
+        });
         if (!proposal) {
-            req.session.error_msg = "Data pengajuan tidak ditemukan!";
+            req.session.error_msg = 'Data pengajuan tidak ditemukan!';
+            return res.redirect('/lembaga-admin/proposal');
+        }
+
+        if (proposal.Proker && !canManageProker(user, proposal.Proker)) {
+            req.session.error_msg = 'Anda tidak memiliki wewenang mengubah pengajuan ini.';
             return res.redirect('/lembaga-admin/proposal');
         }
 
@@ -1536,31 +2026,30 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
         if (action === 'submit') {
             proposal.status = 'Diajukan';
             req.session.success_msg = proposal.jenis_pengajuan === 'tanpa_proposal'
-                ? "Pengajuan (Tanpa Proposal) berhasil dikirim untuk persetujuan!"
-                : "Pengajuan (Dengan Proposal) berhasil dikirim untuk persetujuan!";
+                ? 'Pengajuan (Tanpa Proposal) berhasil dikirim untuk persetujuan!'
+                : 'Pengajuan (Dengan Proposal) berhasil dikirim untuk persetujuan!';
         } else {
-            req.session.success_msg = "Draf pengajuan dan konfigurasi tanda tangan berhasil disimpan!";
+            req.session.success_msg = 'Draf pengajuan dan konfigurasi tanda tangan berhasil disimpan!';
         }
         await proposal.save();
 
-        const lembaga = await Lembaga.findByPk(proposal.lembagaId);
+        const lembaga = await Lembaga.findByPk(lembagaId);
         if (lembaga) {
-            lembaga.print_stempel = (show_stempel === 'true' || show_stempel === 'on');
-            lembaga.print_ttd_ketua_img = (show_ttd_ketua_img === 'true' || show_ttd_ketua_img === 'on');
-            lembaga.print_ttd_pengaju_img = (show_ttd_pengaju_img === 'true' || show_ttd_pengaju_img === 'on');
-            lembaga.print_ttd_pembina_img = (show_ttd_pembina_img === 'true' || show_ttd_pembina_img === 'on');
-            lembaga.print_ketua = (show_ketua === 'true' || show_ketua === 'on');
-            lembaga.print_pengaju = (show_pengaju === 'true' || show_pengaju === 'on');
-            lembaga.print_pembina_lembaga = (show_pembina_lembaga === 'true' || show_pembina_lembaga === 'on');
-            lembaga.print_pembina = (show_pembina === 'true' || show_pembina === 'on');
+            lembaga.print_stempel = parseBooleanFlag(show_stempel);
+            lembaga.print_ttd_ketua_img = parseBooleanFlag(show_ttd_ketua_img);
+            lembaga.print_ttd_pengaju_img = parseBooleanFlag(show_ttd_pengaju_img);
+            lembaga.print_ttd_pembina_img = parseBooleanFlag(show_ttd_pembina_img);
+            lembaga.print_ketua = parseBooleanFlag(show_ketua);
+            lembaga.print_pengaju = parseBooleanFlag(show_pengaju);
+            lembaga.print_pembina_lembaga = parseBooleanFlag(show_pembina_lembaga);
+            lembaga.print_pembina = parseBooleanFlag(show_pembina);
             await lembaga.save();
         }
 
         return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
-        
     } catch (err) {
-        console.error("Gagal mengupdate pengajuan:", err);
-        req.session.error_msg = "Terjadi kesalahan pada server.";
+        console.error('Gagal mengupdate pengajuan:', err);
+        req.session.error_msg = 'Terjadi kesalahan pada server.';
         return res.redirect('/lembaga-admin/proposal');
     }
 });
@@ -1578,34 +2067,33 @@ router.get('/proker/bidang/:bidangId/print', isLoggedIn, prokerController.cetakP
 router.get('/proposal', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        const lembaga = await Lembaga.findByPk(lembagaId);
-        const batasAnggaranProposal = Number(lembaga && lembaga.batas_anggaran_proposal ? lembaga.batas_anggaran_proposal : 2000000);
-
-        let whereCondition = { 
-            lembagaId: lembagaId, 
-            tahun: tahunAktifInt 
+        const whereCondition = {
+            lembagaId,
+            tahun: tahunAktifInt
         };
 
-        if (user.role !== 'admin_lembaga' && user.role !== 'superadmin' && user.id_bidang) {
+        if (!isPimpinanAtauBendahara(user) && user.id_bidang) {
             whereCondition.bidangId = user.id_bidang;
         }
 
-        const prokers = await Proker.findAll({
-            where: whereCondition,
-            include: [
-                { model: Bidang, as: 'Bidang' },
-                { model: Proposal, as: 'Proposal' } 
-            ]
-        });
+        const [lembaga, prokers] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: ['id', 'batas_anggaran_proposal'] }),
+            Proker.findAll({
+                where: whereCondition,
+                include: [
+                    { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
+                    { model: Proposal, as: 'Proposal' }
+                ],
+                order: [['id', 'ASC']]
+            })
+        ]);
 
-        const success_msg = req.session.success_msg || null;
-        const error_msg = req.session.error_msg || null;
-        delete req.session.success_msg;
-        delete req.session.error_msg;
+        const batasAnggaranProposal = Number(lembaga && lembaga.batas_anggaran_proposal ? lembaga.batas_anggaran_proposal : 2000000);
+        const { success_msg, error_msg } = popFlashMessages(req);
 
         return res.render('list_proposal', {
             userSession: user,
@@ -1616,16 +2104,21 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
             error_msg
         });
     } catch (err) {
-        console.error("Gagal memuat daftar pengajuan:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal memuat daftar pengajuan:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
     try {
-        const proposalId = req.params.id;
-        
-        const proposal = await Proposal.findByPk(proposalId, {
+        const proposalId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        if (!proposalId || !lembagaId) {
+            return res.redirect('/lembaga-admin/proposal');
+        }
+
+        const proposal = await Proposal.findOne({
+            where: { id: proposalId, lembagaId },
             include: [
                 {
                     model: Proker,
@@ -1635,50 +2128,49 @@ router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
                         { model: RincianBiaya, as: 'RincianBiayas' }
                     ]
                 },
-                { model: User, as: 'User' }
+                { model: User, as: 'User', attributes: USER_SAFE_ATTRIBUTES }
             ]
         });
 
-        if (!proposal) {
-            req.session.error_msg = "Proposal tidak ditemukan!";
+        if (!proposal || !proposal.Proker) {
+            req.session.error_msg = 'Proposal tidak ditemukan!';
             return res.redirect('/lembaga-admin/proposal');
         }
 
+        // Cetak membutuhkan kop_surat, stempel, dan tanda tangan
         const lembaga = await Lembaga.findByPk(proposal.Proker.lembagaId);
 
         return res.render('print_proposal', {
             proposal,
             proker: proposal.Proker,
-            rincianRab: (proposal.Proker && proposal.Proker.RincianBiayas) ? proposal.Proker.RincianBiayas : [],
+            rincianRab: proposal.Proker.RincianBiayas || [],
             lembaga,
             userSession: req.session.user,
-            req: req 
+            req
         });
     } catch (err) {
-        console.error("Gagal membuka pratinjau cetak proposal:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal membuka pratinjau cetak proposal:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
-router.get('/proposal/approval', isLoggedIn, async (req, res) => {
+router.get('/proposal/approval', isLoggedIn, ensureBendaharaUtama, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
         const prokers = await Proker.findAll({
-            where: { lembagaId: lembagaId, tahun: tahunAktifInt },
+            where: { lembagaId, tahun: tahunAktifInt },
             include: [
-                { model: Bidang, as: 'Bidang' },
+                { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
                 { model: Proposal, as: 'Proposal' }
-            ]
+            ],
+            order: [['id', 'ASC']]
         });
 
-        const success_msg = req.session.success_msg || null;
-        const error_msg = req.session.error_msg || null;
-        delete req.session.success_msg;
-        delete req.session.error_msg;
+        const { success_msg, error_msg } = popFlashMessages(req);
 
         return res.render('proposal_approval', {
             userSession: user,
@@ -1688,37 +2180,44 @@ router.get('/proposal/approval', isLoggedIn, async (req, res) => {
             error_msg
         });
     } catch (err) {
-        console.error("Gagal memuat halaman approval proposal:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal memuat halaman approval proposal:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
-router.post('/proker/proposal/approval/:id', isLoggedIn, async (req, res) => {
+router.post('/proker/proposal/approval/:id', isLoggedIn, ensureBendaharaUtama, async (req, res) => {
     try {
-        const { id } = req.params;
-        const { status, catatan_revisi } = req.body;  
+        const proposalId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        const { status, catatan_revisi } = req.body;
 
-        const proposal = await Proposal.findByPk(id);
-        if (!proposal) {
-            req.session.error_msg = "Proposal tidak ditemukan!";
+        const ALLOWED_STATUS = ['Diajukan', 'Disetujui', 'Perlu Revisi', 'Direvisi', 'Ditolak'];
+        if (!proposalId || !ALLOWED_STATUS.includes(status)) {
+            req.session.error_msg = 'Status persetujuan tidak valid!';
             return res.redirect('/lembaga-admin/proposal/approval');
         }
 
-        proposal.status = status; 
-        
+        const proposal = await Proposal.findOne({ where: { id: proposalId, lembagaId } });
+        if (!proposal) {
+            req.session.error_msg = 'Proposal tidak ditemukan!';
+            return res.redirect('/lembaga-admin/proposal/approval');
+        }
+
+        proposal.status = status;
+
         if (status === 'Perlu Revisi' || status === 'Direvisi') {
             proposal.catatan_revisi = catatan_revisi ? catatan_revisi.trim() : 'Mohon perbaiki proposal sesuai arahan.';
         } else if (status === 'Disetujui') {
-            proposal.catatan_revisi = null; 
+            proposal.catatan_revisi = null;
         }
-        
+
         await proposal.save();
 
-        req.session.success_msg = `Proposal berhasil diperbarui!`;
+        req.session.success_msg = 'Proposal berhasil diperbarui!';
         return res.redirect('/lembaga-admin/proposal/approval');
     } catch (err) {
-        console.error("Gagal approval:", err);
-        req.session.error_msg = "Terjadi kesalahan server.";
+        console.error('Gagal approval:', err);
+        req.session.error_msg = 'Terjadi kesalahan server.';
         return res.redirect('/lembaga-admin/proposal/approval');
     }
 });
@@ -1729,16 +2228,18 @@ router.post('/proker/proposal/approval/:id', isLoggedIn, async (req, res) => {
 router.get('/setting', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        
-        const lembaga = await Lembaga.findByPk(lembagaId);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+
+        const [lembaga, listLembaga] = await Promise.all([
+            Lembaga.findByPk(lembagaId),
+            getCachedLembagaList()
+        ]);
+
         if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin');
         }
-
-        const listLembaga = await Lembaga.findAll();
 
         return res.render('setting_lembaga', {
             pengaturan,
@@ -1747,21 +2248,31 @@ router.get('/setting', isLoggedIn, async (req, res) => {
             listLembaga
         });
     } catch (err) {
-        console.error("Error halaman setting lembaga:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman setting lembaga:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
-router.post('/setting/update', isLoggedIn, upload.fields([
-    { name: 'logo', maxCount: 1 },
-    { name: 'kop_surat', maxCount: 1 },
-    { name: 'stempel', maxCount: 1 },
-    { name: 'ttd_ketua', maxCount: 1 },
-    { name: 'ttd_pembina_senkom', maxCount: 1 }
-]), async (req, res) => {
+router.post('/setting/update', isLoggedIn, isAdminLembaga, (req, res, next) => {
+    upload.fields([
+        { name: 'logo', maxCount: 1 },
+        { name: 'kop_surat', maxCount: 1 },
+        { name: 'stempel', maxCount: 1 },
+        { name: 'ttd_ketua', maxCount: 1 },
+        { name: 'ttd_pembina_senkom', maxCount: 1 }
+    ])(req, res, (err) => {
+        if (err) {
+            req.session.error_msg = err.code === 'LIMIT_FILE_SIZE'
+                ? 'Ukuran salah satu file melebihi batas maksimal 1 MB!'
+                : err.message;
+            return res.redirect('/lembaga-admin/setting');
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
+        const lembagaId = getActiveLembagaId(user);
         const {
             nama_organisasi, nama_ketua, pembina_lembaga, pembina_senkom,
             nomor_hp, alamat, batas_anggaran_proposal,
@@ -1770,18 +2281,8 @@ router.post('/setting/update', isLoggedIn, upload.fields([
 
         const lembaga = await Lembaga.findByPk(lembagaId);
         if (!lembaga) {
-            req.session.error_msg = "Data lembaga tidak ditemukan!";
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
             return res.redirect('/lembaga-admin/setting');
-        }
-
-        const maxSize = 1 * 1024 * 1024;
-        if (req.files) {
-            for (const key in req.files) {
-                if (req.files[key][0].size > maxSize) {
-                    req.session.error_msg = `Ukuran file ${key} melebihi batas maksimal 1 MB!`;
-                    return res.redirect('/lembaga-admin/setting');
-                }
-            }
         }
 
         lembaga.nama_organisasi = nama_organisasi ? nama_organisasi.trim() : lembaga.nama_organisasi;
@@ -1793,7 +2294,7 @@ router.post('/setting/update', isLoggedIn, upload.fields([
 
         const parsedBatas = Number(String(batas_anggaran_proposal || '').replace(/[^\d]/g, ''));
         lembaga.batas_anggaran_proposal = parsedBatas > 0 ? parsedBatas : 2000000;
-        
+
         lembaga.pembina_1 = pembina_1 ? pembina_1.trim() : null;
         lembaga.pembina_2 = pembina_2 ? pembina_2.trim() : null;
         lembaga.pembina_3 = pembina_3 ? pembina_3.trim() : null;
@@ -1818,32 +2319,47 @@ router.post('/setting/update', isLoggedIn, upload.fields([
         }
 
         await lembaga.save();
-        req.session.success_msg = "Profil, pengaturan lembaga, dan master pembina berhasil diperbarui!";
+        invalidateLembagaListCache();
+
+        req.session.success_msg = 'Profil, pengaturan lembaga, dan master pembina berhasil diperbarui!';
         return res.redirect('/lembaga-admin/setting');
     } catch (err) {
-        console.error("Gagal memperbarui setting lembaga:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal memperbarui setting lembaga:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 // ==========================================
 // MODUL UTILITAS
 // ==========================================
-router.get('/utilitas/users', isLoggedIn, async (req, res) => {
+router.get('/utilitas/users', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
-        const tahunAktifInt = parseInt(pengaturan.tahun_aktif, 10);
+        const lembagaId = getActiveLembagaId(user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        const lembagaData = await Lembaga.findByPk(lembagaId, {
-            include: [
-                { model: User, as: 'Users', include: [{ model: Bidang, as: 'Bidang' }] },
-                { model: Bidang, as: 'Bidangs', where: { tahun: tahunAktifInt }, required: false }
-            ]
-        });
+        const [lembagaData, users, bidangs, listLembaga] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            User.findAll({
+                where: { lembagaId },
+                attributes: USER_SAFE_ATTRIBUTES,
+                include: [{ model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] }],
+                order: [['id', 'ASC']]
+            }),
+            Bidang.findAll({
+                where: { lembagaId, tahun: tahunAktifInt },
+                order: [['id', 'ASC']]
+            }),
+            getCachedLembagaList()
+        ]);
 
-        const listLembaga = await Lembaga.findAll();
+        if (!lembagaData) {
+            req.session.error_msg = 'Data lembaga tidak ditemukan!';
+            return res.redirect('/lembaga-admin');
+        }
+        lembagaData.Users = users;
+        lembagaData.Bidangs = bidangs;
 
         return res.render('utilitas_users', {
             pengaturan,
@@ -1853,25 +2369,25 @@ router.get('/utilitas/users', isLoggedIn, async (req, res) => {
             listLembaga
         });
     } catch (err) {
-        console.error("Error halaman utilitas users:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Error halaman utilitas users:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.post('/utilitas/users/reset-password/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
-        const userId = req.params.id;
-        const lembagaId = req.session.user.lembagaId;
+        const userId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
         const { password_baru } = req.body;
 
-        if (!password_baru || password_baru.trim() === '') {
-            req.session.error_msg = "Password baru tidak boleh kosong!";
+        if (!userId || !password_baru || password_baru.trim() === '') {
+            req.session.error_msg = 'Password baru tidak boleh kosong!';
             return res.redirect('/lembaga-admin/utilitas/users');
         }
 
-        const targetUser = await User.findOne({ where: { id: userId, lembagaId: lembagaId } });
+        const targetUser = await User.findOne({ where: { id: userId, lembagaId } });
         if (!targetUser) {
-            req.session.error_msg = "User tidak ditemukan atau di luar wewenang Anda!";
+            req.session.error_msg = 'User tidak ditemukan atau di luar wewenang Anda!';
             return res.redirect('/lembaga-admin/utilitas/users');
         }
 
@@ -1881,27 +2397,30 @@ router.post('/utilitas/users/reset-password/:id', isLoggedIn, isAdminLembaga, as
         req.session.success_msg = `Password untuk akun [${targetUser.username}] berhasil direset!`;
         return res.redirect('/lembaga-admin/utilitas/users');
     } catch (err) {
-        console.error("Gagal reset password:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal reset password:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
 router.get('/utilitas/users/hapus/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
-        const userId = req.params.id;
-        const lembagaId = req.session.user.lembagaId;
-
-        if (userId == req.session.user.id) {
-            req.session.error_msg = "Anda tidak dapat menghapus akun yang sedang Anda gunakan!";
+        const userId = parsePositiveInt(req.params.id);
+        const lembagaId = getActiveLembagaId(req.session.user);
+        if (!userId || !lembagaId) {
             return res.redirect('/lembaga-admin/utilitas/users');
         }
 
-        await User.destroy({ where: { id: userId, lembagaId: lembagaId } });
-        req.session.success_msg = "Akun pengurus berhasil dihapus dari sistem.";
+        if (userId === parsePositiveInt(req.session.user.id)) {
+            req.session.error_msg = 'Anda tidak dapat menghapus akun yang sedang Anda gunakan!';
+            return res.redirect('/lembaga-admin/utilitas/users');
+        }
+
+        await User.destroy({ where: { id: userId, lembagaId } });
+        req.session.success_msg = 'Akun pengurus berhasil dihapus dari sistem.';
         return res.redirect('/lembaga-admin/utilitas/users');
     } catch (err) {
-        console.error("Gagal menghapus user:", err);
-        return res.status(500).send("Terjadi kesalahan pada server: " + err.message);
+        console.error('Gagal menghapus user:', err);
+        return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
     }
 });
 
@@ -1909,22 +2428,19 @@ router.get('/utilitas/users/hapus/:id', isLoggedIn, isAdminLembaga, async (req, 
 router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        
-        const lembaga = await Lembaga.findByPk(lembagaId);
-        const pengaturan = await Pengaturan.findOne();
+        const lembagaId = getActiveLembagaId(user);
 
-        // 1. Validasi Tahun Aktif 2027
+        const [lembaga, pengaturan, jumlahBidang2027, prokers2027] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            Pengaturan.findOne(),
+            Bidang.count({ where: { lembagaId, tahun: 2027 } }),
+            Proker.findAll({
+                where: { lembagaId, tahun: 2027 },
+                include: [{ model: RincianBiaya, as: 'RincianBiayas', attributes: ['id', 'total', 'harga_satuan'] }]
+            })
+        ]);
+
         const isTahunAktifValid = pengaturan && parseInt(pengaturan.tahun_aktif, 10) === 2027;
-
-        // 2. Validasi Bidang 2027
-        const jumlahBidang2027 = await Bidang.count({ where: { lembagaId, tahun: 2027 } });
-
-        // 3. Validasi Proker & RAB 2027 (Pastikan nominal RAB bernilai 0 / kosong secara ketat)
-        const prokers2027 = await Proker.findAll({
-            where: { lembagaId, tahun: 2027 },
-            include: [{ model: RincianBiaya, as: 'RincianBiayas' }]
-        });
 
         let rabStrictValid = true;
         prokers2027.forEach(p => {
@@ -1937,7 +2453,6 @@ router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
             }
         });
 
-        // 4. Validasi Proposal (Pastikan berada dalam clean state / belum ada proposal aktif/disetujui)
         const prokerIds2027 = prokers2027.map(p => p.id);
         let proposalCleanState = true;
         if (prokerIds2027.length > 0) {
@@ -1953,10 +2468,10 @@ router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
         const isCleanAndStrict = isTahunAktifValid && jumlahBidang2027 > 0 && rabStrictValid && proposalCleanState;
 
         return res.status(200).json({
-            status: isCleanAndStrict ? "OK" : "WARNING",
-            pesan: isCleanAndStrict 
-                ? "Sistem migrasi ke tahun 2027 terverifikasi CLEAN dan STRICT dengan sempurna." 
-                : "Ditemukan ketidaksesuaian pada aturan migrasi tahun 2027.",
+            status: isCleanAndStrict ? 'OK' : 'WARNING',
+            pesan: isCleanAndStrict
+                ? 'Sistem migrasi ke tahun 2027 terverifikasi CLEAN dan STRICT dengan sempurna.'
+                : 'Ditemukan ketidaksesuaian pada aturan migrasi tahun 2027.',
             waktu_cek: new Date(),
             validasi_aturan: {
                 tahun_aktif_2027: isTahunAktifValid,
@@ -1968,25 +2483,25 @@ router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
                 id: user.id,
                 username: user.username,
                 role: user.role,
-                lembagaId: lembagaId
+                lembagaId
             },
             data_lembaga: {
                 id: lembaga ? lembaga.id : null,
-                nama_organisasi: lembaga ? lembaga.nama_organisasi : "Tidak ditemukan",
+                nama_organisasi: lembaga ? lembaga.nama_organisasi : 'Tidak ditemukan',
                 tahun_aktif: pengaturan ? pengaturan.tahun_aktif : null,
                 konfigurasi_print: {
                     stempel: lembaga ? lembaga.print_stempel : null,
                     ketua: lembaga ? lembaga.print_ketua : null,
                     pengaju: lembaga ? lembaga.print_pengaju : null,
-                    pembina: lembaga ? lembaga.print_pembina : null,
+                    pembina: lembaga ? lembaga.print_pembina : null
                 }
             }
         });
     } catch (err) {
-        console.error("Error pada diagnostik migrasi:", err);
+        console.error('Error pada diagnostik migrasi:', err);
         return res.status(500).json({
-            status: "ERROR",
-            pesan: "Terjadi kesalahan pada server saat pengujian migrasi.",
+            status: 'ERROR',
+            pesan: 'Terjadi kesalahan pada server saat pengujian migrasi.',
             error: err.message
         });
     }
@@ -1995,38 +2510,40 @@ router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
 router.get('/diagnostik/cek', isLoggedIn, async (req, res) => {
     try {
         const user = req.session.user;
-        const lembagaId = user.activeLembagaId || user.lembagaId;
-        
-        const lembaga = await Lembaga.findByPk(lembagaId);
-        const pengaturan = await Pengaturan.findOne() || { tahun_aktif: 2026 };
+        const lembagaId = getActiveLembagaId(user);
+
+        const [lembaga, pengaturan] = await Promise.all([
+            Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
+            getCachedPengaturan()
+        ]);
 
         return res.status(200).json({
-            status: "OK",
-            pesan: "Sistem diagnostik berjalan normal.",
+            status: 'OK',
+            pesan: 'Sistem diagnostik berjalan normal.',
             waktu_cek: new Date(),
             user_session: {
                 id: user.id,
                 username: user.username,
                 role: user.role,
-                lembagaId: lembagaId
+                lembagaId
             },
             data_lembaga: {
                 id: lembaga ? lembaga.id : null,
-                nama_organisasi: lembaga ? lembaga.nama_organisasi : "Tidak ditemukan",
+                nama_organisasi: lembaga ? lembaga.nama_organisasi : 'Tidak ditemukan',
                 tahun_aktif: pengaturan.tahun_aktif,
                 konfigurasi_print: {
                     stempel: lembaga ? lembaga.print_stempel : null,
                     ketua: lembaga ? lembaga.print_ketua : null,
                     pengaju: lembaga ? lembaga.print_pengaju : null,
-                    pembina: lembaga ? lembaga.print_pembina : null,
+                    pembina: lembaga ? lembaga.print_pembina : null
                 }
             }
         });
     } catch (err) {
-        console.error("Error pada diagnostik sistem:", err);
+        console.error('Error pada diagnostik sistem:', err);
         return res.status(500).json({
-            status: "ERROR",
-            pesan: "Terjadi kesalahan pada server saat pengecekan diagnostik.",
+            status: 'ERROR',
+            pesan: 'Terjadi kesalahan pada server saat pengecekan diagnostik.',
             error: err.message
         });
     }
