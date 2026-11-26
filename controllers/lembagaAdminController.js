@@ -339,8 +339,17 @@ const lembagaAdminController = {
                 return res.redirect('/lembaga-admin');
             }
 
+            const whereProker = { lembagaId: lembagaId, tahun: tahunAktif };
+            const isFullAccess =
+                user &&
+                (['admin_lembaga', 'pimpinan', 'bendahara', 'bendahara_utama', 'ketua', 'wakil_ketua', 'sekretaris', 'super_admin'].includes(String(user.role || '').toLowerCase()) ||
+                    Boolean(user.isAdminLembaga));
+            if (!isFullAccess && user && user.id_bidang) {
+                whereProker.bidangId = Number(user.id_bidang);
+            }
+
             let prokers = await Proker.findAll({
-                where: { lembagaId: lembagaId, tahun: tahunAktif },
+                where: whereProker,
                 include: [
                     { model: Bidang, as: 'Bidang' },
                     { model: Proposal, as: 'Proposal' },
@@ -476,8 +485,17 @@ const lembagaAdminController = {
                 return res.redirect('/lembaga-admin');
             }
 
+            const whereProker = { lembagaId: lembagaId, tahun: tahunAktif };
+            const isFullAccess =
+                user &&
+                (['admin_lembaga', 'pimpinan', 'bendahara', 'bendahara_utama', 'ketua', 'wakil_ketua', 'sekretaris', 'super_admin'].includes(String(user.role || '').toLowerCase()) ||
+                    Boolean(user.isAdminLembaga));
+            if (!isFullAccess && user && user.id_bidang) {
+                whereProker.bidangId = Number(user.id_bidang);
+            }
+
             let prokers = await Proker.findAll({
-                where: { lembagaId: lembagaId, tahun: tahunAktif },
+                where: whereProker,
                 include: [
                     { model: Bidang, as: 'Bidang' },
                     { model: Proposal, as: 'Proposal' },

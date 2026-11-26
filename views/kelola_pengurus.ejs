@@ -11,6 +11,8 @@
     <style>
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card { border: none; border-radius: 12px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+        .table th, .table td { white-space: nowrap; }
+        .table td.col-bidang { white-space: normal; min-width: 220px; }
     </style>
 </head>
 <body>
@@ -20,7 +22,7 @@
 
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
-                
+
                 <!-- Header Title (Clean Header) -->
                 <div class="mb-4">
                     <h2 class="fw-bold text-dark mb-1">Manajemen Pengurus & Hierarki Jabatan</h2>
@@ -42,74 +44,19 @@
                 <% } %>
 
                 <div class="row g-4">
-                    <!-- Form Tambah Pengurus -->
-                    <div class="col-lg-4">
+                    <!-- Tabel Daftar Pengurus (Lebar Penuh di Atas agar Mudah Diedit) -->
+                    <div class="col-12">
                         <div class="card p-4 bg-white">
-                            <h5 class="fw-bold text-dark mb-3">
-                                <i class="fas fa-user-plus text-primary me-2"></i> Tambah Pengurus Baru
-                            </h5>
-                            <form action="/lembaga-admin/pengurus/tambah" method="POST">
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold small">Nama Lengkap & Gelar</label>
-                                    <input type="text" class="form-control" name="nama_lengkap" placeholder="Contoh: H. Ahmad Sutoyo" required>
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+                                <h5 class="fw-bold text-dark mb-0">
+                                    <i class="fas fa-sitemap text-success me-2"></i> Struktur Kepengurusan Terdaftar
+                                </h5>
+                                <div style="max-width: 320px; width: 100%;">
+                                    <input type="text" id="filterPengurus" class="form-control form-control-sm" placeholder="Cari nama, username, jabatan, atau bidang...">
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold small">Username Login</label>
-                                    <input type="text" class="form-control" name="username" placeholder="Contoh: sekretaris_senkom" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold small">Password</label>
-                                    <input type="password" class="form-control" name="password" placeholder="******" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold small">Hierarki Jabatan</label>
-                                    <select class="form-select" name="jabatan" required>
-                                        <option value="">-- Pilih Jabatan --</option>
-                                        <optgroup label="Pimpinan Tertinggi">
-                                            <option value="Ketua">Ketua</option>
-                                            <option value="Wakil Ketua">Wakil Ketua</option>
-                                            <option value="Sekretaris">Sekretaris</option>
-                                            <option value="Bendahara">Bendahara</option>
-                                        </optgroup>
-                                        <optgroup label="Bidang Teknis / Anggota">
-                                            <option value="Ketua Bidang">Ketua Bidang</option>
-                                            <option value="Anggota Bidang">Anggota Bidang</option>
-                                        </optgroup>
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold small">Role Sistem</label>
-                                    <select class="form-select" name="role" required>
-                                        <option value="admin_lembaga">Admin Lembaga (Akses Penuh / Bendahara Utama)</option>
-                                        <option value="pengurus_bidang">Pengurus Bidang (Akses Pengaju / Wakil Bendahara)</option>
-                                    </select>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="form-label fw-bold small">Penugasan Bidang</label>
-                                    <select class="form-select" name="id_bidang">
-                                        <option value="">-- Pilih Bidang (Opsional / Pimpinan) --</option>
-                                        <% if (lembagaData && lembagaData.Bidangs) { %>
-                                            <% lembagaData.Bidangs.forEach(b => { %>
-                                                <option value="<%= b.id %>"><%= b.nama_bidang %></option>
-                                            <% }) %>
-                                        <% } %>
-                                    </select>
-                                </div>
-                                <button type="submit" class="p-2 btn btn-primary w-100 fw-bold">
-                                    <i class="fas fa-save me-1"></i> Simpan Pengurus
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-
-                    <!-- Tabel Daftar Pengurus -->
-                    <div class="col-lg-8">
-                        <div class="card p-4 bg-white h-100">
-                            <h5 class="fw-bold text-dark mb-3">
-                                <i class="fas fa-sitemap text-success me-2"></i> Struktur Kepengurusan Terdaftar
-                            </h5>
+                            </div>
                             <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
+                                <table class="table table-hover align-middle mb-0" id="tabelPengurus">
                                     <thead class="table-light">
                                         <tr class="small text-uppercase">
                                             <th>No</th>
@@ -123,7 +70,7 @@
                                     <tbody>
                                         <% if (lembagaData && lembagaData.Users && lembagaData.Users.length > 0) { %>
                                             <% lembagaData.Users.forEach((usr, index) => { %>
-                                                <tr>
+                                                <tr class="baris-pengurus">
                                                     <td class="fw-bold text-muted"><%= index + 1 %></td>
                                                     <td>
                                                         <span class="fw-bold text-dark d-block"><%= usr.nama_lengkap %></span>
@@ -134,7 +81,7 @@
                                                             <%= usr.jabatan || 'Pengurus' %>
                                                         </span>
                                                     </td>
-                                                    <td>
+                                                    <td class="col-bidang">
                                                         <span class="text-muted"><%= usr.Bidang ? usr.Bidang.nama_bidang : 'Pimpinan / Umum' %></span>
                                                     </td>
                                                     <td>
@@ -143,14 +90,16 @@
                                                         </span>
                                                     </td>
                                                     <td class="text-center">
-                                                        <!-- TOMBOL EDIT PENGURUS / ROLE -->
-                                                        <a href="/lembaga-admin/pengurus/edit/<%= usr.id %>" class="btn btn-outline-primary btn-sm" title="Edit Akun & Role">
-                                                            <i class="fas fa-edit"></i>
-                                                        </a>
-                                                        <!-- TOMBOL HAPUS -->
-                                                        <a href="/lembaga-admin/utilitas/users/hapus/<%= usr.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Pengurus" onclick="return confirm('Yakin ingin menghapus pengurus ini dari sistem?');">
-                                                            <i class="fas fa-trash-alt"></i>
-                                                        </a>
+                                                        <div class="d-inline-flex gap-1">
+                                                            <!-- TOMBOL EDIT PENGURUS / ROLE -->
+                                                            <a href="/lembaga-admin/pengurus/edit/<%= usr.id %>" class="btn btn-outline-primary btn-sm" title="Edit Akun & Role">
+                                                                <i class="fas fa-edit"></i> Edit
+                                                            </a>
+                                                            <!-- TOMBOL HAPUS -->
+                                                            <a href="/lembaga-admin/utilitas/users/hapus/<%= usr.id %>" class="btn btn-outline-danger btn-sm" title="Hapus Pengurus" onclick="return confirm('Yakin ingin menghapus pengurus ini dari sistem?');">
+                                                                <i class="fas fa-trash-alt"></i>
+                                                            </a>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             <% }) %>
@@ -164,6 +113,70 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Form Tambah Pengurus -->
+                    <div class="col-12">
+                        <div class="card p-4 bg-white">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <i class="fas fa-user-plus text-primary me-2"></i> Tambah Pengurus Baru
+                            </h5>
+                            <form action="/lembaga-admin/pengurus/tambah" method="POST">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold small">Nama Lengkap & Gelar</label>
+                                        <input type="text" class="form-control" name="nama_lengkap" placeholder="Contoh: H. Ahmad Sutoyo" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold small">Username Login</label>
+                                        <input type="text" class="form-control" name="username" placeholder="Contoh: sekretaris_senkom" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold small">Password</label>
+                                        <input type="password" class="form-control" name="password" placeholder="******" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold small">Hierarki Jabatan</label>
+                                        <select class="form-select" name="jabatan" required>
+                                            <option value="">-- Pilih Jabatan --</option>
+                                            <optgroup label="Pimpinan Tertinggi">
+                                                <option value="Ketua">Ketua</option>
+                                                <option value="Wakil Ketua">Wakil Ketua</option>
+                                                <option value="Sekretaris">Sekretaris</option>
+                                                <option value="Bendahara">Bendahara</option>
+                                            </optgroup>
+                                            <optgroup label="Bidang Teknis / Anggota">
+                                                <option value="Ketua Bidang">Ketua Bidang</option>
+                                                <option value="Anggota Bidang">Anggota Bidang</option>
+                                            </optgroup>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold small">Role Sistem</label>
+                                        <select class="form-select" name="role" required>
+                                            <option value="admin_lembaga">Admin Lembaga (Akses Penuh / Bendahara Utama)</option>
+                                            <option value="pengurus_bidang">Pengurus Bidang (Akses Pengaju / Wakil Bendahara)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold small">Penugasan Bidang</label>
+                                        <select class="form-select" name="id_bidang">
+                                            <option value="">-- Pilih Bidang (Opsional / Pimpinan) --</option>
+                                            <% if (lembagaData && lembagaData.Bidangs) { %>
+                                                <% lembagaData.Bidangs.forEach(b => { %>
+                                                    <option value="<%= b.id %>"><%= b.nama_bidang %></option>
+                                                <% }) %>
+                                            <% } %>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 pt-2">
+                                        <button type="submit" class="p-2 px-4 btn btn-primary fw-bold">
+                                            <i class="fas fa-save me-1"></i> Simpan Pengurus
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -172,5 +185,18 @@
 
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function () {
+            const inputFilter = document.getElementById('filterPengurus');
+            if (!inputFilter) return;
+            inputFilter.addEventListener('input', function () {
+                const keyword = this.value.trim().toLowerCase();
+                document.querySelectorAll('#tabelPengurus tbody tr.baris-pengurus').forEach(function (row) {
+                    const teks = row.textContent.toLowerCase();
+                    row.style.display = !keyword || teks.includes(keyword) ? '' : 'none';
+                });
+            });
+        })();
+    </script>
 </body>
 </html>

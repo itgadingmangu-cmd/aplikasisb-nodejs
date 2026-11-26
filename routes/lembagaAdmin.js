@@ -239,6 +239,15 @@ function ensureBendaharaUtama(req, res, next) {
     return res.redirect('/lembaga-admin');
 }
 
+function ensureRekapBulananAccess(req, res, next) {
+    const user = req.session.user;
+    if (isPimpinanAtauBendahara(user) || (user && user.role === 'pengurus_bidang' && user.id_bidang)) {
+        return next();
+    }
+    req.session.error_msg = 'Akses ditolak. Anda tidak memiliki hak akses untuk rekap bulanan.';
+    return res.redirect('/lembaga-admin');
+}
+
 // ==========================================
 // MODUL PROFIL & UPLOAD TTD PRIBADI
 // ==========================================
@@ -514,10 +523,10 @@ router.get('/bendahara/rekapitulasi', isLoggedIn, ensureBendaharaUtama, async (r
 });
 
 // --- RUTE KONSOLIDASI PROPOSAL & RAB BULANAN BENDAHARA UTAMA ---
-router.get('/bendahara/proposal-bulanan', isLoggedIn, ensureBendaharaUtama, lembagaAdminController.getRekapProposalBulanan);
+router.get('/bendahara/proposal-bulanan', isLoggedIn, ensureRekapBulananAccess, lembagaAdminController.getRekapProposalBulanan);
 
 // --- RUTE CETAK KONSOLIDASI PROPOSAL & RAB BULANAN ---
-router.get('/bendahara/proposal-bulanan/print', isLoggedIn, ensureBendaharaUtama, lembagaAdminController.printRekapProposalBulanan);
+router.get('/bendahara/proposal-bulanan/print', isLoggedIn, ensureRekapBulananAccess, lembagaAdminController.printRekapProposalBulanan);
 
 // ==========================================
 // RUTE HALAMAN UTAMA / DASHBOARD DINAMIS (/lembaga-admin)
