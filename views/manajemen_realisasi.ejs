@@ -70,7 +70,7 @@
                                     <label class="form-label fw-bold small">Kategori Pengeluaran</label>
                                     <select name="kategori_realisasi" class="form-select form-select-sm fw-semibold text-primary" id="selectKategori" onchange="toggleKategoriRealisasi(this)">
                                         <option value="rab">Sesuai Item RAB (Rencana)</option>
-                                        <option value="tambahan">Di Luar RAB (Insidentil / Tambahan)</option>
+                                        <option value="tambahan">Di Luar Item RAB (Biaya Tambahan Kegiatan)</option>
                                     </select>
                                 </div>
 
@@ -122,7 +122,7 @@
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Uraian / Keterangan Pengeluaran</label>
-                                    <input type="text" class="form-control" name="uraian_pengeluaran" id="inputUraian" placeholder="Contoh: Pembayaran Sewa Tempat" required>
+                                    <input type="text" class="form-control" name="uraian_pengeluaran" id="inputUraian" placeholder="Pilih item RAB atau ketik uraian pengeluaran riil..." required>
                                 </div>
 
                                 <div class="mb-3">
@@ -146,7 +146,7 @@
 
                                 <div class="mb-4">
                                     <label class="form-label fw-bold small">Catatan / Keterangan Tambahan</label>
-                                    <textarea class="form-control" name="keterangan" rows="3" placeholder="Opsional (misal: Laporan realisasi bulan berjalan)..."></textarea>
+                                    <textarea class="form-control" name="keterangan" rows="3" placeholder="Tuliskan rincian kebutuhan riil, catatan lapangan, atau penjelasan biaya di luar item RAB..."></textarea>
                                 </div>
 
                                 <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
@@ -226,21 +226,20 @@
             const wrapperRab = document.getElementById('wrapperItemRab');
             const inputUraian = document.getElementById('inputUraian');
             const selectRab = document.getElementById('selectItemRab');
-            const inputNominal = document.querySelector('input[name="nominal_realisasi"]');
+            const infoDiv = document.getElementById('infoPaguBulan');
+
+            inputUraian.readOnly = false;
 
             if (select.value === 'rab') {
                 wrapperRab.style.display = 'block';
-                inputUraian.readOnly = true;
-                inputUraian.placeholder = 'Pilih item dari daftar RAB di atas';
-                inputUraian.value = selectRab.value;
+                inputUraian.placeholder = 'Terisi otomatis dari item RAB (boleh disesuaikan)';
+                if (selectRab.value) {
+                    inputUraian.value = selectRab.value;
+                }
             } else {
                 wrapperRab.style.display = 'none';
-                inputUraian.readOnly = false;
-                inputUraian.placeholder = 'Contoh: Biaya Parkir / Pengeluaran Tambahan';
-                inputUraian.value = '';
+                inputUraian.placeholder = 'Contoh: Biaya Parkir / Kebutuhan Teknis Tambahan Kegiatan';
                 selectRab.value = '';
-                inputNominal.value = '';
-                const infoDiv = document.getElementById('infoPaguBulan');
                 if (infoDiv) infoDiv.innerText = '';
             }
         }
