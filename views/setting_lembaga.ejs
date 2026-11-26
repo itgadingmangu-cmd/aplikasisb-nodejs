@@ -79,21 +79,21 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Ganti Logo Lembaga (Opsional)</label>
                                     <input type="file" class="form-control" name="logo" accept="image/*">
-                                    <small class="text-muted">Format: JPG, PNG. Maksimal 1 MB.</small>
+                                    <small class="text-muted">Format: JPG, PNG. Maksimal 512 KB.</small>
                                 </div>
 
                                 <!-- TAMBAHAN: Upload Kop Surat -->
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Kop Surat Resmi Lembaga (Opsional)</label>
                                     <input type="file" class="form-control" name="kop_surat" accept="image/*">
-                                    <small class="text-muted">Format: JPG, PNG. Digunakan di lembar atas proposal/RAB. Maksimal 1 MB.</small>
+                                    <small class="text-muted">Format: JPG, PNG. Digunakan di lembar atas proposal/RAB. Maksimal 512 KB.</small>
                                 </div>
 
                                 <!-- TAMBAHAN: Upload Stempel -->
                                 <div class="mb-4">
                                     <label class="form-label fw-bold small">Stempel Lembaga (Opsional)</label>
                                     <input type="file" class="form-control" name="stempel" accept="image/*">
-                                    <small class="text-muted">Format: JPG, PNG. Digunakan di sebelah tanda tangan pimpinan. Maksimal 1 MB.</small>
+                                    <small class="text-muted">Format: JPG, PNG. Digunakan di sebelah tanda tangan pimpinan. Maksimal 512 KB.</small>
                                 </div>
                                  <!-- Upload TTD Ketua -->
                                 <div class="mb-3">
@@ -102,7 +102,7 @@
                                         <div class="mb-2"><img src="/uploads/logo/<%= lembaga.ttd_ketua %>" alt="TTD Ketua" class="img-thumbnail border" style="max-height: 50px;"></div>
                                     <% } %>
                                     <input type="file" class="form-control" name="ttd_ketua" accept="image/*">
-                                    <small class="text-muted">Format: PNG/JPG transparan. Maksimal 1 MB.</small>
+                                    <small class="text-muted">Format: PNG/JPG transparan. Maksimal 512 KB.</small>
                                 </div>
 
                                 
@@ -113,7 +113,7 @@
                                         <div class="mb-2"><img src="/uploads/logo/<%= lembaga.ttd_pembina_senkom %>" alt="TTD Pembina <%= namaOrganisasiLabel %>" class="img-thumbnail border" style="max-height: 50px;"></div>
                                     <% } %>
                                     <input type="file" class="form-control" name="ttd_pembina_senkom" accept="image/*">
-                                    <small class="text-muted">Format: PNG/JPG transparan. Maksimal 1 MB.</small>
+                                    <small class="text-muted">Format: PNG/JPG transparan. Maksimal 512 KB.</small>
                                 </div>
 
                                 <!-- MASTER DATA 6 PEMBINA / DEWAN PENASIHAT WILAYAH -->

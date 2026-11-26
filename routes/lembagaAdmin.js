@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 'use strict';
 
 const express = require('express');
@@ -186,7 +187,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 1 * 1024 * 1024 },
+    limits: { fileSize: 512 * 1024 },
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png|webp/;
         const mimetype = filetypes.test(file.mimetype);
@@ -194,11 +195,11 @@ const upload = multer({
         if (mimetype && extname) {
             return cb(null, true);
         }
-        cb(new Error('Format gambar tidak valid! Hanya diizinkan JPG, PNG, atau WEBP maksimal 1 MB.'));
+        cb(new Error('Format gambar tidak valid! Hanya diizinkan JPG, PNG, atau WEBP maksimal 512 KB.'));
     }
 });
 
-// --- KONFIGURASI MULTER KHUSUS UNTUK UPLOAD BUKTI NOTA REALISASI (Maks. 1 MB) ---
+// --- KONFIGURASI MULTER KHUSUS UNTUK UPLOAD BUKTI NOTA REALISASI (Maks. 512 KB) ---
 const uploadRealizDir = path.join(__dirname, '../public/uploads/realisasi');
 if (!fs.existsSync(uploadRealizDir)) {
     fs.mkdirSync(uploadRealizDir, { recursive: true });
@@ -216,7 +217,7 @@ const storageRealisasi = multer.diskStorage({
 
 const uploadRealisasi = multer({
     storage: storageRealisasi,
-    limits: { fileSize: 1 * 1024 * 1024 },
+    limits: { fileSize: 512 * 1024 },
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png|pdf/;
         const mimetype = filetypes.test(file.mimetype);
@@ -224,7 +225,7 @@ const uploadRealisasi = multer({
         if (mimetype && extname) {
             return cb(null, true);
         }
-        cb(new Error('Hanya mengizinkan file gambar (JPG/PNG) atau PDF dengan ukuran maksimal 1 MB!'));
+        cb(new Error('Hanya mengizinkan file gambar (JPG/PNG) atau PDF dengan ukuran maksimal 512 KB!'));
     }
 }).single('bukti_nota');
 
@@ -273,7 +274,7 @@ router.post('/profile/update-ttd', isLoggedIn, (req, res, next) => {
     upload.single('ttd')(req, res, (err) => {
         if (err) {
             req.session.error_msg = err.code === 'LIMIT_FILE_SIZE'
-                ? 'Ukuran file tanda tangan melebihi batas maksimal 1 MB!'
+                ? 'Ukuran file tanda tangan melebihi batas maksimal 512 KB!'
                 : err.message;
             return res.redirect('/lembaga-admin/profile');
         }
@@ -652,6 +653,33 @@ router.get('/', isLoggedIn, async (req, res) => {
 // ==========================================
 // MODUL MANAJEMEN BIDANG
 // ==========================================
+const slugifyUsernamePart = (str) => String(str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 24);
+
+const generateRandomPassword = (length = 10) => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%';
+    const bytes = crypto.randomBytes(length);
+    let pass = '';
+    for (let i = 0; i < length; i++) {
+        pass += chars[bytes[i] % chars.length];
+    }
+    return pass;
+};
+
+const ensureUniqueUsername = async (baseName) => {
+    const cleanBase = slugifyUsernamePart(baseName) || 'pengurus_bidang';
+    let candidate = cleanBase;
+    let counter = 1;
+    while (await User.findOne({ where: { username: candidate }, attributes: ['id'] })) {
+        counter += 1;
+        candidate = `${cleanBase.slice(0, 20)}_${counter}`;
+    }
+    return candidate;
+};
+
 router.get('/bidang', isLoggedIn, async (req, res) => {
     try {
         const lembagaId = getActiveLembagaId(req.session.user);
@@ -662,6 +690,12 @@ router.get('/bidang', isLoggedIn, async (req, res) => {
             Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
             Bidang.findAll({
                 where: { lembagaId, tahun: tahunAktifInt },
+                include: [{
+                    model: User,
+                    as: 'Users',
+                    attributes: ['id', 'nama_lengkap', 'username', 'role', 'jabatan', 'must_change_password'],
+                    required: false
+                }],
                 order: [['id', 'ASC']]
             })
         ]);
@@ -672,14 +706,176 @@ router.get('/bidang', isLoggedIn, async (req, res) => {
         }
         lembagaData.Bidangs = bidangs;
 
+        const generatedBidangUsers = req.session.generated_bidang_users || null;
+        delete req.session.generated_bidang_users;
+
         return res.render('manajemen_bidang', {
             pengaturan,
             userSession: req.session.user,
-            lembagaData
+            lembagaData,
+            generatedBidangUsers
         });
     } catch (err) {
         console.error('Error halaman manajemen bidang:', err);
         return res.status(500).send('Terjadi kesalahan pada server: ' + err.message);
+    }
+});
+
+router.post('/bidang/buat-user/:id', isLoggedIn, isAdminLembaga, async (req, res) => {
+    try {
+        const lembagaId = getActiveLembagaId(req.session.user);
+        const bidangId = Number(req.params.id);
+        const bidang = await Bidang.findOne({ where: { id: bidangId, lembagaId } });
+
+        if (!bidang) {
+            req.session.error_msg = 'Data bidang tidak ditemukan.';
+            return res.redirect('/lembaga-admin/bidang');
+        }
+
+        const existingUser = await User.findOne({
+            where: { id_bidang: bidang.id, role: 'pengurus_bidang' },
+            attributes: ['id', 'username']
+        });
+        if (existingUser) {
+            req.session.error_msg = `Bidang "${bidang.nama_bidang}" sudah memiliki akun (${existingUser.username}). Gunakan fitur reset password bila perlu.`;
+            return res.redirect('/lembaga-admin/bidang');
+        }
+
+        const rawNama = (req.body.nama_lengkap || '').trim() || `Pengurus ${bidang.nama_bidang}`;
+        const rawJabatan = (req.body.jabatan || '').trim() || `Pengurus ${bidang.nama_bidang}`;
+        const requestedUsername = (req.body.username || '').trim();
+
+        let finalUsername;
+        if (requestedUsername) {
+            const cleanReq = slugifyUsernamePart(requestedUsername);
+            if (!cleanReq || cleanReq.length < 3) {
+                req.session.error_msg = 'Username minimal 3 karakter huruf/angka.';
+                return res.redirect('/lembaga-admin/bidang');
+            }
+            const taken = await User.findOne({ where: { username: cleanReq }, attributes: ['id'] });
+            if (taken) {
+                req.session.error_msg = `Username "${cleanReq}" sudah digunakan.`;
+                return res.redirect('/lembaga-admin/bidang');
+            }
+            finalUsername = cleanReq;
+        } else {
+            finalUsername = await ensureUniqueUsername(`${bidang.nama_bidang}_${lembagaId}`);
+        }
+
+        const rawPassword = (req.body.password || '').trim() || generateRandomPassword(10);
+        if (rawPassword.length < 6) {
+            req.session.error_msg = 'Password minimal 6 karakter.';
+            return res.redirect('/lembaga-admin/bidang');
+        }
+
+        await User.create({
+            nama_lengkap: rawNama,
+            username: finalUsername,
+            password: bcrypt.hashSync(rawPassword, 10),
+            role: 'pengurus_bidang',
+            jabatan: rawJabatan,
+            id_bidang: bidang.id,
+            lembagaId: lembagaId,
+            must_change_password: true
+        });
+
+        req.session.generated_bidang_users = [{
+            bidang: bidang.nama_bidang,
+            nama_lengkap: rawNama,
+            username: finalUsername,
+            password: rawPassword,
+            status: 'Dibuat baru (multi-tahun)'
+        }];
+        req.session.success_msg = `Akun pengurus untuk bidang "${bidang.nama_bidang}" berhasil dibuat.`;
+        return res.redirect('/lembaga-admin/bidang');
+    } catch (err) {
+        console.error('Error buat user bidang:', err);
+        req.session.error_msg = 'Gagal membuat akun bidang: ' + err.message;
+        return res.redirect('/lembaga-admin/bidang');
+    }
+});
+
+router.post('/bidang/generate-users', isLoggedIn, isAdminLembaga, async (req, res) => {
+    try {
+        const lembagaId = getActiveLembagaId(req.session.user);
+        const pengaturan = await getCachedPengaturan();
+        const tahunAktifInt = getTahunAktifInt(pengaturan);
+
+        let selectedIds = req.body.bidang_ids;
+        if (selectedIds && !Array.isArray(selectedIds)) {
+            selectedIds = [selectedIds];
+        }
+        const filterIds = Array.isArray(selectedIds) && selectedIds.length > 0
+            ? selectedIds.map(Number).filter((n) => Number.isInteger(n) && n > 0)
+            : null;
+
+        const whereBidang = { lembagaId, tahun: tahunAktifInt };
+        if (filterIds) {
+            whereBidang.id = filterIds;
+        }
+
+        const bidangs = await Bidang.findAll({
+            where: whereBidang,
+            include: [{
+                model: User,
+                as: 'Users',
+                attributes: ['id', 'username', 'role'],
+                required: false
+            }],
+            order: [['id', 'ASC']]
+        });
+
+        if (!bidangs.length) {
+            req.session.error_msg = 'Tidak ada data bidang untuk digenerate.';
+            return res.redirect('/lembaga-admin/bidang');
+        }
+
+        const createdList = [];
+        let skippedCount = 0;
+
+        for (const b of bidangs) {
+            const hasAccount = Array.isArray(b.Users) && b.Users.some((u) => u.role === 'pengurus_bidang');
+            if (hasAccount) {
+                skippedCount += 1;
+                continue;
+            }
+
+            const username = await ensureUniqueUsername(`${b.nama_bidang}_${lembagaId}`);
+            const password = generateRandomPassword(10);
+            const namaLengkap = `Pengurus ${b.nama_bidang}`;
+
+            await User.create({
+                nama_lengkap: namaLengkap,
+                username,
+                password: bcrypt.hashSync(password, 10),
+                role: 'pengurus_bidang',
+                jabatan: `Pengurus ${b.nama_bidang}`,
+                id_bidang: b.id,
+                lembagaId: lembagaId,
+                must_change_password: true
+            });
+
+            createdList.push({
+                bidang: b.nama_bidang,
+                nama_lengkap: namaLengkap,
+                username,
+                password,
+                status: 'Baru digenerate'
+            });
+        }
+
+        if (createdList.length > 0) {
+            req.session.generated_bidang_users = createdList;
+            req.session.success_msg = `Berhasil men-generate ${createdList.length} akun bidang${skippedCount > 0 ? ` (${skippedCount} bidang dilewati karena sudah punya akun)` : ''}.`;
+        } else {
+            req.session.error_msg = `Tidak ada akun baru dibuat (${skippedCount} bidang sudah memiliki akun pengurus).`;
+        }
+
+        return res.redirect('/lembaga-admin/bidang');
+    } catch (err) {
+        console.error('Error generate users bidang:', err);
+        req.session.error_msg = 'Gagal generate akun bidang: ' + err.message;
+        return res.redirect('/lembaga-admin/bidang');
     }
 });
 
@@ -743,7 +939,7 @@ router.post('/bidang/edit/:id', isLoggedIn, isAdminLembaga, (req, res, next) => 
     upload.single('ttd_bidang')(req, res, (err) => {
         if (err) {
             req.session.error_msg = err.code === 'LIMIT_FILE_SIZE'
-                ? 'Ukuran file TTD Bidang melebihi batas maksimal 1 MB!'
+                ? 'Ukuran file TTD Bidang melebihi batas maksimal 512 KB!'
                 : err.message;
             return res.redirect(`/lembaga-admin/bidang/edit/${req.params.id}`);
         }
@@ -1558,12 +1754,12 @@ router.get('/proker/realisasi/:id', isLoggedIn, async (req, res) => {
     }
 });
 
-// RUTE TAMBAH REALISASI DENGAN DUKUNGAN UPLOAD BUKTI NOTA (Maks. 1 MB)
+// RUTE TAMBAH REALISASI DENGAN DUKUNGAN UPLOAD BUKTI NOTA (Maks. 512 KB)
 router.post('/proker/realisasi/tambah/:id', isLoggedIn, (req, res, next) => {
     uploadRealisasi(req, res, function (err) {
         if (err instanceof multer.MulterError) {
             if (err.code === 'LIMIT_FILE_SIZE') {
-                req.session.error_msg = 'Gagal menambah realisasi: Ukuran file bukti nota melebihi batas maksimal 1 MB!';
+                req.session.error_msg = 'Gagal menambah realisasi: Ukuran file bukti nota melebihi batas maksimal 512 KB!';
             } else {
                 req.session.error_msg = 'Gagal mengunggah file: ' + err.message;
             }
@@ -2056,7 +2252,29 @@ router.post('/proker/proposal/update/:id', isLoggedIn, async (req, res) => {
 
 // --- RUTE MODUL LPJ ---
 router.get('/proker/proposal/lpj/:id', isLoggedIn, realisasiLpjController.formLpj);
-router.post('/proker/proposal/lpj/update/:id', isLoggedIn, uploadLpjFiles, realisasiLpjController.storeOrUpdateLpj);
+const handleUploadLpjFiles = (req, res, next) => {
+    uploadLpjFiles(req, res, (err) => {
+        if (!err) {
+            return next();
+        }
+
+        const fallbackUrl = req.params && req.params.id
+            ? `/lembaga-admin/proker/proposal/lpj/${req.params.id}`
+            : '/lembaga-admin/proposal';
+
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            req.session.error_msg = 'Gagal mengunggah berkas LPJ: Ukuran setiap file maksimal 512 KB.';
+        } else if (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT') {
+            req.session.error_msg = 'Gagal mengunggah berkas LPJ: Jumlah atau field file tidak sesuai.';
+        } else {
+            req.session.error_msg = 'Gagal mengunggah berkas LPJ: ' + (err.message || 'Berkas tidak valid.');
+        }
+
+        return res.redirect(req.get('Referer') || fallbackUrl);
+    });
+};
+
+router.post('/proker/proposal/lpj/update/:id', isLoggedIn, handleUploadLpjFiles, realisasiLpjController.storeOrUpdateLpj);
 
 // --- RUTE APPROVAL & PENCAIRAN ---
 router.post('/proker/proposal/ajukan/:id', isLoggedIn, prokerController.ajukanProposal);
@@ -2263,7 +2481,7 @@ router.post('/setting/update', isLoggedIn, isAdminLembaga, (req, res, next) => {
     ])(req, res, (err) => {
         if (err) {
             req.session.error_msg = err.code === 'LIMIT_FILE_SIZE'
-                ? 'Ukuran salah satu file melebihi batas maksimal 1 MB!'
+                ? 'Ukuran salah satu file melebihi batas maksimal 512 KB!'
                 : err.message;
             return res.redirect('/lembaga-admin/setting');
         }

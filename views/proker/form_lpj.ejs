@@ -68,30 +68,39 @@
                                 </div>
                             </div>
 
+                            <% const resolveLpjHref = (val) => {
+                                if (!val) return "#";
+                                const clean = String(val).replace(/^\/+/, "");
+                                if (clean.startsWith("lpj/")) return "/uploads/" + clean;
+                                return "/uploads/" + clean;
+                            }; %>
                             <div class="card p-4 bg-white">
-                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-upload text-success me-2"></i> Berkas Lampiran & Bukti Pendukung</h5>
+                                <h5 class="fw-bold text-dark mb-2"><i class="fas fa-upload text-success me-2"></i> Berkas Lampiran & Bukti Pendukung</h5>
+                                <div class="alert alert-info py-2 px-3 small mb-3">
+                                    <i class="fas fa-info-circle me-1"></i> Format diizinkan: <strong>JPG, PNG, WEBP, PDF</strong> • Ukuran maksimal <strong>512 KB</strong> per berkas. Berkas LPJ otomatis dikelompokkan per tahun.
+                                </div>
                                 
                                 <div class="mb-3 p-3 bg-light rounded border">
-                                    <label class="form-label fw-bold small">1. Foto Dokumentasi Kegiatan</label>
-                                    <input type="file" class="form-control form-control-sm" name="foto_kegiatan" accept="image/*">
+                                    <label class="form-label fw-bold small">1. Foto Dokumentasi Kegiatan <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
+                                    <input type="file" class="form-control form-control-sm" name="foto_kegiatan" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
                                     <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.foto_kegiatan) { %>
-                                        <small class="text-success d-it mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="/uploads/<%= proposal.RealisasiLpj.foto_kegiatan %>" target="_blank">Lihat Foto</a></small>
+                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(proposal.RealisasiLpj.foto_kegiatan) %>" target="_blank">Lihat Foto</a></small>
                                     <% } %>
                                 </div>
 
                                 <div class="mb-3 p-3 bg-light rounded border">
-                                    <label class="form-label fw-bold small">2. Nota Belanja / Kuitansi</label>
-                                    <input type="file" class="form-control form-control-sm" name="nota_belanja" accept="image/*,application/pdf">
+                                    <label class="form-label fw-bold small">2. Nota Belanja / Kuitansi <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
+                                    <input type="file" class="form-control form-control-sm" name="nota_belanja" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf">
                                     <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.nota_belanja) { %>
-                                        <small class="text-success d-it mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="/uploads/<%= proposal.RealisasiLpj.nota_belanja %>" target="_blank">Lihat Nota</a></small>
+                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(proposal.RealisasiLpj.nota_belanja) %>" target="_blank">Lihat Nota</a></small>
                                     <% } %>
                                 </div>
 
                                 <div class="mb-3 p-3 bg-light rounded border">
-                                    <label class="form-label fw-bold small">3. Bukti Transfer / Pencairan (Dari Bendahara)</label>
-                                    <input type="file" class="form-control form-control-sm" name="bukti_transfer_bendahara" accept="image/*,application/pdf">
+                                    <label class="form-label fw-bold small">3. Bukti Transfer / Pencairan (Dari Bendahara) <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
+                                    <input type="file" class="form-control form-control-sm" name="bukti_transfer_bendahara" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf">
                                     <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.bukti_transfer_bendahara) { %>
-                                        <small class="text-success d-it mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="/uploads/<%= proposal.RealisasiLpj.bukti_transfer_bendahara %>" target="_blank">Lihat Bukti Transfer</a></small>
+                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(proposal.RealisasiLpj.bukti_transfer_bendahara) %>" target="_blank">Lihat Bukti Transfer</a></small>
                                     <% } %>
                                 </div>
 

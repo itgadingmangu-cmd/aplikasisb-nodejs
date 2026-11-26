@@ -3,53 +3,182 @@ const { Proposal, RealisasiLpj, Proker, Bidang, Lembaga } = require('../models')
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const crypto = require('crypto');
 
-// Pastikan folder khusus upload realisasi tersedia
-const uploadDir = path.join(__dirname, '../public/uploads/realisasi');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+const PUBLIC_UPLOADS_ROOT = path.resolve(__dirname, '../public/uploads');
+const REALISASI_DIR = path.resolve(PUBLIC_UPLOADS_ROOT, 'realisasi');
+const MAX_REALISASI_FILE_SIZE = 512 * 1024; // 512 KB per berkas
+
+const ALLOWED_EXTENSIONS = new Set([
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.pdf'
+]);
+
+const ALLOWED_MIME_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/pdf'
+]);
+
+const ALLOWED_FIELDS = new Set([
+    'foto_kegiatan',
+    'nota_belanja',
+    'bukti_nota',
+    'bukti_transfer_bendahara'
+]);
+
+function resolveTahunLpj(req) {
+    const fallbackYear = String(new Date().getFullYear());
+    const candidate =
+        (req && req.body && (req.body.tahun || req.body.tahun_anggaran)) ||
+        (req && req.lpjTahun) ||
+        fallbackYear;
+
+    const match = String(candidate).match(/\b(20\d{2})\b/);
+    return match ? match[1] : fallbackYear;
 }
 
-// Konfigurasi Penyimpanan Multer dengan Batasan Maksimal 1 MB
-const storage = multer.diskStorage({
+function resolveSafeExtension(file) {
+    const extFromName = path.extname(file.originalname || '').toLowerCase();
+    if (ALLOWED_EXTENSIONS.has(extFromName)) {
+        return extFromName === '.jpeg' ? '.jpg' : extFromName;
+    }
+
+    const mimeToExt = {
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'image/webp': '.webp',
+        'application/pdf': '.pdf'
+    };
+
+    return mimeToExt[file.mimetype] || null;
+}
+
+function extractUploadedFilePath(req, fieldNames) {
+    if (!req || !req.files) {
+        return null;
+    }
+
+    const names = Array.isArray(fieldNames) ? fieldNames : [fieldNames];
+    for (const name of names) {
+        const list = req.files[name];
+        if (Array.isArray(list) && list.length > 0 && list[0]) {
+            const fileObj = list[0];
+            if (fileObj.lpjRelativePath) {
+                return String(fileObj.lpjRelativePath).replace(/\\/g, '/');
+            }
+            if (fileObj.filename) {
+                const tahun = fileObj.lpjTahun || resolveTahunLpj(req);
+                return `lpj/${tahun}/${path.basename(fileObj.filename)}`;
+            }
+        }
+    }
+
+    return null;
+}
+
+function safeUnlinkOldFile(relativeOrFilename, fallbackSubdir = 'lpj') {
+    if (!relativeOrFilename || typeof relativeOrFilename !== 'string') {
+        return;
+    }
+
+    const cleaned = relativeOrFilename.replace(/^\/+/, '').replace(/\\/g, '/');
+    const targetCandidate = cleaned.includes('/')
+        ? path.resolve(PUBLIC_UPLOADS_ROOT, cleaned)
+        : path.resolve(PUBLIC_UPLOADS_ROOT, fallbackSubdir, path.basename(cleaned));
+
+    // Pastikan file yang dihapus berada strict di dalam PUBLIC_UPLOADS_ROOT
+    if (!targetCandidate.startsWith(PUBLIC_UPLOADS_ROOT + path.sep)) {
+        return;
+    }
+
+    try {
+        if (fs.existsSync(targetCandidate) && fs.statSync(targetCandidate).isFile()) {
+            fs.unlinkSync(targetCandidate);
+        }
+    } catch (err) {
+        console.warn('Gagal menghapus file lama LPJ:', err.message);
+    }
+}
+
+function parsePositiveId(rawId) {
+    const num = Number(rawId);
+    return Number.isInteger(num) && num > 0 ? num : null;
+}
+
+function sanitizeAnggaran(rawVal, fallbackVal = 0) {
+    if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') {
+        return fallbackVal;
+    }
+    const normalized = String(rawVal).replace(/[^0-9.-]/g, '');
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return fallbackVal;
+    }
+    return parsed;
+}
+
+const realisasiStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, uploadDir);
+        try {
+            fs.mkdirSync(REALISASI_DIR, { recursive: true });
+            return cb(null, REALISASI_DIR);
+        } catch (err) {
+            return cb(err);
+        }
     },
     filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'realisasi-' + uniqueSuffix + path.extname(file.originalname));
+        const ext = resolveSafeExtension(file);
+        if (!ext) {
+            return cb(new Error('Ekstensi berkas tidak diizinkan.'));
+        }
+        const prefix = String(file.fieldname || 'realisasi').replace(/[^a-zA-Z0-9_-]/g, '') || 'realisasi';
+        const suffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+        return cb(null, `${prefix}-${suffix}${ext}`);
     }
 });
 
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 1 * 1024 * 1024 }, // Batasan ukuran maksimal 1 MB
+const uploadRealisasi = multer({
+    storage: realisasiStorage,
+    limits: {
+        fileSize: MAX_REALISASI_FILE_SIZE,
+        files: 3
+    },
     fileFilter: (req, file, cb) => {
-        const filetypes = /jpeg|jpg|png|pdf/;
-        const mimetype = filetypes.test(file.mimetype);
-        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-        if (mimetype && extname) {
-            return cb(null, true);
+        if (!ALLOWED_FIELDS.has(file.fieldname)) {
+            return cb(new Error(`Field upload tidak dikenali: ${file.fieldname}`));
         }
-        cb(new Error('Hanya mengizinkan file gambar (JPG/PNG) atau PDF dengan ukuran maksimal 1 MB!'));
+        const ext = resolveSafeExtension(file);
+        if (!ext || !ALLOWED_MIME_TYPES.has(file.mimetype)) {
+            return cb(new Error('Format berkas harus berupa JPG, PNG, WEBP, atau PDF dengan ukuran maksimal 512 KB!'));
+        }
+        return cb(null, true);
     }
 });
 
 const realisasiLpjController = {
-    // Middleware Upload untuk digunakan pada router (Mendukung beberapa field file sekaligus)
-    uploadMiddleware: upload.fields([
+    uploadMiddleware: uploadRealisasi.fields([
         { name: 'foto_kegiatan', maxCount: 1 },
         { name: 'nota_belanja', maxCount: 1 },
         { name: 'bukti_transfer_bendahara', maxCount: 1 },
-        { name: 'bukti_nota', maxCount: 1 } // Menjaga kompatibilitas jika ada form yang menggunakan nama field ini
+        { name: 'bukti_nota', maxCount: 1 }
     ]),
 
     // 1. Menampilkan Form / Detail LPJ untuk Proposal yang sudah dicairkan
     formLpj: async (req, res) => {
         try {
-            const { id } = req.params; // ID Proposal
+            const proposalId = parsePositiveId(req.params.id);
+            if (!proposalId) {
+                req.session.error_msg = 'ID Proposal tidak valid.';
+                return res.redirect('/lembaga-admin/proposal');
+            }
+
             const proposal = await Proposal.findOne({
-                where: { id },
+                where: { id: proposalId },
                 include: [
                     { model: Proker, as: 'Proker', include: [{ model: Bidang, as: 'Bidang' }] },
                     { model: Lembaga, as: 'Lembaga' },
@@ -62,72 +191,102 @@ const realisasiLpjController = {
                 return res.redirect('/lembaga-admin/proposal');
             }
 
-            res.render('proker/form_lpj', {
-                title: `Laporan Pertanggungjawaban (LPJ) - ${proposal.Proker.nama_program}`,
+            return res.render('proker/form_lpj', {
+                title: `Laporan Pertanggungjawaban (LPJ) - ${proposal.Proker ? proposal.Proker.nama_program : 'Proposal'}`,
                 proposal,
                 userSession: req.session.user
             });
         } catch (error) {
-            console.error("ERROR FORM LPJ:", error);
+            console.error('ERROR FORM LPJ:', error);
             req.session.error_msg = 'Gagal memuat form LPJ: ' + error.message;
-            res.redirect('/lembaga-admin/proposal');
+            return res.redirect('/lembaga-admin/proposal');
         }
     },
 
     // 2. Menyimpan atau Memperbarui Data LPJ beserta Upload Berkas
     storeOrUpdateLpj: async (req, res) => {
         try {
-            const { id } = req.params; // ID Proposal
-            const { realisasi_anggaran, deskripsi_kegiatan } = req.body;
+            const proposalId = parsePositiveId(req.params.id);
+            if (!proposalId) {
+                req.session.error_msg = 'ID Proposal tidak valid.';
+                return res.redirect('/lembaga-admin/proposal');
+            }
 
-            const proposal = await Proposal.findByPk(id);
+            const { realisasi_anggaran, deskripsi_kegiatan } = req.body || {};
+
+            const proposal = await Proposal.findByPk(proposalId);
             if (!proposal) {
                 req.session.error_msg = 'Proposal tidak ditemukan.';
                 return res.redirect('/lembaga-admin/proposal');
             }
 
-            // Tangkap file yang diunggah via multer (jika ada)
-            const foto_kegiatan = req.files && req.files['foto_kegiatan'] ? req.files['foto_kegiatan'][0].filename : null;
-            const nota_belanja = req.files && (req.files['nota_belanja'] || req.files['bukti_nota']) ? (req.files['nota_belanja'] ? req.files['nota_belanja'][0].filename : req.files['bukti_nota'][0].filename) : null;
-            const bukti_transfer_bendahara = req.files && req.files['bukti_transfer_bendahara'] ? req.files['bukti_transfer_bendahara'][0].filename : null;
+            const fotoKegiatanPath = extractUploadedFilePath(req, ['foto_kegiatan']);
+            const notaBelanjaPath = extractUploadedFilePath(req, ['nota_belanja', 'bukti_nota']);
+            const buktiTransferPath = extractUploadedFilePath(req, ['bukti_transfer_bendahara']);
 
-            // Cek apakah data LPJ sudah pernah dibuat sebelumnya
-            let lpj = await RealisasiLpj.findOne({ where: { proposalId: id } });
+            const cleanDeskripsi =
+                typeof deskripsi_kegiatan === 'string' ? deskripsi_kegiatan.trim() : undefined;
+
+            let lpj = await RealisasiLpj.findOne({ where: { proposalId } });
 
             if (lpj) {
-                // Update data LPJ (gabungkan file baru jika diupload, pertahankan file lama jika tidak ada upload baru)
-                lpj.realisasi_anggaran = realisasi_anggaran || lpj.realisasi_anggaran;
-                lpj.deskripsi_kegiatan = deskripsi_kegiatan || lpj.deskripsi_kegiatan;
-                if (foto_kegiatan) lpj.foto_kegiatan = foto_kegiatan;
-                if (nota_belanja) lpj.nota_belanja = nota_belanja;
-                if (bukti_transfer_bendahara) lpj.bukti_transfer_bendahara = bukti_transfer_bendahara;
-                lpj.status_lpj = 'Menunggu Review'; // Reset status review jika ada revisi
+                const oldFoto = lpj.foto_kegiatan;
+                const oldNota = lpj.nota_belanja;
+                const oldBukti = lpj.bukti_transfer_bendahara;
+
+                lpj.realisasi_anggaran = sanitizeAnggaran(realisasi_anggaran, lpj.realisasi_anggaran);
+                if (cleanDeskripsi !== undefined) {
+                    lpj.deskripsi_kegiatan = cleanDeskripsi;
+                }
+
+                if (fotoKegiatanPath) {
+                    lpj.foto_kegiatan = fotoKegiatanPath;
+                }
+                if (notaBelanjaPath) {
+                    lpj.nota_belanja = notaBelanjaPath;
+                }
+                if (buktiTransferPath) {
+                    lpj.bukti_transfer_bendahara = buktiTransferPath;
+                }
+
+                lpj.status_lpj = 'Menunggu Review';
                 await lpj.save();
+
+                if (fotoKegiatanPath && oldFoto && oldFoto !== fotoKegiatanPath) {
+                    safeUnlinkOldFile(oldFoto);
+                }
+                if (notaBelanjaPath && oldNota && oldNota !== notaBelanjaPath) {
+                    safeUnlinkOldFile(oldNota);
+                }
+                if (buktiTransferPath && oldBukti && oldBukti !== buktiTransferPath) {
+                    safeUnlinkOldFile(oldBukti);
+                }
             } else {
-                // Buat data LPJ baru
                 await RealisasiLpj.create({
-                    proposalId: id,
+                    proposalId,
                     lembagaId: proposal.lembagaId,
-                    realisasi_anggaran: realisasi_anggaran || 0,
-                    deskripsi_kegiatan,
-                    foto_kegiatan,
-                    nota_belanja,
-                    bukti_transfer_bendahara,
+                    realisasi_anggaran: sanitizeAnggaran(realisasi_anggaran, 0),
+                    deskripsi_kegiatan: cleanDeskripsi || '',
+                    foto_kegiatan: fotoKegiatanPath,
+                    nota_belanja: notaBelanjaPath,
+                    bukti_transfer_bendahara: buktiTransferPath,
                     status_lpj: 'Menunggu Review'
                 });
             }
 
             req.session.success_msg = 'Laporan Pertanggungjawaban (LPJ) berhasil disimpan dan dikirim untuk direview!';
-            return res.redirect(`/lembaga-admin/proker/proposal/lpj/${id}`);
+            return res.redirect(`/lembaga-admin/proker/proposal/lpj/${proposalId}`);
         } catch (error) {
-            console.error("ERROR STORE/UPDATE LPJ:", error);
-            // Tangkap pesan error khusus multer jika melebihi 1 MB
-            if (error.code === 'LIMIT_FILE_SIZE') {
-                req.session.error_msg = 'Gagal menyimpan LPJ: Ukuran file melebihi batas maksimal 1 MB!';
+            console.error('ERROR STORE/UPDATE LPJ:', error);
+            if (error && error.code === 'LIMIT_FILE_SIZE') {
+                req.session.error_msg = 'Gagal menyimpan LPJ: Ukuran file melebihi batas maksimal 512 KB!';
             } else {
-                req.session.error_msg = 'Gagal menyimpan LPJ: ' + error.message;
+                req.session.error_msg = 'Gagal menyimpan LPJ: ' + (error && error.message ? error.message : 'Terjadi kesalahan.');
             }
-            return res.redirect('back');
+            const fallbackUrl = req.params && req.params.id
+                ? `/lembaga-admin/proker/proposal/lpj/${req.params.id}`
+                : '/lembaga-admin/proposal';
+            return res.redirect(req.get('Referer') || fallbackUrl);
         }
     }
 };
