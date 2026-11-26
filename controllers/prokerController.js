@@ -216,8 +216,15 @@ const prokerController = {
     prosesPencairanBendahara: async (req, res) => {
         try {
             const user = req.session.user;
-            if (!user || (user.hierarki !== 'Bendahara' && user.nama_bidang !== 'Bendahara')) {
-                req.session.error_msg = 'Akses ditolak! Hanya Bendahara yang berhak memproses eksekusi keuangan.';
+            const jabatanUser = String((user && user.jabatan) || '').trim().toLowerCase();
+            const roleUser = String((user && user.role) || '').trim().toLowerCase();
+            const isBendaharaUtama =
+                Boolean(user) &&
+                jabatanUser !== 'wakil bendahara' &&
+                (roleUser === 'bendahara_utama' || jabatanUser === 'bendahara' || jabatanUser === 'bendahara utama');
+
+            if (!isBendaharaUtama) {
+                req.session.error_msg = 'Akses ditolak! Hanya Bendahara Utama yang berhak memproses eksekusi pencairan.';
                 return res.redirect('/lembaga-admin/proposal');
             }
 
@@ -228,6 +235,11 @@ const prokerController = {
             if (!proposal) {
                 req.session.error_msg = 'Proposal tidak ditemukan di dalam database.';
                 return res.redirect('/lembaga-admin/proposal');
+            }
+
+            if (proposal.userId && Number(proposal.userId) === Number(user.id)) {
+                req.session.error_msg = 'Pencairan atas pengajuan kegiatan sendiri tidak dapat dieksekusi langsung oleh pengaju. Mohon koordinasikan dengan pimpinan/otoritas terkait.';
+                return res.redirect(`/lembaga-admin/proker/proposal/${proposal.prokerId}`);
             }
 
             const keputusan = (keputusan_bendahara || '').trim().toLowerCase();

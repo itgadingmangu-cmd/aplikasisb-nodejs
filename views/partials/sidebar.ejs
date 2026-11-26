@@ -46,9 +46,19 @@
 
     <!-- 4. NAVIGASI MENU UTAMA -->
     <ul class="nav nav-pills flex-column mb-auto" id="sidebarNav">
-        <% if (typeof userSession !== 'undefined') { %>
+        <%
+    const _jabatan = String((typeof userSession !== 'undefined' && userSession && userSession.jabatan) || '').trim().toLowerCase();
+    const _bidang = String((typeof userSession !== 'undefined' && userSession && userSession.nama_bidang) || '').trim().toLowerCase();
+    const _username = String((typeof userSession !== 'undefined' && userSession && userSession.username) || '').trim().toLowerCase();
+    const _role = String((typeof userSession !== 'undefined' && userSession && userSession.role) || '').trim().toLowerCase();
+    const _isWakilBendahara = _jabatan.includes('wakil') || _bidang.includes('wakil') || _username.includes('wakil');
+    const _isBendaharaUtama = !_isWakilBendahara && (_role === 'bendahara_utama' || _jabatan === 'bendahara' || _jabatan.includes('bendahara utama') || _bidang === 'bendahara' || _username.startsWith('bendahara'));
+    const _isKetua = _role === 'ketua' || _jabatan === 'ketua' || _bidang === 'ketua' || _username === 'ketua';
+    const _isAdminStruktural = !_isBendaharaUtama && !_isKetua && (_role === 'admin_lembaga' || _role === 'superadmin');
+%>
+<% if (typeof userSession !== 'undefined') { %>
 
-            <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>
+            <% if (_isAdminStruktural) { %>
                 <!-- MENU ORGANISASI (Khusus Admin Lembaga & Superadmin) -->
                 <li class="nav-item mb-1">
                     <a href="#orgSubmenu" data-bs-toggle="collapse" class="nav-link text-white d-flex justify-content-between align-items-center text-decoration-none">
@@ -90,8 +100,8 @@
                                 <i class="fas fa-file-contract me-1"></i> Pengajuan
                             </a>
                         </li>
-                        <!-- Menu Persetujuan Proposal (Khusus Admin Lembaga / Superadmin) -->
-                        <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>
+                        <!-- Menu Persetujuan Proposal (Ketua / Admin Struktural / Superadmin) -->
+                        <% if (_isKetua || _isAdminStruktural) { %>
                             <li class="nav-item mb-1">
                                 <a href="/lembaga-admin/proposal/approval" class="nav-link text-white small py-1 sub-menu-link <%= (typeof activeMenu !== 'undefined' && activeMenu === 'approval') ? 'active' : '' %>">
                                     <i class="fas fa-check-double me-1"></i> Persetujuan Proposal
@@ -120,7 +130,7 @@
                         <li class="nav-item mb-1">
                             <a href="/lembaga-admin/bendahara/proposal-bulanan" class="nav-link text-white small py-1 sub-menu-link"><i class="fas fa-angle-right me-1"></i> Cetak Rekap Bulanan</a>
                         </li>
-                        <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>
+                        <% if (_isBendaharaUtama || _isAdminStruktural) { %>
                             <li class="nav-item mb-1">
                                 <a href="/lembaga-admin/rekap-global" class="nav-link text-white small py-1 sub-menu-link">
                                     <i class="fas fa-file-invoice-dollar me-1"></i> Cetak Rekap Global & RAB
@@ -138,7 +148,7 @@
                 </a>
             </li>
 
-            <% if (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin') { %>
+            <% if (_isAdminStruktural) { %>
                 <!-- MENU UTILITAS (Khusus Admin Lembaga) -->
                 <li class="nav-item mb-1">
                     <a href="#utilitasSubmenu" data-bs-toggle="collapse" class="nav-link text-white d-flex justify-content-between align-items-center text-decoration-none">

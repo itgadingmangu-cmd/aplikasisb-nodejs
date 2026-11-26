@@ -56,11 +56,15 @@
 
     <% 
         // Deklarasi Global untuk View ini agar bisa diakses di seluruh baris kode bawahnya secara ketat
-        let jbt = (typeof userSession !== 'undefined' && userSession.jabatan) ? String(userSession.jabatan).toLowerCase() : '';
-        let roleAkun = (typeof userSession !== 'undefined' && userSession.role) ? userSession.role : '';
+        let jbt = (typeof userSession !== 'undefined' && userSession.jabatan) ? String(userSession.jabatan).trim().toLowerCase() : '';
+        let bdg = (typeof userSession !== 'undefined' && userSession.nama_bidang) ? String(userSession.nama_bidang).trim().toLowerCase() : '';
+        let usr = (typeof userSession !== 'undefined' && userSession.username) ? String(userSession.username).trim().toLowerCase() : '';
+        let roleAkun = (typeof userSession !== 'undefined' && userSession.role) ? String(userSession.role).trim().toLowerCase() : '';
         
-        // Logika Ketat: Bendahara Utama hanya untuk yang benar-benar memiliki role/jabatan bendahara, bukan Admin Lembaga biasa
-        let isBendaharaUser = (roleAkun === 'bendahara_utama' || jbt === 'bendahara' || jbt.includes('bendahara utama'));
+        // Logika Ketat: pisahkan Bendahara Utama, Ketua, dan Pengurus Bidang
+        let isWakilBendaharaUser = (jbt.includes('wakil') || bdg.includes('wakil') || usr.includes('wakil'));
+        let isBendaharaUser = (!isWakilBendaharaUser && (roleAkun === 'bendahara_utama' || jbt === 'bendahara' || jbt.includes('bendahara utama') || bdg === 'bendahara' || usr.startsWith('bendahara')));
+        let isKetuaUser = (roleAkun === 'ketua' || jbt === 'ketua' || bdg === 'ketua' || usr === 'ketua');
     %>
 
     <div class="d-flex flex-column flex-lg-row min-vh-100" id="wrapper">
@@ -78,9 +82,13 @@
     <div>
         <h2 class="fw-bold text-dark mb-1">
             <% if (isBendaharaUser) { %>
-                Panel Bendahara Utama (Pusat Keuangan)
-            <% } else if (typeof userSession !== 'undefined' && userSession.id_bidang) { %>
-                Panel Bidang: <%= (typeof bidangs !== 'undefined' && bidangs.length > 0) ? bidangs[0].nama_bidang : (userSession.nama_bidang || 'Sekretaris') %>
+                Panel Bendahara Utama (Eksekusi Pencairan)
+            <% } else if (isKetuaUser) { %>
+                Panel Ketua (Persetujuan Proposal)
+            <% } else if (typeof userSession !== 'undefined' && !isWakilBendaharaUser && userSession.id_bidang) { %>
+                Panel Bidang: <%= (typeof bidangs !== 'undefined' && bidangs.length > 0) ? bidangs[0].nama_bidang : (userSession.nama_bidang || 'Pengurus') %>
+            <% } else if (isWakilBendaharaUser) { %>
+                Panel Bidang: Wakil Bendahara
             <% } else { %>
                 Panel Pimpinan Lembaga / Admin
             <% } %>
@@ -100,7 +108,7 @@
     <div class="d-inline-flex align-items-center gap-2 flex-wrap">
         
         <!-- Tombol Akses Cepat Khusus Rekapitulasi Bendahara Utama -->
-        <% if (isBendaharaUser || (typeof userSession !== 'undefined' && (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin'))) { %>
+        <% if (isBendaharaUser || (!isKetuaUser && typeof userSession !== 'undefined' && (userSession.role === 'admin_lembaga' || userSession.role === 'superadmin'))) { %>
             <a href="/lembaga-admin/bendahara/rekapitulasi" class="btn btn-warning btn-sm fw-bold shadow-sm px-3 py-2">
                 <i class="fas fa-chart-pie me-1"></i> Rekapitulasi Pusat
             </a>

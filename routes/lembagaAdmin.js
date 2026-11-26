@@ -1,44 +1,72 @@
-const crypto = require('crypto');
-'use strict';
-
 const express = require('express');
 const router = express.Router();
-const { User, Lembaga, Bidang, Proker, Proposal, RincianBiaya, RealisasiBiaya, Pengaturan } = require('../models');
-const { Op } = require('sequelize');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+const multer = require('multer');
+let bcrypt;
+try {
+  bcrypt = require('bcrypt');
+} catch (_) {
+  bcrypt = require('bcryptjs');
+}
 const ExcelJS = require('exceljs');
+const { Op } = require('sequelize');
+
+const {
+    Lembaga,
+    Bidang,
+    User,
+    Proker,
+    RincianBiaya,
+    RealisasiBiaya,
+    Proposal,
+    Pengaturan
+} = require('../models');
+
+const lembagaAdminController = require('../controllers/lembagaAdminController');
 const prokerController = require('../controllers/prokerController');
 const realisasiLpjController = require('../controllers/realisasiLpjController');
-const lembagaAdminController = require('../controllers/lembagaAdminController');
-const uploadLpjFiles = require('../config/multerLpj');
-
-// --- MIDDLEWARE AUTENTIKASI ---
-const { isLoggedIn, isAdminLembaga } = require('../middleware/auth');
-
-// --- KONSTANTA OPTIMASI & KEAMANAN ---
-const HEAVY_LEMBAGA_BLOB_COLUMNS = [
-    'kop_surat',
-    'stempel',
-    'ttd_ketua',
-    'ttd_pengaju',
-    'ttd_pembina_senkom'
-];
-
-const LEMBAGA_LIGHT_ATTRIBUTES = {
-    exclude: HEAVY_LEMBAGA_BLOB_COLUMNS
-};
-
-const USER_SAFE_ATTRIBUTES = {
-    exclude: ['password']
-};
+const uploadLpjFiles = (() => {
+    const candidates = ['./uploadLpj', './lpjUpload', './upload'];
+    for (const rel of candidates) {
+        try {
+            const mod = require(path.join(__dirname, '../middleware', rel));
+            if (typeof mod === 'function') return mod;
+            if (mod && typeof mod.uploadLpjFiles === 'function') return mod.uploadLpjFiles;
+        } catch (_) {}
+    }
+    const lpjDir = path.join(__dirname, '../public/uploads/lpj');
+    if (!fs.existsSync(lpjDir)) {
+        fs.mkdirSync(lpjDir, { recursive: true });
+    }
+    const lpjStorage = multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, lpjDir),
+        filename: (_req, file, cb) => cb(null, 'lpj-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname).toLowerCase())
+    });
+    return multer({
+        storage: lpjStorage,
+        limits: { fileSize: 512 * 1024 }
+    }).any();
+})();
 
 const DEFAULT_PENGATURAN = Object.freeze({
     tahun_aktif: 2026,
     nama_aplikasi: 'Aplikasi Program Kerja'
 });
+
+const USER_SAFE_ATTRIBUTES = [
+    'id', 'nama_lengkap', 'username', 'role', 'jabatan',
+    'id_bidang', 'lembagaId', 'must_change_password'
+];
+
+const LEMBAGA_LIGHT_ATTRIBUTES = [
+    'id', 'nama_organisasi', 'nama_ketua', 'pembina_lembaga', 'pembina_senkom',
+    'nomor_hp', 'alamat', 'logo', 'batas_anggaran_proposal',
+    'pembina_1', 'pembina_2', 'pembina_3', 'pembina_4', 'pembina_5', 'pembina_6',
+    'print_stempel', 'print_ketua', 'print_pengaju', 'print_pembina_lembaga', 'print_pembina',
+    'print_ttd_ketua_img', 'print_ttd_pengaju_img', 'print_ttd_pembina_img'
+];
 
 // --- IN-MEMORY CACHE DENGAN STALE FALLBACK ---
 let cachedPengaturan = null;
@@ -104,7 +132,7 @@ function invalidateLembagaListCache() {
     cachedLembagaListAt = 0;
 }
 
-// --- HELPER VALIDASI & OTORISASI KETAT ---
+// --- HELPER VALIDASI & OTORISASI KETAT (BERBASIS ROLE, JABATAN & BIDANG — TANPA HARDCODE USERNAME) ---
 function getActiveLembagaId(user) {
     if (!user) return null;
     const rawId = user.activeLembagaId || user.lembagaId;
@@ -117,15 +145,72 @@ function getTahunAktifInt(pengaturan) {
     return Number.isInteger(parsed) && parsed >= 2000 ? parsed : 2026;
 }
 
+function isWakilBendaharaUser(user) {
+    if (!user) return false;
+    const jabatan = String(user.jabatan || '').trim().toLowerCase();
+    const bidang = String(user.nama_bidang || '').trim().toLowerCase();
+    return jabatan.includes('wakil') || bidang.includes('wakil');
+}
+
+function isBendaharaUtamaUser(user) {
+    if (!user || isWakilBendaharaUser(user)) return false;
+    const role = String(user.role || '').trim().toLowerCase();
+    const jabatan = String(user.jabatan || '').trim().toLowerCase();
+    const bidang = String(user.nama_bidang || '').trim().toLowerCase();
+    return role === 'bendahara_utama'
+        || jabatan === 'bendahara'
+        || jabatan.includes('bendahara utama')
+        || bidang === 'bendahara';
+}
+
+function isKetuaApprovalUser(user) {
+    if (!user) return false;
+    const role = String(user.role || '').trim().toLowerCase();
+    const jabatan = String(user.jabatan || '').trim().toLowerCase();
+    const bidang = String(user.nama_bidang || '').trim().toLowerCase();
+    return role === 'ketua' || jabatan === 'ketua' || bidang === 'ketua';
+}
+
+function isAdminStrukturalUser(user) {
+    if (!user) return false;
+    if (isBendaharaUtamaUser(user) || isKetuaApprovalUser(user)) return false;
+    const role = String(user.role || '').trim().toLowerCase();
+    return role === 'admin_lembaga' || role === 'superadmin';
+}
+
 function isPimpinanAtauBendahara(user) {
     if (!user) return false;
-    return (
-        user.role === 'admin_lembaga' ||
-        user.role === 'superadmin' ||
-        user.role === 'bendahara_utama' ||
-        user.jabatan === 'Bendahara' ||
-        user.hierarki === 'Bendahara'
-    );
+    return isBendaharaUtamaUser(user)
+        || isKetuaApprovalUser(user)
+        || isAdminStrukturalUser(user);
+}
+
+async function hydrateUserSession(req) {
+    let user = req.session && req.session.user ? req.session.user : null;
+    if (!user) return null;
+
+    if (user.id && (!user.jabatan || (user.id_bidang && !user.nama_bidang))) {
+        try {
+            const dbUser = await User.findByPk(user.id, {
+                attributes: ['id', 'nama_lengkap', 'username', 'role', 'jabatan', 'id_bidang', 'lembagaId'],
+                include: [{ model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'], required: false }]
+            });
+            if (dbUser) {
+                user = {
+                    ...user,
+                    nama_lengkap: dbUser.nama_lengkap || user.nama_lengkap,
+                    role: dbUser.role || user.role,
+                    jabatan: dbUser.jabatan || user.jabatan || '',
+                    id_bidang: dbUser.id_bidang || user.id_bidang || null,
+                    nama_bidang: (dbUser.Bidang && dbUser.Bidang.nama_bidang) || user.nama_bidang || ''
+                };
+                req.session.user = user;
+            }
+        } catch (err) {
+            console.error('[SESSION-HYDRATE-WARN] Gagal menyegarkan profil sesi user:', err.message);
+        }
+    }
+    return user;
 }
 
 function canManageProker(user, proker) {
@@ -134,7 +219,7 @@ function canManageProker(user, proker) {
     if (!activeLembagaId || Number(proker.lembagaId) !== activeLembagaId) {
         return false;
     }
-    if (isPimpinanAtauBendahara(user)) {
+    if (isAdminStrukturalUser(user)) {
         return true;
     }
     return Boolean(user.id_bidang) && Number(proker.bidangId) === Number(user.id_bidang);
@@ -229,19 +314,45 @@ const uploadRealisasi = multer({
     }
 }).single('bukti_nota');
 
-// --- MIDDLEWARE KHUSUS BENDAHARA UTAMA ---
-function ensureBendaharaUtama(req, res, next) {
-    const user = req.session.user;
-    if (isPimpinanAtauBendahara(user)) {
+// --- MIDDLEWARE AUTENTIKASI & OTORISASI KETAT ---
+async function isLoggedIn(req, res, next) {
+    if (req.session && req.session.user) {
+        await hydrateUserSession(req);
         return next();
     }
-    req.session.error_msg = 'Akses ditolak. Halaman ini khusus untuk Bendahara Utama / Pimpinan Lembaga.';
+    return res.redirect('/login');
+}
+
+function isAdminLembaga(req, res, next) {
+    const user = req.session && req.session.user;
+    if (isAdminStrukturalUser(user)) {
+        return next();
+    }
+    req.session.error_msg = 'Akses ditolak. Fitur ini khusus untuk Admin Lembaga / Superadmin.';
+    return res.redirect('/lembaga-admin');
+}
+
+function ensureBendaharaUtama(req, res, next) {
+    const user = req.session && req.session.user;
+    if (isBendaharaUtamaUser(user) || isAdminStrukturalUser(user)) {
+        return next();
+    }
+    req.session.error_msg = 'Akses ditolak. Halaman ini khusus untuk Bendahara Utama / Admin Lembaga.';
+    return res.redirect('/lembaga-admin');
+}
+
+function ensureApprovalAccess(req, res, next) {
+    const user = req.session && req.session.user;
+    if (isKetuaApprovalUser(user) || isAdminStrukturalUser(user)) {
+        return next();
+    }
+    req.session.error_msg = 'Akses ditolak. Halaman persetujuan proposal khusus untuk Ketua / Admin Lembaga.';
     return res.redirect('/lembaga-admin');
 }
 
 function ensureRekapBulananAccess(req, res, next) {
-    const user = req.session.user;
-    if (isPimpinanAtauBendahara(user) || (user && user.role === 'pengurus_bidang' && user.id_bidang)) {
+    const user = req.session && req.session.user;
+    if (isPimpinanAtauBendahara(user) || (user && user.id_bidang)) {
         return next();
     }
     req.session.error_msg = 'Akses ditolak. Anda tidak memiliki hak akses untuk rekap bulanan.';
@@ -280,7 +391,7 @@ router.get('/profile', isLoggedIn, async (req, res) => {
 });
 
 router.post('/profile/update-ttd', isLoggedIn, (req, res, next) => {
-    upload.single('ttd')(req, res, (err) => {
+    upload.single()(req, res, (err) => {
         if (err) {
             req.session.error_msg = err.code === 'LIMIT_FILE_SIZE'
                 ? 'Ukuran file tanda tangan melebihi batas maksimal 512 KB!'
@@ -556,7 +667,7 @@ router.get('/', isLoggedIn, async (req, res) => {
             ? { lembagaId, tahun: tahunAktifInt }
             : { lembagaId, bidangId: user.id_bidang || -1, tahun: tahunAktifInt };
 
-        const needPendingCount = hasFullAccess;
+        const needPendingCount = isBendaharaUtamaUser(user) || isAdminStrukturalUser(user);
 
         const [lembagaData, bidangs, users, prokers, listLembaga, totalPendingPencairan] = await Promise.all([
             Lembaga.findByPk(lembagaId, { attributes: LEMBAGA_LIGHT_ATTRIBUTES }),
@@ -591,7 +702,6 @@ router.get('/', isLoggedIn, async (req, res) => {
             return res.redirect('/');
         }
 
-        // Hubungkan Prokers per Bidang di memori tanpa melakukan double JOIN di SQL
         const prokersByBidang = new Map();
         for (const p of prokers) {
             const key = Number(p.bidangId);
@@ -627,13 +737,13 @@ router.get('/', isLoggedIn, async (req, res) => {
 
         const { success_msg, error_msg } = popFlashMessages(req);
 
-        let titlePanel = 'Panel Bidang: ' + (user.jabatan || 'Pengurus');
-        if (user.role === 'admin_lembaga' || user.role === 'superadmin') {
-            if (user.jabatan === 'Bendahara' || user.role === 'bendahara_utama') {
-                titlePanel = 'Panel Bendahara Utama (Pusat Keuangan)';
-            } else {
-                titlePanel = 'Panel Pimpinan Lembaga / Admin';
-            }
+        let titlePanel = 'Panel Bidang: ' + (user.nama_bidang || user.jabatan || 'Pengurus');
+        if (isBendaharaUtamaUser(user)) {
+            titlePanel = 'Panel Bendahara Utama (Eksekusi Pencairan)';
+        } else if (isKetuaApprovalUser(user)) {
+            titlePanel = 'Panel Ketua (Persetujuan Proposal)';
+        } else if (isAdminStrukturalUser(user)) {
+            titlePanel = 'Panel Pimpinan Lembaga / Admin';
         }
 
         return res.render('lembaga_admin', {
@@ -660,7 +770,7 @@ router.get('/', isLoggedIn, async (req, res) => {
 });
 
 // ==========================================
-// MODUL MANAJEMEN BIDANG
+// MODUL MANAJEMEN BIDANG (KHUSUS ADMIN STRUKTURAL)
 // ==========================================
 const slugifyUsernamePart = (str) => String(str || '')
     .toLowerCase()
@@ -689,7 +799,7 @@ const ensureUniqueUsername = async (baseName) => {
     return candidate;
 };
 
-router.get('/bidang', isLoggedIn, async (req, res) => {
+router.get('/bidang', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const lembagaId = getActiveLembagaId(req.session.user);
         const pengaturan = await getCachedPengaturan();
@@ -1022,9 +1132,9 @@ router.get('/bidang/hapus/:id', isLoggedIn, isAdminLembaga, async (req, res) => 
 });
 
 // ==========================================
-// MODUL MANAJEMEN PENGURUS
+// MODUL MANAJEMEN PENGURUS (KHUSUS ADMIN STRUKTURAL)
 // ==========================================
-router.get('/pengurus', isLoggedIn, async (req, res) => {
+router.get('/pengurus', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const lembagaId = getActiveLembagaId(req.session.user);
         const pengaturan = await getCachedPengaturan();
@@ -1276,7 +1386,7 @@ router.post('/proker/tambah', isLoggedIn, lembagaAdminController.storeProker, as
         const pengaturan = await getCachedPengaturan();
         const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        const targetBidangId = isPimpinanAtauBendahara(user)
+        const targetBidangId = isAdminStrukturalUser(user)
             ? parsePositiveInt(bidangId)
             : parsePositiveInt(user.id_bidang);
 
@@ -1377,7 +1487,7 @@ router.post('/proker/edit/:id', isLoggedIn, async (req, res) => {
         }
 
         let targetBidangId = proker.bidangId;
-        if (isPimpinanAtauBendahara(user) && bidangId) {
+        if (isAdminStrukturalUser(user) && bidangId) {
             const parsedBidangId = parsePositiveInt(bidangId);
             if (parsedBidangId) {
                 const bidangValid = await Bidang.findOne({
@@ -1945,7 +2055,6 @@ router.get('/rekap-global/print', isLoggedIn, async (req, res) => {
         const pengaturan = await getCachedPengaturan();
         const tahunAktifInt = getTahunAktifInt(pengaturan);
 
-        // Cetak membutuhkan kop_surat, stempel, dan tanda tangan
         const [lembaga, listProker] = await Promise.all([
             Lembaga.findByPk(lembagaId),
             Proker.findAll({
@@ -2364,7 +2473,6 @@ router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
             return res.redirect('/lembaga-admin/proposal');
         }
 
-        // Cetak membutuhkan kop_surat, stempel, dan tanda tangan
         const lembaga = await Lembaga.findByPk(proposal.Proker.lembagaId);
 
         return res.render('print_proposal', {
@@ -2381,7 +2489,7 @@ router.get('/proker/proposal/print/:id', isLoggedIn, async (req, res) => {
     }
 });
 
-router.get('/proposal/approval', isLoggedIn, ensureBendaharaUtama, async (req, res) => {
+router.get('/proposal/approval', isLoggedIn, ensureApprovalAccess, async (req, res) => {
     try {
         const user = req.session.user;
         const lembagaId = getActiveLembagaId(user);
@@ -2412,7 +2520,7 @@ router.get('/proposal/approval', isLoggedIn, ensureBendaharaUtama, async (req, r
     }
 });
 
-router.post('/proker/proposal/approval/:id', isLoggedIn, ensureBendaharaUtama, async (req, res) => {
+router.post('/proker/proposal/approval/:id', isLoggedIn, ensureApprovalAccess, async (req, res) => {
     try {
         const proposalId = parsePositiveInt(req.params.id);
         const lembagaId = getActiveLembagaId(req.session.user);
@@ -2450,9 +2558,9 @@ router.post('/proker/proposal/approval/:id', isLoggedIn, ensureBendaharaUtama, a
 });
 
 // ==========================================
-// MODUL SETTING LEMBAGA
+// MODUL SETTING LEMBAGA (KHUSUS ADMIN STRUKTURAL)
 // ==========================================
-router.get('/setting', isLoggedIn, async (req, res) => {
+router.get('/setting', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const user = req.session.user;
         const lembagaId = getActiveLembagaId(user);
@@ -2557,7 +2665,7 @@ router.post('/setting/update', isLoggedIn, isAdminLembaga, (req, res, next) => {
 });
 
 // ==========================================
-// MODUL UTILITAS
+// MODUL UTILITAS (KHUSUS ADMIN STRUKTURAL)
 // ==========================================
 router.get('/utilitas/users', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
@@ -2652,7 +2760,7 @@ router.get('/utilitas/users/hapus/:id', isLoggedIn, isAdminLembaga, async (req, 
 });
 
 // --- RUTE DIAGNOSTIK TEST MIGRASI 2027 (CLEAN & STRICT) ---
-router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
+router.get('/diagnostik/test-migrasi-2027', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const user = req.session.user;
         const lembagaId = getActiveLembagaId(user);
@@ -2734,7 +2842,7 @@ router.get('/diagnostik/test-migrasi-2027', isLoggedIn, async (req, res) => {
     }
 });
 
-router.get('/diagnostik/cek', isLoggedIn, async (req, res) => {
+router.get('/diagnostik/cek', isLoggedIn, isAdminLembaga, async (req, res) => {
     try {
         const user = req.session.user;
         const lembagaId = getActiveLembagaId(user);
