@@ -1,5 +1,7 @@
 'use strict';
-const { Proposal, RealisasiLpj, Proker, Bidang, Lembaga } = require('../models');
+const models = require('../models');
+const { Proposal, RealisasiLpj, Proker, Bidang, Lembaga } = models;
+const RealisasiBiaya = models.RealisasiBiaya || null;
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -122,6 +124,28 @@ function sanitizeAnggaran(rawVal, fallbackVal = 0) {
     return parsed;
 }
 
+async function hitungTotalRealisasiBiaya(prokerId) {
+    if (!RealisasiBiaya || !prokerId) {
+        return 0;
+    }
+    try {
+        const rows = await RealisasiBiaya.findAll({
+            where: { prokerId },
+            attributes: ['nominal_realisasi']
+        });
+        if (!Array.isArray(rows) || rows.length === 0) {
+            return 0;
+        }
+        return rows.reduce((sum, item) => {
+            const val = Number(item && item.nominal_realisasi);
+            return sum + (Number.isFinite(val) && val > 0 ? val : 0);
+        }, 0);
+    } catch (err) {
+        console.warn('[LPJ-REALISASI-WARN] Gagal menghitung akumulasi RealisasiBiaya:', err.message);
+        return 0;
+    }
+}
+
 const realisasiStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         try {
@@ -191,9 +215,12 @@ const realisasiLpjController = {
                 return res.redirect('/lembaga-admin/proposal');
             }
 
+            const totalRealisasiTercatat = await hitungTotalRealisasiBiaya(proposal.prokerId);
+
             return res.render('proker/form_lpj', {
                 title: `Laporan Pertanggungjawaban (LPJ) - ${proposal.Proker ? proposal.Proker.nama_program : 'Proposal'}`,
                 proposal,
+                totalRealisasiTercatat,
                 userSession: req.session.user
             });
         } catch (error) {
@@ -220,6 +247,9 @@ const realisasiLpjController = {
                 return res.redirect('/lembaga-admin/proposal');
             }
 
+            const totalRealisasiTercatat = await hitungTotalRealisasiBiaya(proposal.prokerId);
+            const hasManualNominal = realisasi_anggaran !== undefined && String(realisasi_anggaran).trim() !== '';
+
             const fotoKegiatanPath = extractUploadedFilePath(req, ['foto_kegiatan']);
             const notaBelanjaPath = extractUploadedFilePath(req, ['nota_belanja', 'bukti_nota']);
             const buktiTransferPath = extractUploadedFilePath(req, ['bukti_transfer_bendahara']);
@@ -234,7 +264,11 @@ const realisasiLpjController = {
                 const oldNota = lpj.nota_belanja;
                 const oldBukti = lpj.bukti_transfer_bendahara;
 
-                lpj.realisasi_anggaran = sanitizeAnggaran(realisasi_anggaran, lpj.realisasi_anggaran);
+                const fallbackNominal = lpj.realisasi_anggaran || totalRealisasiTercatat || 0;
+                lpj.realisasi_anggaran = hasManualNominal
+                    ? sanitizeAnggaran(realisasi_anggaran, fallbackNominal)
+                    : fallbackNominal;
+
                 if (cleanDeskripsi !== undefined) {
                     lpj.deskripsi_kegiatan = cleanDeskripsi;
                 }
@@ -262,10 +296,14 @@ const realisasiLpjController = {
                     safeUnlinkOldFile(oldBukti);
                 }
             } else {
+                const initialNominal = hasManualNominal
+                    ? sanitizeAnggaran(realisasi_anggaran, totalRealisasiTercatat)
+                    : totalRealisasiTercatat;
+
                 await RealisasiLpj.create({
                     proposalId,
                     lembagaId: proposal.lembagaId,
-                    realisasi_anggaran: sanitizeAnggaran(realisasi_anggaran, 0),
+                    realisasi_anggaran: initialNominal,
                     deskripsi_kegiatan: cleanDeskripsi || '',
                     foto_kegiatan: fotoKegiatanPath,
                     nota_belanja: notaBelanjaPath,

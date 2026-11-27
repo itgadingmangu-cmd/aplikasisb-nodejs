@@ -16,19 +16,51 @@
         <%- include('../partials/sidebar') %>
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
-                
+                <%
+                    const _proposal = (typeof proposal !== 'undefined' && proposal) ? proposal : {};
+                    const _proker = (_proposal && _proposal.Proker) ? _proposal.Proker : {};
+                    const _lpj = (_proposal && _proposal.RealisasiLpj) ? _proposal.RealisasiLpj : null;
+
+                    const _anggaranUtama = Number(_proker.anggaran);
+                    const _anggaranAman = Number.isFinite(_anggaranUtama) && _anggaranUtama >= 0 ? _anggaranUtama : 0;
+
+                    const _rawRealisasiTercatat = (typeof totalRealisasiTercatat !== 'undefined') ? Number(totalRealisasiTercatat) : 0;
+                    const _realisasiTercatat = Number.isFinite(_rawRealisasiTercatat) && _rawRealisasiTercatat >= 0 ? _rawRealisasiTercatat : 0;
+
+                    const _hasSavedNominal = _lpj && _lpj.realisasi_anggaran !== null && _lpj.realisasi_anggaran !== undefined && String(_lpj.realisasi_anggaran).trim() !== '';
+                    const _savedNominalNum = _hasSavedNominal ? Number(_lpj.realisasi_anggaran) : null;
+                    const _savedNominalAman = (_savedNominalNum !== null && Number.isFinite(_savedNominalNum) && _savedNominalNum >= 0) ? _savedNominalNum : null;
+
+                    const _defaultNominalLpj = (_savedNominalAman !== null && _savedNominalAman > 0)
+                        ? _savedNominalAman
+                        : (_realisasiTercatat > 0 ? _realisasiTercatat : (_savedNominalAman === 0 ? 0 : ''));
+
+                    const _selisihAnggaran = _anggaranAman - _realisasiTercatat;
+                    const _statusLpjLabel = (_lpj && _lpj.status_lpj) ? _lpj.status_lpj : 'Belum Dibuat';
+
+                    let _statusBadgeClass = 'bg-info text-dark';
+                    const _statusLower = String(_statusLpjLabel).trim().toLowerCase();
+                    if (_statusLower.includes('setuju') || _statusLower.includes('verif') || _statusLower.includes('selesai') || _statusLower.includes('valid')) {
+                        _statusBadgeClass = 'bg-success text-white';
+                    } else if (_statusLower.includes('tolak') || _statusLower.includes('revisi')) {
+                        _statusBadgeClass = 'bg-warning text-dark';
+                    } else if (_statusLower.includes('review') || _statusLower.includes('aju')) {
+                        _statusBadgeClass = 'bg-primary text-white';
+                    }
+                %>
+
                 <!-- Header Navigasi -->
-                <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
                     <div>
-                        <a href="/lembaga-admin/proker/proposal/<%= proposal.id %>" class="btn btn-outline-secondary btn-sm mb-2">
+                        <a href="/lembaga-admin/proker/proposal/<%= _proposal.id %>" class="btn btn-outline-secondary btn-sm mb-2">
                             <i class="fas fa-arrow-left me-1"></i> Kembali ke Detail Proposal
                         </a>
                         <h2 class="fw-bold text-dark mb-1">Laporan Pertanggungjawaban (LPJ)</h2>
-                        <p class="text-muted mb-0">Program Kerja: <span class="fw-semibold text-primary"><%= proposal.Proker.nama_program %></span></p>
+                        <p class="text-muted mb-0">Program Kerja: <span class="fw-semibold text-primary"><%= _proker.nama_program || '-' %></span></p>
                     </div>
                     <div>
-                        <span class="badge bg-info text-dark fs-6 px-3 py-2 shadow-sm">
-                            Status LPJ: <%= proposal.RealisasiLpj ? proposal.RealisasiLpj.status_lpj : 'Belum Dibuat' %>
+                        <span class="badge <%= _statusBadgeClass %> fs-6 px-3 py-2 shadow-sm">
+                            Status LPJ: <%= _statusLpjLabel %>
                         </span>
                     </div>
                 </div>
@@ -48,32 +80,48 @@
                 <% } %>
 
                 <!-- FORM UTAMA LPJ (ENCTYPE MULTIPART WAJIB UNTUK UPLOAD FILE) -->
-                <form action="/lembaga-admin/proker/proposal/lpj/update/<%= proposal.id %>" method="POST" enctype="multipart/form-data">
+                <form action="/lembaga-admin/proker/proposal/lpj/update/<%= _proposal.id %>" method="POST" enctype="multipart/form-data" id="formLpj">
                     <div class="row g-4">
                         
                         <!-- Kolom Kiri: Input Data LPJ -->
                         <div class="col-lg-8">
                             <div class="card p-4 bg-white mb-4">
-                                <h5 class="fw-bold text-dark mb-3"><i class="fas file-alt text-primary me-2"></i> Realisasi Pelaksanaan Kegiatan</h5>
+                                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-alt text-primary me-2"></i> Realisasi Pelaksanaan Kegiatan</h5>
                                 
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold small">Total Realisasi Anggaran (Rp)</label>
-                                    <input type="number" class="form-control" name="realisasi_anggaran" value="<%= proposal.RealisasiLpj ? proposal.RealisasiLpj.realisasi_anggaran : '' %>" placeholder="Contoh: 1500000" required>
-                                    <small class="text-muted">Masukkan total nominal uang yang benar-benar terpakai di lapangan.</small>
+                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+                                        <label for="inputRealisasiAnggaran" class="form-label fw-bold small mb-0">Total Realisasi Anggaran (Rp)</label>
+                                        <% if (_realisasiTercatat > 0) { %>
+                                            <button type="button" class="btn btn-outline-success btn-sm py-0 px-2" id="btnGunakanRealisasiTercatat" data-nominal="<%= _realisasiTercatat %>">
+                                                <i class="fas fa-sync-alt me-1"></i> Sinkronkan Realisasi Tercatat (Rp <%= _realisasiTercatat.toLocaleString('id-ID') %>)
+                                            </button>
+                                        <% } %>
+                                    </div>
+                                    <input type="number" class="form-control" name="realisasi_anggaran" id="inputRealisasiAnggaran" min="0" step="any" value="<%= _defaultNominalLpj %>" placeholder="Contoh: 1500000" required>
+                                    <small class="text-muted">
+                                        <% if (_realisasiTercatat > 0) { %>
+                                            Terhubung otomatis dengan catatan pengeluaran riil sebesar <strong>Rp <%= _realisasiTercatat.toLocaleString('id-ID') %></strong>. Pastikan sesuai dengan nota belanja sah di lapangan.
+                                        <% } else { %>
+                                            Masukkan total nominal uang yang benar-benar terpakai di lapangan sesuai nota belanja sah.
+                                        <% } %>
+                                    </small>
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold small">Deskripsi / Uraian Pelaksanaan Kegiatan</label>
-                                    <textarea class="form-control" name="deskripsi_kegiatan" rows="5" placeholder="Jelaskan secara singkat jalannya kegiatan..." required><%= proposal.RealisasiLpj ? proposal.RealisasiLpj.deskripsi_kegiatan : '' %></textarea>
+                                    <label for="inputDeskripsiKegiatan" class="form-label fw-bold small">Deskripsi / Uraian Pelaksanaan Kegiatan</label>
+                                    <textarea class="form-control" name="deskripsi_kegiatan" id="inputDeskripsiKegiatan" rows="5" placeholder="Jelaskan secara singkat jalannya kegiatan..." required><%= (_lpj && _lpj.deskripsi_kegiatan) ? _lpj.deskripsi_kegiatan : '' %></textarea>
                                 </div>
                             </div>
 
-                            <% const resolveLpjHref = (val) => {
-                                if (!val) return "#";
-                                const clean = String(val).replace(/^\/+/, "");
-                                if (clean.startsWith("lpj/")) return "/uploads/" + clean;
-                                return "/uploads/" + clean;
-                            }; %>
+                            <%
+                                const resolveLpjHref = (val) => {
+                                    if (!val) return '#';
+                                    const clean = String(val).replace(/^\/+/, '').replace(/\\/g, '/');
+                                    if (clean.includes('..')) return '#';
+                                    if (clean.startsWith('uploads/')) return '/' + clean;
+                                    return '/uploads/' + clean;
+                                };
+                            %>
                             <div class="card p-4 bg-white">
                                 <h5 class="fw-bold text-dark mb-2"><i class="fas fa-upload text-success me-2"></i> Berkas Lampiran & Bukti Pendukung</h5>
                                 <div class="alert alert-info py-2 px-3 small mb-3">
@@ -81,36 +129,36 @@
                                 </div>
                                 
                                 <div class="mb-3 p-3 bg-light rounded border">
-                                    <label class="form-label fw-bold small">1. Foto Dokumentasi Kegiatan <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
-                                    <input type="file" class="form-control form-control-sm" name="foto_kegiatan" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
-                                    <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.foto_kegiatan) { %>
-                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(proposal.RealisasiLpj.foto_kegiatan) %>" target="_blank">Lihat Foto</a></small>
+                                    <label for="inputFotoKegiatan" class="form-label fw-bold small">1. Foto Dokumentasi Kegiatan <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
+                                    <input type="file" class="form-control form-control-sm" name="foto_kegiatan" id="inputFotoKegiatan" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                                    <% if (_lpj && _lpj.foto_kegiatan) { %>
+                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(_lpj.foto_kegiatan) %>" target="_blank" rel="noopener noreferrer">Lihat Foto</a></small>
                                     <% } %>
                                 </div>
 
                                 <div class="mb-3 p-3 bg-light rounded border">
-                                    <label class="form-label fw-bold small">2. Nota Belanja / Kuitansi <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
-                                    <input type="file" class="form-control form-control-sm" name="nota_belanja" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf">
-                                    <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.nota_belanja) { %>
-                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(proposal.RealisasiLpj.nota_belanja) %>" target="_blank">Lihat Nota</a></small>
+                                    <label for="inputNotaBelanja" class="form-label fw-bold small">2. Nota Belanja / Kuitansi <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
+                                    <input type="file" class="form-control form-control-sm" name="nota_belanja" id="inputNotaBelanja" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf">
+                                    <% if (_lpj && _lpj.nota_belanja) { %>
+                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(_lpj.nota_belanja) %>" target="_blank" rel="noopener noreferrer">Lihat Nota</a></small>
                                     <% } %>
                                 </div>
 
                                 <div class="mb-3 p-3 bg-light rounded border">
-                                    <label class="form-label fw-bold small">3. Bukti Transfer / Pencairan (Dari Bendahara) <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
-                                    <input type="file" class="form-control form-control-sm" name="bukti_transfer_bendahara" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf">
-                                    <% if (proposal.RealisasiLpj && proposal.RealisasiLpj.bukti_transfer_bendahara) { %>
-                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(proposal.RealisasiLpj.bukti_transfer_bendahara) %>" target="_blank">Lihat Bukti Transfer</a></small>
+                                    <label for="inputBuktiTransfer" class="form-label fw-bold small">3. Bukti Transfer / Pencairan (Dari Bendahara) <span class="text-muted fw-normal">(Maks. 512 KB)</span></label>
+                                    <input type="file" class="form-control form-control-sm" name="bukti_transfer_bendahara" id="inputBuktiTransfer" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf">
+                                    <% if (_lpj && _lpj.bukti_transfer_bendahara) { %>
+                                        <small class="text-success d-block mt-1"><i class="fas fa-check me-1"></i> File tersimpan: <a href="<%= resolveLpjHref(_lpj.bukti_transfer_bendahara) %>" target="_blank" rel="noopener noreferrer">Lihat Bukti Transfer</a></small>
                                     <% } %>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary fw-bold py-2 w-100 mt-3">
+                                <button type="submit" class="btn btn-primary fw-bold py-2 w-100 mt-3" id="btnSubmitLpj">
                                     <i class="fas fa-save me-1"></i> Simpan & Kirim LPJ
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Kolom Kanan: Informasi Anggaran Semula -->
+                        <!-- Kolom Kanan: Informasi Anggaran Semula & Realisasi Tercatat -->
                         <div class="col-lg-4">
                             <div class="card p-3 bg-white mb-4 border border-success">
                                 <h6 class="fw-bold text-success mb-3 small text-uppercase">
@@ -118,7 +166,20 @@
                                 </h6>
                                 <div class="p-3 bg-light rounded border mb-2">
                                     <span class="text-muted small d-block">Total Anggaran Utama:</span>
-                                    <h4 class="fw-bold text-danger mb-0">Rp <%= proposal.Proker.anggaran ? Number(proposal.Proker.anggaran).toLocaleString('id-ID') : '0' %></h4>
+                                    <h4 class="fw-bold text-danger mb-0">Rp <%= _anggaranAman.toLocaleString('id-ID') %></h4>
+                                </div>
+                                <div class="p-3 bg-light rounded border mb-2">
+                                    <span class="text-muted small d-block">Total Realisasi Tercatat (Menu Realisasi):</span>
+                                    <h5 class="fw-bold text-primary mb-1">Rp <%= _realisasiTercatat.toLocaleString('id-ID') %></h5>
+                                    <a href="/lembaga-admin/realisasi?prokerId=<%= _proposal.prokerId || '' %>" class="small text-decoration-none">
+                                        <i class="fas fa-external-link-alt me-1"></i> Buka Pencatatan Realisasi
+                                    </a>
+                                </div>
+                                <div class="p-3 bg-light rounded border mb-2">
+                                    <span class="text-muted small d-block">Selisih Terhadap Anggaran Utama:</span>
+                                    <span class="fw-bold <%= _selisihAnggaran < 0 ? 'text-danger' : 'text-success' %>">
+                                        <%= _selisihAnggaran < 0 ? '-' : '' %>Rp <%= Math.abs(_selisihAnggaran).toLocaleString('id-ID') %>
+                                    </span>
                                 </div>
                                 <p class="text-muted small mb-0">Pastikan nominal realisasi anggaran yang Anda input sesuai dengan nota belanja sah di lapangan.</p>
                             </div>
@@ -130,5 +191,56 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function () {
+            const btnSync = document.getElementById('btnGunakanRealisasiTercatat');
+            const inputNominal = document.getElementById('inputRealisasiAnggaran');
+            const formLpj = document.getElementById('formLpj');
+            const btnSubmit = document.getElementById('btnSubmitLpj');
+            const maxBytes = 512 * 1024;
+
+            if (btnSync && inputNominal) {
+                btnSync.addEventListener('click', function () {
+                    const raw = btnSync.getAttribute('data-nominal');
+                    const parsed = Number(raw);
+                    if (Number.isFinite(parsed) && parsed >= 0) {
+                        inputNominal.value = String(parsed);
+                        inputNominal.dispatchEvent(new Event('input'));
+                    }
+                });
+            }
+
+            if (formLpj) {
+                formLpj.addEventListener('submit', function (e) {
+                    const fileInputs = formLpj.querySelectorAll('input[type="file"]');
+                    for (let i = 0; i < fileInputs.length; i++) {
+                        const input = fileInputs[i];
+                        if (input.files && input.files.length > 0) {
+                            const f = input.files[0];
+                            if (f.size > maxBytes) {
+                                e.preventDefault();
+                                alert('Ukuran berkas "' + f.name + '" melebihi batas maksimal 512 KB.');
+                                return;
+                            }
+                        }
+                    }
+
+                    if (inputNominal) {
+                        const val = Number(inputNominal.value);
+                        if (!Number.isFinite(val) || val < 0) {
+                            e.preventDefault();
+                            alert('Nominal realisasi anggaran harus berupa angka 0 atau lebih.');
+                            inputNominal.focus();
+                            return;
+                        }
+                    }
+
+                    if (btnSubmit) {
+                        btnSubmit.disabled = true;
+                    }
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

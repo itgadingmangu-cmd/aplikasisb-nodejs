@@ -2323,7 +2323,8 @@ router.get('/realisasi/print', isLoggedIn, async (req, res) => {
 router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
     try {
         const prokerId = parsePositiveInt(req.params.prokerId);
-        const user = req.session.user;
+        const user = await hydrateUserSession(req);
+        console.log("[DETAIL-PROPOSAL-USER]", { id: user && user.id, role: user && user.role, jabatan: user && user.jabatan, nama_bidang: user && user.nama_bidang });
         const lembagaId = getActiveLembagaId(user);
         if (!prokerId || !lembagaId) {
             return res.redirect('/lembaga-admin');

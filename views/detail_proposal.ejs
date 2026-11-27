@@ -23,7 +23,7 @@
                         ? proposal.jenis_pengajuan
                         : (nominalAnggaran > thresholdBatas ? 'dengan_proposal' : 'tanpa_proposal');
                 %>
-                
+
                 <!-- Header Navigasi Kembali & Badge Status -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
@@ -37,12 +37,12 @@
                         <span class="badge bg-<%= currentJenisPengajuan === 'tanpa_proposal' ? 'info text-dark border border-info' : 'primary' %> fs-6 px-3 py-2 shadow-sm">
                             <%= currentJenisPengajuan === 'tanpa_proposal' ? 'Mode: Tanpa Proposal' : 'Mode: Dengan Proposal' %>
                         </span>
-                        <% 
+                        <%
                             let badgeClass = 'secondary';
                             let displayStatus = 'Draft';
                             if (typeof proposal !== 'undefined' && proposal) {
                                 displayStatus = (proposal.status === 'Revisi') ? 'Perlu Revisi' : proposal.status;
-                                
+
                                 if (proposal.status === 'Disetujui') badgeClass = 'success';
                                 else if (proposal.status === 'Diajukan') badgeClass = 'warning text-dark';
                                 else if (proposal.status === 'Revisi' || proposal.status === 'Perlu Revisi' || proposal.status === 'Dana Ditolak') badgeClass = 'danger';
@@ -105,28 +105,45 @@
                     </div>
                 <% } %>
 
-                <% 
+                <%
                     // Logika penguncian standar form narasi
                     let isLocked = (typeof proposal !== 'undefined' && proposal && proposal.status !== 'Draft' && proposal.status !== 'Revisi' && proposal.status !== 'Perlu Revisi' && proposal.status !== 'Dana Ditolak');
                     const lockAttr = isLocked ? 'disabled' : '';
 
-                    // Deteksi Role Pimpinan / Ketua
-                    const isPimpinan = (
-                        typeof userSession !== 'undefined' && (
-                            userSession.role === 'admin' || 
-                            userSession.role === 'ketua' || 
-                            userSession.role === 'admin_lembaga' || 
-                            userSession.role === 'superadmin' ||
-                            (userSession.jabatan && userSession.jabatan.toLowerCase().includes('ketua'))
-                        )
+                    // Deteksi Role secara ketat (berdasarkan role, jabatan, dan nama_bidang tanpa mengunci username)
+                    // Deteksi peran berbasis role secara tegas (tanpa bergantung pada username atau id_bidang)
+                                        const _roleVal = String((typeof userSession !== "undefined" && userSession && userSession.role) || "").trim().toLowerCase();
+                    const _jbtVal = String((typeof userSession !== "undefined" && userSession && userSession.jabatan) || "").trim().toLowerCase();
+                    const _bdgVal = String((typeof userSession !== "undefined" && userSession && userSession.nama_bidang) || "").trim().toLowerCase();
+
+                    const isWakilBendahara = (
+                        _roleVal === "wakil_bendahara" ||
+                        _jbtVal.includes("wakil") ||
+                        _bdgVal.includes("wakil")
                     );
 
                     const isBendahara = (
-                        typeof userSession !== 'undefined' && (
-                            userSession.hierarki === 'Bendahara' || 
-                            userSession.nama_bidang === 'Bendahara' || 
-                            (userSession.role && userSession.role.toLowerCase().includes('bendahara')) ||
-                            (userSession.jabatan && userSession.jabatan.toLowerCase().includes('bendahara'))
+                        typeof userSession !== "undefined" && userSession && !isWakilBendahara && (
+                            _roleVal === "bendahara_utama" ||
+                            _roleVal === "bendahara" ||
+                            _jbtVal === "bendahara" ||
+                            _jbtVal.includes("bendahara utama") ||
+                            _bdgVal === "bendahara"
+                        )
+                    );
+
+                    const isKetuaPure = (
+                        typeof userSession !== "undefined" && userSession && (
+                            _roleVal === "ketua" ||
+                            _jbtVal === "ketua" ||
+                            _bdgVal === "ketua"
+                        )
+                    );
+
+                    const isPimpinan = (
+                        typeof userSession !== "undefined" && userSession && !isBendahara && (
+                            isKetuaPure ||
+                            _roleVal === "superadmin"
                         )
                     );
 
@@ -206,7 +223,7 @@
 
                             <div class="card p-4 bg-white mb-4" id="cardNarasiProposal">
                                 <h5 class="fw-bold text-dark mb-3"><i class="fas fa-edit text-primary me-2"></i> Narasi Proposal Kegiatan</h5>
-                                
+
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small">Tema Kegiatan</label>
                                     <input type="text" class="form-control" name="tema" value="<%= proposal.tema || '' %>" <%= lockAttr %>>
@@ -237,7 +254,7 @@
 
                         <!-- Kolom Kanan: Konfigurasi TTD, Checkbox & Panel Aksi Workflow -->
                         <div class="col-lg-4">
-                            
+
                             <!-- TOMBOL AKSES LPJ (MUNCUL OTOMATIS SETELAH DANA DICAIRKAN) -->
                             <% if (proposal.status === 'Dana Dicairkan') { %>
                                 <div class="card p-3 bg-white mb-4 border border-info shadow-sm">
@@ -271,7 +288,7 @@
                                     </div>
                                 <% } %>
 
-                                <!-- 2. AKSI KETUA / ADMIN (Diajukan) -->
+                                <!-- 2. AKSI KETUA / PIMPINAN (Diajukan) -->
                                 <% if (isPimpinan && proposal.status === 'Diajukan') { %>
                                     <div class="p-3 bg-light rounded border mb-3">
                                         <h6 class="fw-bold text-dark small mb-2"><i class="fas fa-gavel text-danger me-1"></i> Panel Approval Ketua:</h6>
@@ -435,7 +452,7 @@
         let isDirty = false;
         const thresholdBatasClient = <%= thresholdBatas %>;
         const nominalAnggaranClient = <%= nominalAnggaran %>;
-        
+
         const narasiInputs = document.querySelectorAll('#formProposal input[type="text"]:not([disabled]), #formProposal textarea');
         narasiInputs.forEach(input => {
             input.addEventListener('input', () => { isDirty = true; });
@@ -498,7 +515,7 @@
                         "<%= lembaga.pembina_5 || 'Pembina Jombang Selatan' %>",
                         "<%= lembaga.pembina_6 || 'Pembina Muhajir Gadingmangu' %>"
                     ];
-                    
+
                     for (let i = 1; i <= 6; i++) {
                         const input = document.querySelector(`input[name="pembina_${i}"]`);
                         if (input && !input.value.trim()) {
@@ -521,39 +538,39 @@
 
         function applyOpsiTtd(val) {
             if (!val) return;
-            
+
             const isDigital = val.startsWith('digital');
             const isLengkap = val.endsWith('lengkap');
-            
+
             const checkStempel = document.getElementById('checkStempel');
             const checkTtdKetuaImg = document.getElementById('checkTtdKetuaImg');
             const checkTtdPengajuImg = document.getElementById('checkTtdPengajuImg');
             const checkTtdPembinaImg = document.getElementById('checkTtdPembinaImg');
-            
+
             const checkKetua = document.getElementById('checkKetua');
             const checkPengaju = document.getElementById('checkPengaju');
             const checkPembinaLembaga = document.getElementById('checkPembinaLembaga');
-            
+
             const checkPembina6 = document.getElementById('checkPembina');
-            
+
             if (checkStempel) checkStempel.checked = isDigital;
             if (checkTtdKetuaImg) checkTtdKetuaImg.checked = isDigital;
             if (checkTtdPengajuImg) checkTtdPengajuImg.checked = isDigital;
             if (checkTtdPembinaImg) checkTtdPembinaImg.checked = isDigital;
-            
+
             if (checkKetua) checkKetua.checked = true;
             if (checkPengaju) checkPengaju.checked = true;
             if (checkPembinaLembaga) checkPembinaLembaga.checked = true;
-            
+
             if (checkPembina6) {
-                checkPembina6.checked = isLengkap; 
-                
+                checkPembina6.checked = isLengkap;
+
                 if (isLengkap) {
                     checkPembina6.dispatchEvent(new Event('change'));
                 }
             }
-            
-            isDirty = false; 
+
+            isDirty = false;
         }
 
         const btnSimpan = document.getElementById('btnSimpan');
@@ -566,17 +583,44 @@
 
         const btnAjukanAksi = document.getElementById('btnAjukanAksi');
         if (btnAjukanAksi) {
-            btnAjukanAksi.addEventListener('click', () => {
-                if (isDirty) {
-                    alert('⚠️ Anda memiliki perubahan data yang belum disimpan.\n\nSilakan klik tombol "Simpan Draf" terlebih dahulu sebelum mengajukan!');
+            btnAjukanAksi.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (!confirm('Yakin ingin mengirimkan pengajuan ini kepada Ketua/Pimpinan?')) {
                     return;
                 }
-                if (confirm('Yakin ingin mengirimkan pengajuan ini kepada Ketua/Pimpinan?')) {
+
+                btnAjukanAksi.disabled = true;
+                const origText = btnAjukanAksi.innerHTML;
+                btnAjukanAksi.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Mengirim...';
+
+                try {
+                    const mainForm = document.getElementById('formProposal');
+                    if (isDirty && mainForm) {
+                        const params = new URLSearchParams();
+                        const formData = new FormData(mainForm);
+                        for (const [k, val] of formData.entries()) {
+                            params.append(k, val);
+                        }
+                        params.append('action', 'save');
+                        await fetch(mainForm.action, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                            body: params.toString(),
+                            credentials: 'same-origin'
+                        });
+                        isDirty = false;
+                    }
+
                     const ajukanForm = document.createElement('form');
                     ajukanForm.method = 'POST';
                     ajukanForm.action = '/lembaga-admin/proker/proposal/ajukan/<%= proposal.id %>';
                     document.body.appendChild(ajukanForm);
                     ajukanForm.submit();
+                } catch (err) {
+                    console.error('Gagal mengajukan proposal:', err);
+                    btnAjukanAksi.disabled = false;
+                    btnAjukanAksi.innerHTML = origText;
+                    alert('Terjadi kendala saat mengirim pengajuan. Silakan coba lagi.');
                 }
             });
         }
