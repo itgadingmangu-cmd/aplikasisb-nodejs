@@ -1,6 +1,6 @@
 <!-- Sidebar Responsif Global (Otomatis menyesuaikan laptop dan HP tanpa merusak fungsi) -->
 <div class="d-flex flex-column flex-shrink-0 p-3 text-white bg-primary sidebar-responsive" style="width: 280px; min-height: 100vh;">
-    
+
     <!-- 1. NAMA & LOGO APLIKASI INDUK (GLOBAL) -->
     <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
         <% if (typeof globalSetting !== 'undefined' && globalSetting && globalSetting.logo_aplikasi) { %>
@@ -16,25 +16,42 @@
     </a>
 
     <!-- 2. KOTAK LEMBAGA AKTIF -->
+    <%
+        let _activeLembaga = null;
+        if (typeof lembagaData !== "undefined" && lembagaData && lembagaData.nama_organisasi) {
+            _activeLembaga = lembagaData;
+        } else if (typeof lembaga !== "undefined" && lembaga && lembaga.nama_organisasi) {
+            _activeLembaga = lembaga;
+        } else if (typeof activeLembaga !== "undefined" && activeLembaga && activeLembaga.nama_organisasi) {
+            _activeLembaga = activeLembaga;
+        } else if (typeof userSession !== "undefined" && userSession && userSession.nama_organisasi) {
+            _activeLembaga = {
+                nama_organisasi: userSession.nama_organisasi,
+                logo: userSession.logo_lembaga || userSession.logo || null
+            };
+        }
+
+        let _lembagaNama = (_activeLembaga && _activeLembaga.nama_organisasi) ? String(_activeLembaga.nama_organisasi).trim() : "";
+        let _lembagaLogo = null;
+        if (_activeLembaga) {
+            _lembagaLogo = _activeLembaga.logo || _activeLembaga.logo_icon || _activeLembaga.foto || null;
+        }
+        if (!_lembagaLogo && typeof userSession !== 'undefined' && userSession) {
+            _lembagaLogo = userSession.logo_lembaga || userSession.logo || null;
+        }
+    %>
     <div class="bg-white text-dark p-2 rounded-3 mb-3 shadow-sm d-flex align-items-center">
-        <% 
-            let activeLembaga = (typeof lembagaData !== 'undefined' && lembagaData) ? lembagaData : ((typeof lembaga !== 'undefined' && lembaga) ? lembaga : null);
-            let lembagaLogo = null;
-            if (activeLembaga) {
-                lembagaLogo = activeLembaga.logo || activeLembaga.logo_icon || activeLembaga.foto;
-            }
-        %>
-        <% if (lembagaLogo) { %>
-            <img src="/uploads/logo/<%= lembagaLogo %>" alt="Logo" class="rounded-circle me-2 border" style="width: 38px; height: 38px; object-fit: cover;" onerror="this.style.display='none'">
+        <% if (_lembagaLogo) { %>
+            <img src="/uploads/logo/<%= _lembagaLogo %>" alt="Logo" class="rounded-circle me-2 border" style="width: 38px; height: 38px; object-fit: cover;" onerror="this.style.display='none'">
         <% } else { %>
             <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 38px; height: 38px; font-size: 0.9rem; min-width: 38px;">
-                <%= activeLembaga && activeLembaga.nama_organisasi ? activeLembaga.nama_organisasi.charAt(0).toUpperCase() : 'L' %>
+                <%= _lembagaNama ? _lembagaNama.charAt(0).toUpperCase() : 'L' %>
             </div>
         <% } %>
         <div class="overflow-hidden">
             <span class="d-block text-muted" style="font-size: 0.65rem; line-height: 1;">Lembaga Aktif:</span>
-            <strong class="text-truncate d-block text-dark fw-bold" style="font-size: 0.85rem;" title="<%= activeLembaga ? activeLembaga.nama_organisasi : 'Nama Lembaga' %>">
-                <%= activeLembaga ? activeLembaga.nama_organisasi : 'Nama Lembaga' %>
+            <strong class="text-truncate d-block text-dark fw-bold" style="font-size: 0.85rem;" title="<%= _lembagaNama || 'Nama Lembaga' %>">
+                <%= _lembagaNama || 'Nama Lembaga' %>
             </strong>
         </div>
     </div>
@@ -47,16 +64,15 @@
     <!-- 4. NAVIGASI MENU UTAMA -->
     <ul class="nav nav-pills flex-column mb-auto" id="sidebarNav">
         <%
-    const _jabatan = String((typeof userSession !== 'undefined' && userSession && userSession.jabatan) || '').trim().toLowerCase();
-    const _bidang = String((typeof userSession !== 'undefined' && userSession && userSession.nama_bidang) || '').trim().toLowerCase();
-    const _username = String((typeof userSession !== 'undefined' && userSession && userSession.username) || '').trim().toLowerCase();
-    const _role = String((typeof userSession !== 'undefined' && userSession && userSession.role) || '').trim().toLowerCase();
-    const _isWakilBendahara = _jabatan.includes('wakil') || _bidang.includes('wakil') || _username.includes('wakil');
-    const _isBendaharaUtama = !_isWakilBendahara && (_role === 'bendahara_utama' || _jabatan === 'bendahara' || _jabatan.includes('bendahara utama') || _bidang === 'bendahara' || _username.startsWith('bendahara'));
-    const _isKetua = _role === 'ketua' || _jabatan === 'ketua' || _bidang === 'ketua' || _username === 'ketua';
-    const _isAdminStruktural = !_isBendaharaUtama && !_isKetua && (_role === 'admin_lembaga' || _role === 'superadmin');
-%>
-<% if (typeof userSession !== 'undefined') { %>
+            const _jabatan = String((typeof userSession !== 'undefined' && userSession && userSession.jabatan) || '').trim().toLowerCase();
+            const _bidang = String((typeof userSession !== 'undefined' && userSession && userSession.nama_bidang) || '').trim().toLowerCase();
+            const _role = String((typeof userSession !== 'undefined' && userSession && userSession.role) || '').trim().toLowerCase();
+            const _isWakilBendahara = _jabatan.includes('wakil') || _bidang.includes('wakil');
+            const _isBendaharaUtama = !_isWakilBendahara && (_role === 'bendahara_utama' || _jabatan === 'bendahara' || _jabatan.includes('bendahara utama') || _bidang === 'bendahara');
+            const _isKetua = _role === 'ketua' || _jabatan === 'ketua' || _bidang === 'ketua';
+            const _isAdminStruktural = !_isBendaharaUtama && !_isKetua && (_role === 'admin_lembaga' || _role === 'superadmin');
+        %>
+        <% if (typeof userSession !== 'undefined' && userSession) { %>
 
             <% if (_isAdminStruktural) { %>
                 <!-- MENU ORGANISASI (Khusus Admin Lembaga & Superadmin) -->
@@ -82,7 +98,7 @@
                 </li>
             <% } %>
 
-            <!-- MENU PERENCANAAN (Dapat diakses Admin Lembaga & Pengurus Bidang) -->
+            <!-- MENU PERENCANAAN -->
             <li class="nav-item mb-1">
                 <a href="#prokerSubmenu" data-bs-toggle="collapse" class="nav-link text-white d-flex justify-content-between align-items-center text-decoration-none">
                     <span><i class="fas fa-tasks me-2"></i> Perencanaan</span>
@@ -126,7 +142,6 @@
                         <li class="nav-item mb-1">
                             <a href="/lembaga-admin/realisasi" class="nav-link text-white small py-1 sub-menu-link"><i class="fas fa-angle-right me-1"></i> Laporan Realisasi</a>
                         </li>
-                        <!-- Menu Konsolidasi Bulanan yang Disempurnakan -->
                         <li class="nav-item mb-1">
                             <a href="/lembaga-admin/bendahara/proposal-bulanan" class="nav-link text-white small py-1 sub-menu-link"><i class="fas fa-angle-right me-1"></i> Cetak Rekap Bulanan</a>
                         </li>
@@ -186,8 +201,8 @@
         <div class="d-flex align-items-center text-white text-decoration-none mb-2">
             <i class="fas fa-user-circle fs-3 me-2"></i>
             <div>
-                <strong class="d-block small"><%= typeof userSession !== 'undefined' ? userSession.nama_lengkap : 'User' %></strong>
-                <span class="text-white-50" style="font-size: 0.75rem;"><%= typeof userSession !== 'undefined' ? (userSession.role === 'superadmin' ? 'Superadmin' : (userSession.nama_bidang ? userSession.nama_bidang : 'Admin Lembaga')) : '' %></span>
+                <strong class="d-block small"><%= typeof userSession !== 'undefined' && userSession ? userSession.nama_lengkap : 'User' %></strong>
+                <span class="text-white-50" style="font-size: 0.75rem;"><%= typeof userSession !== 'undefined' && userSession ? (userSession.role === 'superadmin' ? 'Superadmin' : (userSession.nama_bidang ? userSession.nama_bidang : 'Admin Lembaga')) : '' %></span>
             </div>
         </div>
         <a href="/logout" class="btn btn-light btn-sm w-100 text-danger fw-bold rounded-3">

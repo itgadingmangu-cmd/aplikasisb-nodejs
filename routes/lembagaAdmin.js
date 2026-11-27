@@ -318,8 +318,89 @@ const uploadRealisasi = multer({
 async function isLoggedIn(req, res, next) {
     if (req.session && req.session.user) {
         await hydrateUserSession(req);
+
+    try {
+        const _u = req.session && req.session.user ? req.session.user : null;
+        const _lId = getActiveLembagaId(_u);
+        if (_lId) {
+            let _org = null;
+            try {
+                _org = await Lembaga.findByPk(_lId, {
+                    attributes: ["id", "nama_organisasi", "nama_ketua", "logo", "kop_surat", "stempel", "alamat", "nomor_hp", "batas_anggaran_proposal"]
+                });
+            } catch (_) {
+                _org = await Lembaga.findByPk(_lId, {
+                    attributes: ["id", "nama_organisasi", "logo"]
+                });
+            }
+            if (_org) {
+                const _plain = typeof _org.get === "function" ? _org.get({ plain: true }) : _org;
+                res.locals.activeLembaga = _plain;
+                res.locals.lembagaData = _plain;
+                res.locals.lembaga = _plain;
+                if (req.session && req.session.user) {
+                    if (!req.session.user.nama_organisasi && _plain.nama_organisasi) {
+                        req.session.user.nama_organisasi = _plain.nama_organisasi;
+                    }
+                    if (!req.session.user.logo_lembaga && _plain.logo) {
+                        req.session.user.logo_lembaga = _plain.logo;
+                    }
+                    res.locals.userSession = req.session.user;
+                }
+            }
+        }
+    } catch (_errLembaga) {}
+
         return next();
     }
+
+async function attachActiveLembagaLocals(req, res) {
+    const user = req.session && req.session.user ? req.session.user : null;
+    const lembagaId = getActiveLembagaId(user);
+    if (!lembagaId) return null;
+
+    let activeOrg = null;
+    try {
+        activeOrg = await Lembaga.findByPk(lembagaId, {
+            attributes: ["id", "nama_organisasi", "nama_ketua", "logo", "kop_surat", "stempel", "alamat", "nomor_hp", "batas_anggaran_proposal"]
+        });
+    } catch (_) {
+        try {
+            activeOrg = await Lembaga.findByPk(lembagaId, {
+                attributes: ["id", "nama_organisasi", "logo"]
+            });
+        } catch (err) {
+            console.error("[LEMBAGA-LOCALS-WARN]:", err.message);
+        }
+    }
+
+    if (activeOrg) {
+        const plainOrg = typeof activeOrg.get === "function" ? activeOrg.get({ plain: true }) : activeOrg;
+        res.locals.activeLembaga = plainOrg;
+        if (!res.locals.lembagaData) res.locals.lembagaData = plainOrg;
+        if (!res.locals.lembaga) res.locals.lembaga = plainOrg;
+
+        if (req.session && req.session.user) {
+            if (!req.session.user.nama_organisasi && plainOrg.nama_organisasi) {
+                req.session.user.nama_organisasi = plainOrg.nama_organisasi;
+            }
+            if (!req.session.user.logo_lembaga && plainOrg.logo) {
+                req.session.user.logo_lembaga = plainOrg.logo;
+            }
+            res.locals.userSession = req.session.user;
+        }
+    }
+    return activeOrg;
+}
+
+// Bungkus isLoggedIn agar setiap rute otomatis membawa identitas lembaga aktif
+const _baseIsLoggedIn = isLoggedIn;
+isLoggedIn = async function(req, res, next) {
+    return _baseIsLoggedIn(req, res, async () => {
+        await attachActiveLembagaLocals(req, res);
+        return next();
+    });
+};
     return res.redirect('/login');
 }
 
@@ -383,6 +464,10 @@ router.get('/profile', isLoggedIn, async (req, res) => {
             currentUser,
             success_msg,
             error_msg
+        ,
+            activeLembaga: res.locals.activeLembaga || null,
+            lembagaData: res.locals.activeLembaga || null,
+            lembaga: res.locals.activeLembaga || null
         });
     } catch (err) {
         console.error('Gagal memuat halaman profil:', err);
@@ -2438,6 +2523,10 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
             batasAnggaranProposal,
             success_msg,
             error_msg
+        ,
+            activeLembaga: res.locals.activeLembaga || lembaga || null,
+            lembagaData: res.locals.activeLembaga || lembaga || null,
+            lembaga: res.locals.activeLembaga || lembaga || null
         });
     } catch (err) {
         console.error('Gagal memuat daftar pengajuan:', err);
@@ -2513,6 +2602,10 @@ router.get('/proposal/approval', isLoggedIn, ensureApprovalAccess, async (req, r
             prokers,
             success_msg,
             error_msg
+        ,
+            activeLembaga: res.locals.activeLembaga || null,
+            lembagaData: res.locals.activeLembaga || null,
+            lembaga: res.locals.activeLembaga || null
         });
     } catch (err) {
         console.error('Gagal memuat halaman approval proposal:', err);
