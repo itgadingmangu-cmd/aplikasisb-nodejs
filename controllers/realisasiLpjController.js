@@ -33,6 +33,89 @@ const ALLOWED_FIELDS = new Set([
     'bukti_transfer_bendahara'
 ]);
 
+const NON_EDITOR_ROLES = new Set([
+    'ketua',
+    'bendahara_utama',
+    'bendahara',
+    'sekretaris',
+    'pimpinan',
+    'admin_lembaga',
+    'lembaga_admin'
+]);
+
+function parsePositiveId(rawId) {
+    const num = Number(rawId);
+    return Number.isInteger(num) && num > 0 ? num : null;
+}
+
+function normalizeRole(rawRole) {
+    return String(rawRole || '').trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function resolveUserContext(req) {
+    const sess = req && req.session ? req.session : {};
+    const user = (sess.user && typeof sess.user === 'object')
+        ? sess.user
+        : ((req && req.user && typeof req.user === 'object') ? req.user : {});
+
+    const role = normalizeRole(user.role || sess.role);
+    const bidangId = parsePositiveId(user.id_bidang || user.bidangId || sess.id_bidang || sess.bidangId);
+
+    return {
+        user,
+        role,
+        bidangId
+    };
+}
+
+function evaluateLpjAccess(req, proposal) {
+    const { role, bidangId } = resolveUserContext(req);
+    const prokerBidangId = proposal && proposal.Proker
+        ? parsePositiveId(proposal.Proker.bidangId || proposal.Proker.id_bidang)
+        : null;
+
+    if (role === 'superadmin') {
+        return {
+            canEditLpj: true,
+            accessMode: 'edit',
+            accessNote: 'Mode pengisian & penyuntingan LPJ aktif (Superadmin).'
+        };
+    }
+
+    if (NON_EDITOR_ROLES.has(role)) {
+        let peranLabel = 'Pemeriksa / Pemantau';
+        if (role === 'ketua' || role === 'pimpinan') {
+            peranLabel = 'Ketua (Mode Pemeriksaan Pelaksanaan Kegiatan)';
+        } else if (role === 'bendahara_utama' || role === 'bendahara') {
+            peranLabel = 'Bendahara Utama (Mode Pemeriksaan Anggaran & Realisasi)';
+        } else if (role === 'sekretaris') {
+            peranLabel = 'Sekretaris (Mode Pemeriksaan Dokumen)';
+        } else if (role === 'admin_lembaga' || role === 'lembaga_admin') {
+            peranLabel = 'Admin Lembaga (Mode Pemantauan)';
+        }
+
+        return {
+            canEditLpj: false,
+            accessMode: 'review',
+            accessNote: `${peranLabel} — tampilan baca-saja untuk meninjau laporan LPJ tanpa mengubah data bidang.`
+        };
+    }
+
+    if (bidangId && prokerBidangId && bidangId === prokerBidangId) {
+        return {
+            canEditLpj: true,
+            accessMode: 'edit',
+            accessNote: 'Mode pengisian LPJ aktif untuk pengurus bidang pengampu program kerja.'
+        };
+    }
+
+    return {
+        canEditLpj: false,
+        accessMode: 'readonly',
+        accessNote: 'Mode baca-saja — Anda hanya dapat melihat laporan LPJ pada bidang ini.'
+    };
+}
+
 function resolveTahunLpj(req) {
     const fallbackYear = String(new Date().getFullYear());
     const candidate =
@@ -107,9 +190,34 @@ function safeUnlinkOldFile(relativeOrFilename, fallbackSubdir = 'lpj') {
     }
 }
 
-function parsePositiveId(rawId) {
-    const num = Number(rawId);
-    return Number.isInteger(num) && num > 0 ? num : null;
+function cleanupUploadedRequestFiles(req) {
+    if (!req || !req.files || typeof req.files !== 'object') {
+        return;
+    }
+    const groups = Object.values(req.files);
+    for (const list of groups) {
+        if (!Array.isArray(list)) continue;
+        for (const fileObj of list) {
+            if (!fileObj) continue;
+            if (fileObj.path && typeof fileObj.path === 'string') {
+                const resolved = path.resolve(fileObj.path);
+                if (resolved.startsWith(PUBLIC_UPLOADS_ROOT + path.sep)) {
+                    try {
+                        if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+                            fs.unlinkSync(resolved);
+                        }
+                    } catch (err) {
+                        console.warn('Gagal membersihkan file unggahan tertolak:', err.message);
+                    }
+                }
+            } else {
+                const relPath = extractUploadedFilePath({ files: { _tmp: [fileObj] } }, ['_tmp']);
+                if (relPath) {
+                    safeUnlinkOldFile(relPath);
+                }
+            }
+        }
+    }
 }
 
 function sanitizeAnggaran(rawVal, fallbackVal = 0) {
@@ -216,12 +324,17 @@ const realisasiLpjController = {
             }
 
             const totalRealisasiTercatat = await hitungTotalRealisasiBiaya(proposal.prokerId);
+            const { user } = resolveUserContext(req);
+            const access = evaluateLpjAccess(req, proposal);
 
             return res.render('proker/form_lpj', {
                 title: `Laporan Pertanggungjawaban (LPJ) - ${proposal.Proker ? proposal.Proker.nama_program : 'Proposal'}`,
                 proposal,
                 totalRealisasiTercatat,
-                userSession: req.session.user
+                canEditLpj: access.canEditLpj,
+                accessMode: access.accessMode,
+                accessNote: access.accessNote,
+                userSession: user
             });
         } catch (error) {
             console.error('ERROR FORM LPJ:', error);
@@ -235,17 +348,29 @@ const realisasiLpjController = {
         try {
             const proposalId = parsePositiveId(req.params.id);
             if (!proposalId) {
+                cleanupUploadedRequestFiles(req);
                 req.session.error_msg = 'ID Proposal tidak valid.';
                 return res.redirect('/lembaga-admin/proposal');
             }
 
-            const { realisasi_anggaran, deskripsi_kegiatan } = req.body || {};
-
-            const proposal = await Proposal.findByPk(proposalId);
+            const proposal = await Proposal.findOne({
+                where: { id: proposalId },
+                include: [{ model: Proker, as: 'Proker' }]
+            });
             if (!proposal) {
+                cleanupUploadedRequestFiles(req);
                 req.session.error_msg = 'Proposal tidak ditemukan.';
                 return res.redirect('/lembaga-admin/proposal');
             }
+
+            const access = evaluateLpjAccess(req, proposal);
+            if (!access.canEditLpj) {
+                cleanupUploadedRequestFiles(req);
+                req.session.error_msg = 'Anda tidak memiliki hak untuk mengubah data LPJ pada pengajuan ini (mode pemeriksaan/baca-saja).';
+                return res.redirect(`/lembaga-admin/proker/proposal/lpj/${proposalId}`);
+            }
+
+            const { realisasi_anggaran, deskripsi_kegiatan } = req.body || {};
 
             const totalRealisasiTercatat = await hitungTotalRealisasiBiaya(proposal.prokerId);
             const hasManualNominal = realisasi_anggaran !== undefined && String(realisasi_anggaran).trim() !== '';
@@ -315,6 +440,7 @@ const realisasiLpjController = {
             req.session.success_msg = 'Laporan Pertanggungjawaban (LPJ) berhasil disimpan dan dikirim untuk direview!';
             return res.redirect(`/lembaga-admin/proker/proposal/lpj/${proposalId}`);
         } catch (error) {
+            cleanupUploadedRequestFiles(req);
             console.error('ERROR STORE/UPDATE LPJ:', error);
             if (error && error.code === 'LIMIT_FILE_SIZE') {
                 req.session.error_msg = 'Gagal menyimpan LPJ: Ukuran file melebihi batas maksimal 512 KB!';
