@@ -122,7 +122,7 @@
                                         <tbody>
                                             <% if (lembagaData && lembagaData.Bidangs && lembagaData.Bidangs.length > 0) { %>
                                                 <% lembagaData.Bidangs.forEach((b, index) => { %>
-                                                    <% const pengurusUser = Array.isArray(b.Users) ? b.Users.find(u => u.role === 'pengurus_bidang') : null; %>
+                                                    <% const pengurusUser = Array.isArray(b.Users) ? (b.Users.find(u => u.role === 'pengurus_bidang') || b.Users[0] || null) : null; %>
                                                     <tr>
                                                         <td>
                                                             <% if (!pengurusUser) { %>

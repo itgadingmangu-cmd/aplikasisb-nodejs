@@ -949,18 +949,21 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
         });
 
         const totalBidangTahunIni = await Bidang.count({ where: { tahun: tahunInt } });
+        let clonedCount = 0;
 
         if (totalBidangTahunIni === 0) {
             const tahunAcuan = tahunInt - 1;
             let listBidangAcuan = await Bidang.findAll({
                 where: { tahun: tahunAcuan },
-                include: [{ model: Proker, as: 'Prokers' }]
+                include: [{ model: Proker, as: 'Prokers' }],
+                order: [['id', 'ASC']]
             });
 
             if (listBidangAcuan.length === 0) {
                 listBidangAcuan = await Bidang.findAll({
                     where: { tahun: 2026 },
-                    include: [{ model: Proker, as: 'Prokers' }]
+                    include: [{ model: Proker, as: 'Prokers' }],
+                    order: [['id', 'ASC']]
                 });
             }
 
@@ -971,6 +974,18 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
                     lembagaId: bidangLama.lembagaId,
                     tahun: tahunInt
                 });
+
+                if (typeof User !== 'undefined' && User) {
+                    await User.update(
+                        { id_bidang: bidangBaru.id },
+                        {
+                            where: {
+                                id_bidang: bidangLama.id,
+                                ...(bidangLama.lembagaId ? { lembagaId: bidangLama.lembagaId } : {})
+                            }
+                        }
+                    );
+                }
 
                 if (bidangLama.Prokers && bidangLama.Prokers.length > 0) {
                     const prokerPayloads = bidangLama.Prokers.map(prokerLama => ({
@@ -985,11 +1000,25 @@ app.post('/siklus-ta/sinkronisasi', isAuthenticated, isSuperAdmin, async (req, r
                     }));
                     await Proker.bulkCreate(prokerPayloads);
                 }
+                clonedCount += 1;
             }
-            req.session.success_msg = `Tahun Anggaran ${tahunInt} berhasil disinkronkan dan dikloning dengan struktur bersih!`;
-        } else {
-            req.session.success_msg = `Tahun Anggaran ${tahunInt} sudah memiliki data sebelumnya.`;
         }
+
+        const pengaturan = await Pengaturan.findOne();
+        if (pengaturan) {
+            pengaturan.tahun_aktif = tahunInt;
+            await pengaturan.save();
+            if (typeof invalidateGlobalSettingCache === 'function') {
+                invalidateGlobalSettingCache();
+            }
+        }
+
+        await SiklusTahun.update({ status: 'Arsip' }, { where: {} });
+        await SiklusTahun.update({ status: 'Aktif' }, { where: { tahun: tahunBaruStr } });
+
+        req.session.success_msg = clonedCount > 0
+            ? `Tahun Anggaran ${tahunInt} berhasil disinkronkan (${clonedCount} bidang), dikloning bersih, dan diaktifkan!`
+            : `Tahun Anggaran ${tahunInt} sudah memiliki data sebelumnya dan telah diaktifkan sebagai tahun berjalan.`;
 
         return res.redirect('/');
     } catch (err) {
