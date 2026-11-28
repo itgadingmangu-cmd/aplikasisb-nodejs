@@ -129,6 +129,12 @@ const prokerController = {
             }
 
             proposal.status = 'Diajukan';
+            if ('status_pencairan' in proposal) {
+                proposal.status_pencairan = null;
+            }
+            if ('catatan_pencairan' in proposal) {
+                proposal.catatan_pencairan = null;
+            }
             await proposal.save();
 
             req.session.success_msg = 'Proposal berhasil diajukan kepada Ketua/Pimpinan!';
