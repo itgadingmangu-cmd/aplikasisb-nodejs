@@ -2863,7 +2863,7 @@ router.get('/diagnostik/test-migrasi-2027', isLoggedIn, isAdminLembaga, async (r
             const countProposalAktif = await Proposal.count({
                 where: {
                     prokerId: prokerIds2027,
-                    status: { [Op.notIn]: ['Draft', 'Belum Ada Draf'] }
+                    status: { [Op.ne]: 'Draft' }
                 }
             });
             if (countProposalAktif > 0) proposalCleanState = false;
