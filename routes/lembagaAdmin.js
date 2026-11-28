@@ -21,6 +21,7 @@ const {
     RincianBiaya,
     RealisasiBiaya,
     Proposal,
+    RealisasiLpj,
     Pengaturan
 } = require('../models');
 
@@ -46,7 +47,15 @@ const uploadLpjFiles = (() => {
     });
     return multer({
         storage: lpjStorage,
-        limits: { fileSize: 512 * 1024 }
+        limits: { fileSize: 512 * 1024 },
+        fileFilter: (_req, file, cb) => {
+            const allowedExt = /\.(jpe?g|png|webp)$/i;
+            const allowedMime = /^image\/(jpeg|png|webp)$/i;
+            if (allowedExt.test(path.extname(file.originalname || '')) && allowedMime.test(file.mimetype || '')) {
+                return cb(null, true);
+            }
+            return cb(new Error('Format foto LPJ tidak valid! Hanya diizinkan JPG, PNG, atau WEBP maksimal 512 KB.'));
+        }
     }).any();
 })();
 
@@ -315,45 +324,6 @@ const uploadRealisasi = multer({
 }).single('bukti_nota');
 
 // --- MIDDLEWARE AUTENTIKASI & OTORISASI KETAT ---
-async function isLoggedIn(req, res, next) {
-    if (req.session && req.session.user) {
-        await hydrateUserSession(req);
-
-    try {
-        const _u = req.session && req.session.user ? req.session.user : null;
-        const _lId = getActiveLembagaId(_u);
-        if (_lId) {
-            let _org = null;
-            try {
-                _org = await Lembaga.findByPk(_lId, {
-                    attributes: ["id", "nama_organisasi", "nama_ketua", "logo", "kop_surat", "stempel", "alamat", "nomor_hp", "batas_anggaran_proposal"]
-                });
-            } catch (_) {
-                _org = await Lembaga.findByPk(_lId, {
-                    attributes: ["id", "nama_organisasi", "logo"]
-                });
-            }
-            if (_org) {
-                const _plain = typeof _org.get === "function" ? _org.get({ plain: true }) : _org;
-                res.locals.activeLembaga = _plain;
-                res.locals.lembagaData = _plain;
-                res.locals.lembaga = _plain;
-                if (req.session && req.session.user) {
-                    if (!req.session.user.nama_organisasi && _plain.nama_organisasi) {
-                        req.session.user.nama_organisasi = _plain.nama_organisasi;
-                    }
-                    if (!req.session.user.logo_lembaga && _plain.logo) {
-                        req.session.user.logo_lembaga = _plain.logo;
-                    }
-                    res.locals.userSession = req.session.user;
-                }
-            }
-        }
-    } catch (_errLembaga) {}
-
-        return next();
-    }
-
 async function attachActiveLembagaLocals(req, res) {
     const user = req.session && req.session.user ? req.session.user : null;
     const lembagaId = getActiveLembagaId(user);
@@ -362,20 +332,20 @@ async function attachActiveLembagaLocals(req, res) {
     let activeOrg = null;
     try {
         activeOrg = await Lembaga.findByPk(lembagaId, {
-            attributes: ["id", "nama_organisasi", "nama_ketua", "logo", "kop_surat", "stempel", "alamat", "nomor_hp", "batas_anggaran_proposal"]
+            attributes: ['id', 'nama_organisasi', 'nama_ketua', 'logo', 'kop_surat', 'stempel', 'alamat', 'nomor_hp', 'batas_anggaran_proposal']
         });
     } catch (_) {
         try {
             activeOrg = await Lembaga.findByPk(lembagaId, {
-                attributes: ["id", "nama_organisasi", "logo"]
+                attributes: ['id', 'nama_organisasi', 'logo']
             });
         } catch (err) {
-            console.error("[LEMBAGA-LOCALS-WARN]:", err.message);
+            console.error('[LEMBAGA-LOCALS-WARN]:', err.message);
         }
     }
 
     if (activeOrg) {
-        const plainOrg = typeof activeOrg.get === "function" ? activeOrg.get({ plain: true }) : activeOrg;
+        const plainOrg = typeof activeOrg.get === 'function' ? activeOrg.get({ plain: true }) : activeOrg;
         res.locals.activeLembaga = plainOrg;
         if (!res.locals.lembagaData) res.locals.lembagaData = plainOrg;
         if (!res.locals.lembaga) res.locals.lembaga = plainOrg;
@@ -393,14 +363,12 @@ async function attachActiveLembagaLocals(req, res) {
     return activeOrg;
 }
 
-// Bungkus isLoggedIn agar setiap rute otomatis membawa identitas lembaga aktif
-const _baseIsLoggedIn = isLoggedIn;
-isLoggedIn = async function(req, res, next) {
-    return _baseIsLoggedIn(req, res, async () => {
+async function isLoggedIn(req, res, next) {
+    if (req.session && req.session.user) {
+        await hydrateUserSession(req);
         await attachActiveLembagaLocals(req, res);
         return next();
-    });
-};
+    }
     return res.redirect('/login');
 }
 
@@ -463,8 +431,7 @@ router.get('/profile', isLoggedIn, async (req, res) => {
             userSession: req.session.user,
             currentUser,
             success_msg,
-            error_msg
-        ,
+            error_msg,
             activeLembaga: res.locals.activeLembaga || null,
             lembagaData: res.locals.activeLembaga || null,
             lembaga: res.locals.activeLembaga || null
@@ -770,7 +737,11 @@ router.get('/', isLoggedIn, async (req, res) => {
                 where: prokerWhere,
                 include: [
                     { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
-                    { model: Proposal, as: 'Proposal' },
+                    {
+                        model: Proposal,
+                        as: 'Proposal',
+                        include: [{ model: RealisasiLpj, as: 'RealisasiLpj' }]
+                    },
                     { model: RincianBiaya, as: 'RincianBiayas', attributes: ['id', 'prokerId', 'total', 'bulan'] },
                     { model: RealisasiBiaya, as: 'Realisasis', attributes: ['id', 'prokerId', 'nominal_realisasi'] }
                 ],
@@ -1938,7 +1909,12 @@ router.get('/proker/realisasi/:id', isLoggedIn, async (req, res) => {
                 { model: Bidang, as: 'Bidang', attributes: ['id', 'nama_bidang'] },
                 { model: Lembaga, as: 'Lembaga', attributes: LEMBAGA_LIGHT_ATTRIBUTES },
                 { model: RincianBiaya, as: 'RincianBiayas' },
-                { model: RealisasiBiaya, as: 'Realisasis' }
+                { model: RealisasiBiaya, as: 'Realisasis' },
+                {
+                    model: Proposal,
+                    as: 'Proposal',
+                    include: [{ model: RealisasiLpj, as: 'RealisasiLpj' }]
+                }
             ]
         });
 
@@ -2324,7 +2300,7 @@ router.get('/proker/proposal/:prokerId', isLoggedIn, async (req, res) => {
     try {
         const prokerId = parsePositiveInt(req.params.prokerId);
         const user = await hydrateUserSession(req);
-        console.log("[DETAIL-PROPOSAL-USER]", { id: user && user.id, role: user && user.role, jabatan: user && user.jabatan, nama_bidang: user && user.nama_bidang });
+        console.log('[DETAIL-PROPOSAL-USER]', { id: user && user.id, role: user && user.role, jabatan: user && user.jabatan, nama_bidang: user && user.nama_bidang });
         const lembagaId = getActiveLembagaId(user);
         if (!prokerId || !lembagaId) {
             return res.redirect('/lembaga-admin');
@@ -2479,6 +2455,7 @@ const handleUploadLpjFiles = (req, res, next) => {
 };
 
 router.post('/proker/proposal/lpj/update/:id', isLoggedIn, handleUploadLpjFiles, realisasiLpjController.storeOrUpdateLpj);
+router.post('/proker/proposal/lpj/review/:id', isLoggedIn, realisasiLpjController.reviewLpj);
 
 // --- RUTE APPROVAL & PENCAIRAN ---
 router.post('/proker/proposal/ajukan/:id', isLoggedIn, prokerController.ajukanProposal);
@@ -2523,8 +2500,7 @@ router.get('/proposal', isLoggedIn, async (req, res) => {
             prokers,
             batasAnggaranProposal,
             success_msg,
-            error_msg
-        ,
+            error_msg,
             activeLembaga: res.locals.activeLembaga || lembaga || null,
             lembagaData: res.locals.activeLembaga || lembaga || null,
             lembaga: res.locals.activeLembaga || lembaga || null
@@ -2602,8 +2578,7 @@ router.get('/proposal/approval', isLoggedIn, ensureApprovalAccess, async (req, r
             pengaturan,
             prokers,
             success_msg,
-            error_msg
-        ,
+            error_msg,
             activeLembaga: res.locals.activeLembaga || null,
             lembagaData: res.locals.activeLembaga || null,
             lembaga: res.locals.activeLembaga || null

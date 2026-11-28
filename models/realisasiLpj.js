@@ -1,3 +1,5 @@
+'use strict';
+
 module.exports = (sequelize, DataTypes) => {
     const RealisasiLpj = sequelize.define('RealisasiLpj', {
         id: {
@@ -7,15 +9,28 @@ module.exports = (sequelize, DataTypes) => {
         },
         proposalId: {
             type: DataTypes.INTEGER,
-            allowNull: false
+            allowNull: false,
+            validate: {
+                isInt: { msg: 'proposalId harus berupa bilangan bulat.' },
+                min: { args: [1], msg: 'proposalId tidak valid.' }
+            }
         },
         lembagaId: {
             type: DataTypes.INTEGER,
-            allowNull: false
+            allowNull: false,
+            validate: {
+                isInt: { msg: 'lembagaId harus berupa bilangan bulat.' },
+                min: { args: [1], msg: 'lembagaId tidak valid.' }
+            }
         },
         realisasi_anggaran: {
-            type: DataTypes.INTEGER,
-            defaultValue: 0
+            type: DataTypes.BIGINT,
+            allowNull: false,
+            defaultValue: 0,
+            validate: {
+                isInt: { msg: 'realisasi_anggaran harus berupa angka bulat.' },
+                min: { args: [0], msg: 'realisasi_anggaran tidak boleh bernilai negatif.' }
+            }
         },
         deskripsi_kegiatan: {
             type: DataTypes.TEXT,
@@ -35,7 +50,11 @@ module.exports = (sequelize, DataTypes) => {
         },
         status_lpj: {
             type: DataTypes.STRING,
-            defaultValue: 'Menunggu Review'
+            allowNull: false,
+            defaultValue: 'Menunggu Review',
+            validate: {
+                notEmpty: { msg: 'status_lpj tidak boleh kosong.' }
+            }
         },
         catatan_lpj: {
             type: DataTypes.TEXT,
@@ -47,8 +66,20 @@ module.exports = (sequelize, DataTypes) => {
     });
 
     RealisasiLpj.associate = (models) => {
-        RealisasiLpj.belongsTo(models.Proposal, { foreignKey: 'proposalId', as: 'Proposal' });
-        RealisasiLpj.belongsTo(models.Lembaga, { foreignKey: 'lembagaId', as: 'Lembaga' });
+        if (models.Proposal) {
+            RealisasiLpj.belongsTo(models.Proposal, {
+                foreignKey: 'proposalId',
+                as: 'Proposal',
+                onDelete: 'CASCADE'
+            });
+        }
+        if (models.Lembaga) {
+            RealisasiLpj.belongsTo(models.Lembaga, {
+                foreignKey: 'lembagaId',
+                as: 'Lembaga',
+                onDelete: 'CASCADE'
+            });
+        }
     };
 
     return RealisasiLpj;

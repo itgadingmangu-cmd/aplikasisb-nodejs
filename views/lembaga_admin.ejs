@@ -181,24 +181,25 @@
                         <table class="table table-sm table-hover align-middle mb-0 small">
                             <thead class="table-light">
                                 <tr>
-                                    <th style="width: 35%;">Program Kerja / Kegiatan</th>
-                                    <th style="width: 20%;">Status Terkini</th>
-                                    <th style="width: 35%;">Catatan / Keterangan</th>
-                                    <th style="width: 10%;" class="text-end">Aksi</th>
+                                    <th style="width: 32%;">Program Kerja / Kegiatan</th>
+                                    <th style="width: 25%;">Status Terkini</th>
+                                    <th style="width: 25%;">Catatan / Keterangan</th>
+                                    <th style="width: 18%;" class="text-end">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <% let hasNotif = false; %>
                                 <% if (typeof prokers !== 'undefined' && prokers.length > 0) { %>
                                     <% prokers.forEach(p => { %>
-                                        <% if (p.Proposal && p.Proposal.status && p.Proposal.status !== 'Draft') { %>
+                                        <% const _lpjNotif = (p.Proposal && p.Proposal.RealisasiLpj) ? p.Proposal.RealisasiLpj : null; %>
+                                        <% if ((p.Proposal && p.Proposal.status && p.Proposal.status !== 'Draft') || (_lpjNotif && _lpjNotif.status_lpj)) { %>
                                             <% hasNotif = true; %>
                                             <tr>
                                                 <td class="fw-bold text-dark"><%= p.nama_program || p.nama_proker %></td>
                                                 <td>
                                                     <%
                                                         let badgeClass = 'bg-secondary';
-                                                        let statusText = p.Proposal.status;
+                                                        let statusText = (p.Proposal && p.Proposal.status) ? p.Proposal.status : 'Draft';
                                                         if (statusText === 'Disetujui') {
                                                             badgeClass = 'bg-primary';
                                                         } else if (statusText === 'Dana Dicairkan') {
@@ -208,13 +209,31 @@
                                                         } else if (statusText === 'Perlu Revisi' || statusText === 'Direvisi' || statusText === 'Dana Ditolak') {
                                                             badgeClass = 'bg-danger';
                                                         }
+
+                                                        let lpjBadgeClass = 'bg-info text-dark';
+                                                        const lpjLower = String((_lpjNotif && _lpjNotif.status_lpj) || '').trim().toLowerCase();
+                                                        if (lpjLower.includes('setuju')) {
+                                                            lpjBadgeClass = 'bg-success text-white';
+                                                        } else if (lpjLower.includes('revisi')) {
+                                                            lpjBadgeClass = 'bg-warning text-dark';
+                                                        } else if (lpjLower.includes('review')) {
+                                                            lpjBadgeClass = 'bg-primary text-white';
+                                                        }
                                                     %>
                                                     <span class="badge <%= badgeClass %> px-2 py-1"><%= statusText %></span>
+                                                    <% if (_lpjNotif && _lpjNotif.status_lpj) { %>
+                                                        <span class="badge <%= lpjBadgeClass %> px-2 py-1 ms-1">LPJ: <%= _lpjNotif.status_lpj %></span>
+                                                    <% } %>
                                                 </td>
-                                                <td class="text-muted text-truncate" style="max-width: 200px;" title="<%= p.Proposal.catatan_revisi || 'Sesuai prosedur' %>">
-                                                    <%= p.Proposal.catatan_revisi || '-' %>
+                                                <td class="text-muted text-truncate" style="max-width: 200px;" title="<%= (_lpjNotif && _lpjNotif.catatan_lpj) ? _lpjNotif.catatan_lpj : ((p.Proposal && p.Proposal.catatan_revisi) || 'Sesuai prosedur') %>">
+                                                    <%= (_lpjNotif && _lpjNotif.catatan_lpj) ? _lpjNotif.catatan_lpj : ((p.Proposal && p.Proposal.catatan_revisi) || '-') %>
                                                 </td>
                                                 <td class="text-end">
+                                                    <% if (_lpjNotif && _lpjNotif.status_lpj && p.Proposal) { %>
+                                                        <a href="/lembaga-admin/proker/proposal/lpj/<%= p.Proposal.id %>" class="btn btn-info text-white btn-sm py-0 px-2 me-1" style="font-size: 0.75rem;">
+                                                            <i class="fas fa-clipboard-check"></i> LPJ
+                                                        </a>
+                                                    <% } %>
                                                     <a href="/lembaga-admin/proker/proposal/<%= p.id %>" class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size: 0.75rem;">
                                                         <i class="fas fa-arrow-right"></i> Detail
                                                     </a>
@@ -435,6 +454,7 @@
                             <tbody>
                                 <% if (typeof prokers !== 'undefined' && prokers && prokers.length > 0) { %>
                                     <% prokers.forEach((proker, index) => { %>
+                                        <% const _lpjRow = (proker.Proposal && proker.Proposal.RealisasiLpj) ? proker.Proposal.RealisasiLpj : null; %>
                                         <tr>
                                             <td class="fw-bold text-muted"><%= index + 1 %></td>
                                             <td class="text-start">
@@ -464,11 +484,21 @@
                                                 <span class="badge bg-info bg-opacity-10 text-info px-2 py-1">
                                                     <%= (proker.Proposal && proker.Proposal.status) ? proker.Proposal.status : (proker.status || 'Aktif') %>
                                                 </span>
+                                                <% if (_lpjRow && _lpjRow.status_lpj) { %>
+                                                    <span class="badge bg-primary px-2 py-1 d-inline-block mt-1">
+                                                        LPJ: <%= _lpjRow.status_lpj %>
+                                                    </span>
+                                                <% } %>
                                             </td>
                                             <td>
                                                 <a href="/lembaga-admin/proker/proposal/<%= proker.id %>" class="btn btn-outline-primary btn-sm">
                                                     <i class="fas fa-eye"></i> Kelola
                                                 </a>
+                                                <% if (_lpjRow && _lpjRow.status_lpj && proker.Proposal) { %>
+                                                    <a href="/lembaga-admin/proker/proposal/lpj/<%= proker.Proposal.id %>" class="btn btn-info text-white btn-sm mt-1">
+                                                        <i class="fas fa-clipboard-check"></i> LPJ
+                                                    </a>
+                                                <% } %>
                                             </td>
                                         </tr>
                                     <% }) %>

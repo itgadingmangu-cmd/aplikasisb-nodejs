@@ -20,16 +20,51 @@
 
         <div class="flex-grow-1 p-3 p-md-4">
             <div class="container-fluid px-0">
-                
-                <!-- Header Title (Clean Header) -->
-                <div class="mb-4">
-                    <h2 class="fw-bold text-dark mb-1">Pencatatan Realisasi Anggaran</h2>
-                    <p class="text-muted mb-0">Program Kerja: <strong class="text-primary"><%= proker.nama_program %></strong></p>
+                <%
+                    const _proker = (typeof proker !== 'undefined' && proker) ? proker : {};
+                    const _proposal = (_proker && _proker.Proposal) ? _proker.Proposal : null;
+                    const _lpj = (_proposal && _proposal.RealisasiLpj) ? _proposal.RealisasiLpj : null;
+
+                    const _statusGabungan = [
+                        _proposal && _proposal.status,
+                        _proposal && _proposal.status_pengajuan,
+                        _proposal && _proposal.status_pencairan
+                    ].filter(Boolean).join(' ').toLowerCase();
+
+                    const _danaSudahDicairkan = Boolean(
+                        _proposal && (
+                            _statusGabungan.includes('cair') ||
+                            _statusGabungan.includes('disburs') ||
+                            _lpj
+                        )
+                    );
+                %>
+
+                <!-- Header Title + Aksi Lanjut LPJ -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">Pencatatan Realisasi Anggaran</h2>
+                        <p class="text-muted mb-0">Program Kerja: <strong class="text-primary"><%= _proker.nama_program || '-' %></strong></p>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <% if (_proposal && _danaSudahDicairkan) { %>
+                            <a href="/lembaga-admin/proker/proposal/lpj/<%= _proposal.id %>" class="btn btn-info text-white fw-bold px-3 py-2 shadow-sm">
+                                <i class="fas fa-file-signature me-1"></i> Form LPJ
+                                <% if (_lpj && _lpj.status_lpj) { %>
+                                    <span class="badge bg-light text-dark ms-1"><%= _lpj.status_lpj %></span>
+                                <% } %>
+                            </a>
+                        <% } else if (_proposal) { %>
+                            <a href="/lembaga-admin/proker/proposal/<%= _proposal.id %>" class="btn btn-outline-secondary fw-semibold px-3 py-2" title="Dana proposal belum dicairkan">
+                                <i class="fas fa-lock me-1"></i> LPJ (Menunggu Pencairan)
+                            </a>
+                        <% } %>
+                    </div>
                 </div>
 
                 <% 
-                    let totalRAB = proker.RincianBiayas ? proker.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
-                    let totalRealisasi = proker.Realisasis ? proker.Realisasis.reduce((s, i) => s + (parseFloat(i.nominal_realisasi) || 0), 0) : 0;
+                    let totalRAB = _proker.RincianBiayas ? _proker.RincianBiayas.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) : 0;
+                    let totalRealisasi = _proker.Realisasis ? _proker.Realisasis.reduce((s, i) => s + (parseFloat(i.nominal_realisasi) || 0), 0) : 0;
                     let sisaAnggaran = totalRAB - totalRealisasi;
                 %>
 
@@ -63,7 +98,7 @@
                                 <i class="fas fa-plus-circle text-primary me-2"></i> Input Pengeluaran Riil
                             </h5>
                             <!-- Form dengan multipart/form-data untuk mendukung upload file -->
-                            <form action="/lembaga-admin/proker/realisasi/tambah/<%= proker.id %>" method="POST" enctype="multipart/form-data">
+                            <form action="/lembaga-admin/proker/realisasi/tambah/<%= _proker.id %>" method="POST" enctype="multipart/form-data">
                                 
                                 <!-- PILIHAN KATEGORI REALISASI (SESUAI RAB / DI LUAR RAB) -->
                                 <div class="mb-3">
@@ -75,42 +110,42 @@
                                 </div>
 
                                 <!-- PILIHAN TERMIN / BULAN PELAKSANAAN OTOMATIS SESUAI PROKER -->
-<div class="mb-3">
-    <label class="form-label fw-bold small">Periode Bulan / Termin Pelaporan</label>
-    <select name="termin_bulan" class="form-select form-select-sm" required>
-        <option value="">-- Pilih Bulan / Termin --</option>
-        <% 
-            let activeBulan = [];
-            if (typeof proker !== 'undefined' && proker.waktu_pelaksanaan) {
-                activeBulan = proker.waktu_pelaksanaan.toString().split(',').map(b => b.trim()).filter(Boolean);
-            }
-            
-            // Nama-nama bulan standar untuk mapping
-            const namaBulanMap = {
-                "1": "Januari", "2": "Februari", "3": "Maret", "4": "April",
-                "5": "Mei", "6": "Juni", "7": "Juli", "8": "Agustus",
-                "9": "September", "10": "Oktober", "11": "November", "12": "Desember"
-            };
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Periode Bulan / Termin Pelaporan</label>
+                                    <select name="termin_bulan" class="form-select form-select-sm" required>
+                                        <option value="">-- Pilih Bulan / Termin --</option>
+                                        <% 
+                                            let activeBulan = [];
+                                            if (_proker && _proker.waktu_pelaksanaan) {
+                                                activeBulan = _proker.waktu_pelaksanaan.toString().split(',').map(b => b.trim()).filter(Boolean);
+                                            }
+                                            
+                                            // Nama-nama bulan standar untuk mapping
+                                            const namaBulanMap = {
+                                                "1": "Januari", "2": "Februari", "3": "Maret", "4": "April",
+                                                "5": "Mei", "6": "Juni", "7": "Juli", "8": "Agustus",
+                                                "9": "September", "10": "Oktober", "11": "November", "12": "Desember"
+                                            };
 
-            // Jika ada jadwal pelaksanaan tersimpan, tampilkan sesuai jadwal. Jika kosong, tampilkan 1-12 sebagai cadangan.
-            let listTermin = activeBulan.length > 0 ? activeBulan : ["1","2","3","4","5","6","7","8","9","10","11","12"];
-            
-            listTermin.forEach(bNum => {
-                let namaBulan = namaBulanMap[bNum] ? ` (${namaBulanMap[bNum]})` : '';
-        %>
-            <option value="Bulan ke-<%= bNum %>">Bulan ke-<%= bNum %> (Termin <%= bNum %>)<%= namaBulan %></option>
-        <% }) %>
-    </select>
-    <div class="form-text small text-muted">Pilihan bulan disesuaikan otomatis dengan jadwal pelaksanaan program kerja.</div>
-</div>
+                                            // Jika ada jadwal pelaksanaan tersimpan, tampilkan sesuai jadwal. Jika kosong, tampilkan 1-12 sebagai cadangan.
+                                            let listTermin = activeBulan.length > 0 ? activeBulan : ["1","2","3","4","5","6","7","8","9","10","11","12"];
+                                            
+                                            listTermin.forEach(bNum => {
+                                                let namaBulan = namaBulanMap[bNum] ? ` (${namaBulanMap[bNum]})` : '';
+                                        %>
+                                            <option value="Bulan ke-<%= bNum %>">Bulan ke-<%= bNum %> (Termin <%= bNum %>)<%= namaBulan %></option>
+                                        <% }) %>
+                                    </select>
+                                    <div class="form-text small text-muted">Pilihan bulan disesuaikan otomatis dengan jadwal pelaksanaan program kerja.</div>
+                                </div>
 
                                 <!-- PILIHAN ITEM DARI RAB DENGAN DETAIL BULAN / TERMIN -->
                                 <div class="mb-3" id="wrapperItemRab">
                                     <label class="form-label fw-bold small">Pilih Item dari RAB</label>
                                     <select name="item_rab_terpilih" class="form-select" id="selectItemRab" onchange="isiUraianOtomatis(this)">
                                         <option value="">-- Pilih Item RAB --</option>
-                                        <% if (typeof proker !== 'undefined' && proker.RincianBiayas && proker.RincianBiayas.length > 0) { %>
-                                            <% proker.RincianBiayas.forEach(item => { %>
+                                        <% if (_proker && _proker.RincianBiayas && _proker.RincianBiayas.length > 0) { %>
+                                            <% _proker.RincianBiayas.forEach(item => { %>
                                                 <option value="<%= item.nama_item %>" data-total="<%= item.total %>" data-bulan="<%= item.bulan || 1 %>">
                                                     <%= item.nama_item %> (<%= item.jumlah %> <%= item.satuan %> x Rp <%= parseFloat(item.harga_satuan).toLocaleString('id-ID') %> <%= item.bulan > 1 ? 'x ' + item.bulan + ' Bulan' : '' %> = Total Pagu: Rp <%= parseFloat(item.total).toLocaleString('id-ID') %>)
                                                 </option>
@@ -175,8 +210,8 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <% if (proker.Realisasis && proker.Realisasis.length > 0) { %>
-                                            <% proker.Realisasis.forEach((item, index) => { %>
+                                        <% if (_proker.Realisasis && _proker.Realisasis.length > 0) { %>
+                                            <% _proker.Realisasis.forEach((item, index) => { %>
                                                 <tr>
                                                     <td class="fw-bold text-muted"><%= index + 1 %></td>
                                                     <td>
